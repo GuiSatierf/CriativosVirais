@@ -52,6 +52,20 @@ export const metricsSchema = z.object({
   refunds: integer,
   chargebacks: integer,
 });
+// Aggregates can exceed a single PostgreSQL bigint while remaining exact text.
+const aggregatedInteger = z.string().max(40).regex(/^-?\d+$/).nullable();
+export const aggregatedMetricsSchema = metricsSchema.extend({
+  spend_cents: aggregatedInteger,
+  impressions: aggregatedInteger,
+  clicks: aggregatedInteger,
+  leads: aggregatedInteger,
+  checkouts: aggregatedInteger,
+  approved_sales: aggregatedInteger,
+  revenue_cents: aggregatedInteger,
+  profit_cents: aggregatedInteger,
+  refunds: aggregatedInteger,
+  chargebacks: aggregatedInteger,
+});
 export const recordSchema = metricsSchema
   .extend({
     creative_key: z.string().trim().min(1).max(200),

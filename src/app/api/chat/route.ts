@@ -53,6 +53,7 @@ export function POST(request: Request) {
     const [claimed] = await db
       .update(conversations)
       .set({
+        title: sql`CASE WHEN ${conversations.title}='Nova conversa' THEN ${text.slice(0, 80)} ELSE ${conversations.title} END`,
         processingToken: turn,
         processingUntil: new Date(Date.now() + 15 * 60_000),
       })

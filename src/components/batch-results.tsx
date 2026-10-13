@@ -9,21 +9,16 @@ import {
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import { api, recentPeriod, formatCents } from "@/lib/client";
-const metrics = z.object({
-  approved_sales: z.string().nullable(),
-  revenue_cents: z.string().nullable(),
-  profit_cents: z.string().nullable(),
-  refunds: z.string().nullable(),
-  chargebacks: z.string().nullable(),
-});
+import { aggregatedMetricsSchema, metricNames, metricLabels } from "@/lib/connectors/types";
 const schema = z.object({
   warning: z.string().nullable(),
   items: z.array(
-    z.object({ creativeKey: z.string(), metrics: metrics.nullable() }),
+    z.object({ creativeKey: z.string(), metrics: aggregatedMetricsSchema.nullable() }),
   ),
 });
 export function BatchResults({ batchId }: { batchId: string }) {
   const [period, setPeriod] = useState(recentPeriod);
+  const [campaign, setCampaign] = useState("");
   const [results, setResults] = useState<z.infer<typeof schema>>();
   const [pending, setPending] = useState(false);
   return (
@@ -37,7 +32,7 @@ export function BatchResults({ batchId }: { batchId: string }) {
           try {
             setResults(
               await api(
-                `/api/batches/${batchId}/results?${new URLSearchParams(period)}`,
+                `/api/batches/${batchId}/results?${new URLSearchParams({ ...period, ...(campaign.trim() ? { campaignKey: campaign.trim() } : {}) })}`,
                 schema,
               ),
             );
@@ -61,6 +56,13 @@ export function BatchResults({ batchId }: { batchId: string }) {
           className="w-auto"
           value={period.to}
           onInput={(e) => setPeriod({ ...period, to: e.currentTarget.value })}
+        />
+        <Input
+          aria-label="Campanha dos resultados"
+          placeholder="Campanha (opcional)"
+          className="w-auto"
+          value={campaign}
+          onInput={(event) => setCampaign(event.currentTarget.value)}
         />
         <NativeSelect
           aria-label="Fonte dos resultados"
@@ -88,13 +90,21 @@ export function BatchResults({ batchId }: { batchId: string }) {
         <div key={item.creativeKey} className="rounded-md border p-3 text-sm">
           <strong>{item.creativeKey}</strong>
           {item.metrics ? (
-            <p className="mt-2">
-              Vendas: {item.metrics.approved_sales ?? "Não disponível"} ·
-              Receita: {formatCents(item.metrics.revenue_cents)} · Lucro:{" "}
-              {formatCents(item.metrics.profit_cents)} · Reembolsos:{" "}
-              {item.metrics.refunds ?? "Não disponível"} · Chargebacks:{" "}
-              {item.metrics.chargebacks ?? "Não disponível"}
-            </p>
+            <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {metricNames.map((name) => {
+                const value = item.metrics![name];
+                return (
+                  <div key={name}>
+                    <dt className="text-muted-foreground">{metricLabels[name]}</dt>
+                    <dd>{name.endsWith("_cents")
+                      ? formatCents(value === null ? null : String(value))
+                      : value === null ? "Não disponível"
+                      : typeof value === "number" ? value.toLocaleString("pt-BR", { maximumFractionDigits: 4 })
+                      : BigInt(value).toLocaleString("pt-BR")}</dd>
+                  </div>
+                );
+              })}
+            </dl>
           ) : (
             <p className="mt-2 text-muted-foreground">
               Resultados não disponíveis neste período e fonte.

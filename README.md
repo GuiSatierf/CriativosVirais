@@ -2,6 +2,8 @@
 
 V1 de uma ferramenta em que a IA atua como copywriter de anúncios em vídeo. A fonte de verdade de negócio é [`docs/documento-mestre.md`](docs/documento-mestre.md). O plano original e os contratos das etapas estão em [`docs/PROMPT-code-agent.md`](docs/PROMPT-code-agent.md).
 
+O [registro de entrega das seis fases](docs/entrega-v1.md) relaciona cada fase às funcionalidades e validações realizadas.
+
 ## Funcionalidades implementadas
 
 - Autenticação email/senha com Better Auth, criação automática de tenant e contexto, logout e páginas protegidas.
@@ -14,7 +16,8 @@ V1 de uma ferramenta em que a IA atua como copywriter de anúncios em vídeo. A 
 - Benchmark SQL com window functions: top cinco de cada métrica disponível, interseções e classificações internas de atenção versus venda, sem comparar operações diferentes ou usar limites universais.
 - Webhook autenticado, HMAC-SHA256 do corpo bruto, idempotência por `event_id`, BRL/centavos/datas validados, rate limit em memória por tenant e processamento pg-boss. Evento e enqueue são uma única transação; responder 202 confirma aceitação durável. A fila atualiza snapshots diários a partir dos eventos, incluindo reembolsos e chargebacks.
 - Conector UTMify para o endpoint oficial de resumo, credenciais AES-256-GCM, sincronização manual e cron a cada seis horas. O resumo não é atribuído a criativos.
-- Resultados das levas por janela/fonte, aprendizados privados com níveis de evidência e reutilização na próxima geração. Repetição exige outra rodada comparável; padrões compartilhados usam somente enums finitos e uma frase abstrata fixa, sem nomes, frases privadas ou números da operação.
+- Histórico de conversas reabrível na própria conta, com títulos a partir da primeira mensagem e navegação bloqueada enquanto grava/envia uma resposta.
+- Resultados das levas com as 14 métricas por janela/fonte/campanha, CTR e ROAS derivados somente com denominadores disponíveis e Hook/Body Rate não agregáveis preservados como NULL, aprendizados privados com níveis de evidência e reutilização na próxima geração. Repetição exige outra rodada comparável; padrões compartilhados usam somente enums finitos e uma frase abstrata fixa, sem nomes, frases privadas ou números da operação.
 
 Não há edição/renderização de vídeos, publicação de anúncios nem alterações de campanhas. O conector VK Metrics permanece desabilitado até confirmação de uma API pública oficial, conforme solicitado.
 

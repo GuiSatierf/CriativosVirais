@@ -40,6 +40,8 @@ export async function getBatchResults(
         | "revenueCents"
         | "profitCents"
         | "approvedSales"
+        | "impressions"
+        | "checkouts"
         | "clicks"
         | "leads"
         | "refunds"
@@ -48,6 +50,16 @@ export async function getBatchResults(
       !rows.length || rows.some((r) => r[key] === null)
         ? null
         : rows.reduce((n, r) => n + r[key]!, 0n).toString();
+    const impressions = sum("impressions");
+    const clicks = sum("clicks");
+    const spend = sum("spendCents");
+    const revenue = sum("revenueCents");
+    const ctr = impressions !== null && clicks !== null && BigInt(impressions) > 0n
+      ? 100 * Number(clicks) / Number(impressions)
+      : rows.length === 1 ? rows[0].ctr : null;
+    const roas = spend !== null && revenue !== null && BigInt(spend) > 0n
+      ? Number(revenue) / Number(spend)
+      : rows.length === 1 ? rows[0].roas : null;
     return {
       creativeKey: item.creativeKey,
       hipotese: item.hipotese,
@@ -58,7 +70,11 @@ export async function getBatchResults(
             revenue_cents: sum("revenueCents"),
             profit_cents: sum("profitCents"),
             approved_sales: sum("approvedSales"),
-            clicks: sum("clicks"),
+            impressions,
+            clicks,
+            ctr,
+            roas,
+            checkouts: sum("checkouts"),
             leads: sum("leads"),
             refunds: sum("refunds"),
             chargebacks: sum("chargebacks"),

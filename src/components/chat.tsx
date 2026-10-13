@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Mic, Square, Send, Paperclip } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { UploadArea, uploadFile } from "./upload-area";
@@ -16,10 +17,12 @@ import { publicDataSchema, opening } from "@/lib/ai/schemas";
 import { api } from "@/lib/client";
 export function Chat({
   conversationId,
+  conversations,
   initialMessages,
   configured,
 }: {
   conversationId: string;
+  conversations: { id: string; title: string }[];
   initialMessages: UIMessage[];
   configured: boolean;
 }) {
@@ -121,10 +124,23 @@ export function Chat({
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Seu copywriter</h1>
-        <Button variant="outline" onClick={newChat}>
+        <Button variant="outline" onClick={newChat} disabled={busy || recording || uploading}>
           Nova conversa
         </Button>
       </div>
+      <NativeSelect
+        aria-label="Histórico de conversas"
+        className="w-full max-w-full"
+        value={conversationId}
+        disabled={busy || recording || uploading}
+        onChange={(event) => router.push(`/chat/${event.target.value}`)}
+      >
+        {conversations.map((conversation) => (
+          <NativeSelectOption key={conversation.id} value={conversation.id}>
+            {conversation.title}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
       {!configured && (
         <p className="rounded-md border p-3 text-sm">
           Configure as credenciais e o modelo DeepSeek no servidor para

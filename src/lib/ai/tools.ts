@@ -187,7 +187,7 @@ export function chatTools(
           input.evidence_level === "hipotese" ||
           (row?.metrics &&
             (input.evidence_level === "sinal_atencao"
-              ? row.metrics.hook_rate !== null || row.metrics.body_rate !== null
+              ? row.metrics.ctr !== null || row.metrics.hook_rate !== null || row.metrics.body_rate !== null
               : input.evidence_level === "sinal_clique"
                 ? Number(row.metrics.clicks) > 0
                 : input.evidence_level === "sinal_lead"
