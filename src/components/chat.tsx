@@ -200,8 +200,9 @@ export function Chat({
           kind="audio"
           initialAssetId={audioAsset}
           onTranscript={(text) => {
-            setInput(text);
-            toast.success("Áudio transcrito. Revise o texto e envie.");
+            if (configured && !busy) void sendMessage({ text });
+            else setInput(text);
+            toast.success("Áudio transcrito.");
           }}
         />
       )}

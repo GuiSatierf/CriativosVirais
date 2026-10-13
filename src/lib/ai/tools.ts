@@ -27,6 +27,7 @@ export function chatTools(
   tenantId: string,
   conversationId: string,
   writer: UIMessageStreamWriter,
+  signal?: AbortSignal,
 ) {
   return {
     updateClientContext: tool({
@@ -139,6 +140,7 @@ export function chatTools(
           conversationId,
           quantidade,
           instrucoes,
+          signal,
         );
         writer.write({ type: "data-batch", data: batch });
         return { ...batch, url: `/levas/${batch.id}` };

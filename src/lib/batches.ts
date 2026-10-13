@@ -20,6 +20,7 @@ const qualitySchema = z.object({
 async function quality(
   items: z.infer<typeof batchItemSchema>[],
   system: string,
+  signal?: AbortSignal,
 ) {
   const { object } = await generateObject({
     model: textModel(),
@@ -29,7 +30,7 @@ async function quality(
     system,
     prompt: `Verifique CADA item pelos 15 critérios da seção 26. Falta de prova não autoriza inventar; prova ausente deve estar declarada. Retorne index (base zero), passed e issues para TODOS os itens.\n${untrusted("items", items)}`,
     maxRetries: 1,
-    abortSignal: AbortSignal.timeout(90_000),
+    abortSignal: AbortSignal.any([AbortSignal.timeout(90_000), ...(signal ? [signal] : [])]),
   });
   if (
     object.checks.length !== items.length ||
@@ -44,6 +45,7 @@ export async function generateBatch(
   conversationId: string,
   quantity: number,
   instructions: string,
+  signal?: AbortSignal,
 ) {
   const [context] = await db
     .select()
@@ -61,7 +63,7 @@ export async function generateBatch(
     throw new Error(
       "Confirme produto, público, transformação, ticket, funil e próximo passo antes de gerar.",
     );
-  const system = await buildSystemPrompt(tenantId);
+  const system = await buildSystemPrompt(tenantId, conversationId);
   const { object } = await generateObject({
     model: textModel(),
     providerOptions,
@@ -70,11 +72,11 @@ export async function generateBatch(
     system,
     prompt: `Crie exatamente ${quantity} criativos no template. instrucoes_gravacao e instrucoes_edicao devem ser vazias salvo necessidade real. 3 hooks compatíveis com o mesmo corpo completo falado com CTA. Use somente provas autorizadas. Cada item é uma hipótese explícita.\n${untrusted("generation_request", instructions)}`,
     maxRetries: 1,
-    abortSignal: AbortSignal.timeout(180_000),
+    abortSignal: AbortSignal.any([AbortSignal.timeout(180_000), ...(signal ? [signal] : [])]),
   });
   if (object.items.length !== quantity)
     throw new Error("Unexpected batch size");
-  const checks = await quality(object.items, system);
+  const checks = await quality(object.items, system, signal);
   for (const check of checks.filter((c) => !c.passed)) {
     const regenerated = await generateObject({
       model: textModel(),
@@ -84,15 +86,16 @@ export async function generateBatch(
       system,
       prompt: `Corrija somente este item pelos critérios de qualidade.\n${untrusted("failed_item", { item: object.items[check.index], issues: check.issues })}`,
       maxRetries: 1,
-      abortSignal: AbortSignal.timeout(90_000),
+      abortSignal: AbortSignal.any([AbortSignal.timeout(90_000), ...(signal ? [signal] : [])]),
     });
     object.items[check.index] = regenerated.object;
-    const [verified] = await quality([regenerated.object], system);
+    const [verified] = await quality([regenerated.object], system, signal);
     if (!verified.passed)
       throw new Error(
         "A copy não passou na revisão de qualidade. Ajuste o contexto e tente novamente.",
       );
   }
+  signal?.throwIfAborted();
   return db.transaction(async (tx) => {
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtextextended(${tenantId},1))`,

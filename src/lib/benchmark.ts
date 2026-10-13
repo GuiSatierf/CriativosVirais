@@ -51,6 +51,12 @@ export async function getBenchmark(tenantId: string, input: unknown) {
   const result = await db.execute(sql`
  WITH totals AS (
  SELECT c.creative_key,
+ CASE WHEN count(m.impressions)=count(*) THEN sum(m.impressions) END impressions,
+ CASE WHEN count(m.clicks)=count(*) THEN sum(m.clicks) END clicks,
+ CASE WHEN count(m.leads)=count(*) THEN sum(m.leads) END leads,
+ CASE WHEN count(m.checkouts)=count(*) THEN sum(m.checkouts) END checkouts,
+ CASE WHEN count(m.refunds)=count(*) THEN sum(m.refunds) END refunds,
+ CASE WHEN count(m.chargebacks)=count(*) THEN sum(m.chargebacks) END chargebacks,
  CASE WHEN count(m.approved_sales)=count(*) THEN sum(m.approved_sales) END approved_sales,
  CASE WHEN count(m.revenue_cents)=count(*) THEN sum(m.revenue_cents) END revenue_cents,
  CASE WHEN count(m.profit_cents)=count(*) THEN sum(m.profit_cents) END profit_cents,
@@ -64,8 +70,8 @@ export async function getBenchmark(tenantId: string, input: unknown) {
  AND ((${p.source}='csv' AND m.period_from=${p.from}::date AND m.period_to=${p.to}::date) OR (${p.source}='webhook' AND m.period_from>=${p.from}::date AND m.period_to<=${p.to}::date))
  AND (${p.campaignKey ?? null}::text IS NULL OR c.campaign_key=${p.campaignKey ?? null}) GROUP BY c.id,c.creative_key
  ), expanded AS (
- SELECT creative_key,metric,value FROM totals CROSS JOIN LATERAL (VALUES ('approved_sales',approved_sales),('revenue_cents',revenue_cents),('profit_cents',profit_cents),('roas',roas),('ctr',ctr),('hook_rate',hook_rate),('body_rate',body_rate)) v(metric,value) WHERE value IS NOT NULL
- ) SELECT creative_key,metric,value::text,ROW_NUMBER() OVER(PARTITION BY metric ORDER BY value DESC,creative_key)::int rank,PERCENT_RANK() OVER(PARTITION BY metric ORDER BY value DESC) percentile FROM expanded ORDER BY metric,rank`);
+ SELECT creative_key,metric,value FROM totals CROSS JOIN LATERAL (VALUES ('spend_cents',spend_cents),('impressions',impressions),('clicks',clicks),('leads',leads),('checkouts',checkouts),('refunds',refunds),('chargebacks',chargebacks),('approved_sales',approved_sales),('revenue_cents',revenue_cents),('profit_cents',profit_cents),('roas',roas::numeric),('ctr',ctr::numeric),('hook_rate',hook_rate::numeric),('body_rate',body_rate::numeric)) v(metric,value) WHERE value IS NOT NULL
+ ) SELECT creative_key,metric,value::text,ROW_NUMBER() OVER(PARTITION BY metric ORDER BY CASE WHEN metric IN ('refunds','chargebacks') THEN -value ELSE value END DESC,creative_key)::int rank,PERCENT_RANK() OVER(PARTITION BY metric ORDER BY CASE WHEN metric IN ('refunds','chargebacks') THEN -value ELSE value END DESC) percentile FROM expanded ORDER BY metric,rank`);
   const summarized = summarizeRankings(result.rows as RankedMetric[]);
   if (!result.rows.length) {
     const known = await db.execute(

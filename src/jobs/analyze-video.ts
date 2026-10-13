@@ -103,7 +103,7 @@ export async function analyzeVideo(data: unknown) {
     );
     const probeData = z
       .object({
-        format: z.object({ duration: z.coerce.number().positive().max(900) }),
+        format: z.object({ duration: z.coerce.number().positive().max(900).optional() }),
         streams: z
           .array(
             z.object({
@@ -115,11 +115,24 @@ export async function analyzeVideo(data: unknown) {
           .max(8),
       })
       .parse(JSON.parse(probe.stdout));
-    const duration = z.coerce
-      .number()
-      .positive()
-      .max(900)
-      .parse(probeData.format.duration);
+    let measuredDuration = probeData.format.duration;
+    // Live WebM recordings omit the duration header. Scan bounded packet output
+    // before extraction so a long recording cannot be silently truncated.
+    if (measuredDuration === undefined) {
+      const packets = await exec("ffprobe", [
+        "-v", "error", "-protocol_whitelist", "file,pipe",
+        "-show_entries", "packet=pts_time,duration_time", "-of", "csv=p=0",
+        ...guardedInput, input,
+      ], { timeout: 30_000, maxBuffer: 16_000_000 });
+      measuredDuration = 0;
+      for (const line of packets.stdout.split("\n")) {
+        const [pts, length] = line.split(",").map(Number);
+        if (Number.isFinite(pts))
+          measuredDuration = Math.max(measuredDuration,
+            pts + (Number.isFinite(length) && length > 0 ? length : 0));
+      }
+    }
+    const duration = z.number().positive().max(900).parse(measuredDuration);
     const audio = join(dir, "audio.mp3");
     await exec(
       "ffmpeg",
@@ -218,6 +231,10 @@ export async function analyzeVideo(data: unknown) {
         maxRetries: 1,
         abortSignal: AbortSignal.timeout(120_000),
       });
+      if (object.frames.length !== chunk.length || chunk.some((_, i) =>
+        object.frames.filter((frame) =>
+          Math.abs(frame.timestamp - (offset + i) * interval) < 0.01).length !== 1))
+        throw new Error("Incomplete frame descriptions");
       descriptions.push(...object.frames);
     }
     const { object } = await generateObject({
@@ -263,6 +280,12 @@ export async function analyzeVideo(data: unknown) {
             transcript: transcript.text,
             segments: object.segments,
             narrative: object.narrative,
+            awarenessEntry: object.awareness_entry,
+            awarenessExit: object.awareness_exit,
+            skeleton: object.skeleton,
+            format: object.format,
+            proofTypes: object.proof_types,
+            cta: object.cta,
             visualNotes: object.visual_notes,
             uncertainties: object.uncertainties,
           },

@@ -143,7 +143,7 @@ export function POST(request: Request) {
           };
         })
         .filter((m) => m.content);
-      const system = await buildSystemPrompt(tenantId);
+      const system = await buildSystemPrompt(tenantId, input.conversationId);
       const stream = createUIMessageStream({
         generateId: randomUUID,
         onError: () =>
@@ -154,7 +154,7 @@ export function POST(request: Request) {
             providerOptions,
             system,
             messages: modelMessages,
-            tools: chatTools(tenantId, input.conversationId, writer),
+            tools: chatTools(tenantId, input.conversationId, writer, request.signal),
             stopWhen: stepCountIs(8),
             maxOutputTokens: 6000,
             abortSignal: request.signal,

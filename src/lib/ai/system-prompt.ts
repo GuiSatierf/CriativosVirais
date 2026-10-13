@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   clientContexts,
@@ -9,10 +9,15 @@ import {
   sharedPatterns,
   creativeMetrics,
   integrations,
+  conversations,
+  messages,
+  creativeSelections,
+  videoAnalyses,
+  creatives,
 } from "@/db/schema";
 export function untrusted(label: string, value: unknown) {
   return `<UNTRUSTED_DATA label=${JSON.stringify(label)}>\n${JSON.stringify(
-    value,
+    value ?? null,
     (_, v) => (typeof v === "bigint" ? v.toString() : v),
   )
     .replaceAll("<", "\\u003c")
@@ -25,7 +30,52 @@ export function masterDocument() {
     "utf8",
   ));
 }
-export async function buildSystemPrompt(tenantId: string) {
+export async function buildSystemPrompt(tenantId: string, conversationId?: string) {
+  let conversationText: { role: string; text: string }[] = [];
+  if (conversationId) {
+    const [conversation] = await db.select({ id: conversations.id })
+      .from(conversations).where(and(eq(conversations.tenantId, tenantId),
+        eq(conversations.id, conversationId))).limit(1);
+    if (!conversation) throw new Error("Conversation not found");
+    const history = await db.select({ role: messages.role, content: messages.content })
+      .from(messages).where(and(eq(messages.tenantId, tenantId),
+        eq(messages.conversationId, conversationId)))
+      .orderBy(desc(messages.createdAt)).limit(10);
+    conversationText = history.reverse().map(({ role, content }) => {
+      const parts = (content as { parts?: unknown[] })?.parts;
+      const text = Array.isArray(parts) ? parts.flatMap((part) => {
+        const value = part as { type?: string; text?: string };
+        return value?.type === "text" && typeof value.text === "string" ? [value.text] : [];
+      }).join("\n").slice(0, 6000) : "";
+      return { role, text };
+    });
+  }
+  const selected = await db.select({ creativeId: creativeSelections.creativeId })
+    .from(creativeSelections).where(eq(creativeSelections.tenantId, tenantId))
+    .orderBy(desc(creativeSelections.createdAt)).limit(12);
+  const assetIds = [...new Set(conversationText.filter((m) => m.role === "user")
+    .flatMap((m) => [...m.text.matchAll(/asset_id:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi)]
+      .map((match) => match[1])))];
+  const evidence = selected.length || assetIds.length ? await db.select({
+    creativeKey: creatives.creativeKey,
+    transcript: videoAnalyses.transcript,
+    segments: videoAnalyses.segments,
+    narrative: videoAnalyses.narrative,
+    awarenessEntry: videoAnalyses.awarenessEntry,
+    awarenessExit: videoAnalyses.awarenessExit,
+    skeleton: videoAnalyses.skeleton,
+    format: videoAnalyses.format,
+    proofTypes: videoAnalyses.proofTypes,
+    cta: videoAnalyses.cta,
+    visualNotes: videoAnalyses.visualNotes,
+    uncertainties: videoAnalyses.uncertainties,
+  }).from(videoAnalyses).leftJoin(creatives, and(
+    eq(creatives.tenantId, tenantId), eq(creatives.id, videoAnalyses.creativeId)))
+    .where(and(eq(videoAnalyses.tenantId, tenantId), or(
+      selected.length ? inArray(videoAnalyses.creativeId, selected.map((s) => s.creativeId)) : undefined,
+      assetIds.length ? inArray(videoAnalyses.assetId, assetIds) : undefined)))
+    .orderBy(desc(videoAnalyses.createdAt)).limit(12) : [];
+
   const [context] = await db
     .select()
     .from(clientContexts)
@@ -105,6 +155,8 @@ export async function buildSystemPrompt(tenantId: string) {
     );
   return [
     await masterDocument(),
+    untrusted("current_conversation", conversationText),
+    untrusted("video_analysis_evidence", evidence),
     untrusted("metric_definitions", definitions),
     untrusted("available_metric_windows", sources),
     untrusted("client_context", context),
