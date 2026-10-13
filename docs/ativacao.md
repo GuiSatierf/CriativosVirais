@@ -1,0 +1,64 @@
+# Ativação dos serviços e preparação para deploy
+
+A V1 está implementada. Você pode configurar os serviços nesta ordem quando estiver pronto. As credenciais de IA são do servidor; UTMify e webhook pertencem à operação autenticada e são conectados na tela Integrações.
+
+## Preparar um ambiente novo
+
+```sh
+npm ci
+npm run setup:env
+npm run doctor
+```
+
+`setup:env` cria `.env` com permissão 600, senha Postgres correspondente à URL, segredos de autenticação/criptografia e credenciais RustFS aleatórios. Ele não altera um arquivo existente e não imprime segredos. As chaves e IDs dos provedores ficam vazios. Para criar um arquivo separado, use `npm run setup:env -- --file /caminho/ambiente.env`; o diretório deve existir.
+
+No ambiente já configurado, preserve os segredos e execute apenas o diagnóstico. Não gere novamente a ENCRYPTION_KEY de uma instalação existente: credenciais de integrações já criptografadas dependem dela.
+
+```sh
+docker compose up -d --wait postgres rustfs
+npm run db:migrate
+npm run storage:init
+npm run doctor -- --connections
+```
+
+Sem `--connections`, o diagnóstico verifica formatos e arquivos sem acessar provedores, banco ou S3. Com essa opção, ele consulta o banco, confere as migrations e consulta bucket/CORS; não grava dados, não aplica migrations, não cria bucket nem envia chamadas pagas de IA. Valores de segredos e detalhes brutos de erros não são exibidos. Saída 1 indica requisito obrigatório pendente; avisos de provedores opcionais não impedem o restante da aplicação. Para exigir todas as chaves/modelos de IA, adicione `--strict-providers`.
+
+O diagnóstico verifica ffmpeg/ffprobe no ambiente em que é executado. Se o worker roda em Docker, verifique dentro dele; o executável no host não é obrigatório nesse caso.
+
+## Conectar depois
+
+| Serviço | Onde configurar | O que será habilitado | Verificação final |
+| --- | --- | --- | --- |
+| DeepSeek | DEEPSEEK_API_KEY, DEEPSEEK_MODEL_TEXT e DEEPSEEK_MODEL_VISION no runtime do app e worker | Chat, geração/revisão e descrição dos frames | Criar uma leva pequena; enviar vídeo após conectar Groq |
+| Groq | GROQ_API_KEY e GROQ_WHISPER_MODEL no runtime do app e worker | Transcrição de áudio e etapa de áudio do vídeo | Gravar uma mensagem e enviar um vídeo curto com áudio |
+| UTMify | Tela Integrações: chave e ID oficial do dashboard | Resumo consolidado, sincronização manual e cron | Sincronizar e conferir status da integração |
+| Webhook | Gerar token/secret na tela Integrações e configurar no sistema emissor | Eventos de venda/reembolso atribuídos por creative_key/utm_content | Assinar corpo bruto, enviar evento com ID único e conferir resultado após o worker |
+| CSV | Tela Integrações: arquivo, mapeamento, período e fórmulas | Ranking por criativo sem depender de uma API externa | Importar e consultar a mesma janela/fonte |
+| VK Metrics | Pendente de documentação de API pública oficial | Ainda desabilitado | Confirmar contrato antes de implementar chamadas |
+
+Confirme os IDs atuais nos documentos oficiais de [DeepSeek](https://api-docs.deepseek.com/guides/vision/) e [Groq](https://console.groq.com/docs/speech-to-text). O código recebe os IDs por configuração. Não cole segredos em chats ou commits. Substitua a chave DeepSeek anteriormente compartilhada antes do uso definitivo.
+
+Depois de editar `.env`, recrie app e worker para carregar os valores novos:
+
+```sh
+docker compose --profile full up -d --force-recreate app worker
+docker compose exec worker node dist/tools/scripts/doctor.js --connections --strict-providers
+```
+
+Para verificar outro arquivo no host, use `npm run doctor -- --file /caminho/ambiente.env`. O diagnóstico usa as variáveis do processo com prioridade sobre o arquivo. Portanto, dentro do container ele verifica os hostnames internos injetados pelo Compose. A presença de chave/modelo não confirma validade, saldo ou acesso: a validação final dos provedores exige chamadas reais.
+
+UTMify fornece resumo do dashboard sem granularidade documentada por creative_key. CSV e webhook continuam sendo as fontes de ranking por criativo; nenhum resumo será repartido artificialmente entre anúncios. Dados ausentes permanecem NULL.
+
+## Preparar produção no Coolify
+
+Use `.env.production.example` como referência dos campos de runtime; ele não contém credenciais utilizáveis. Configure os mesmos valores no app e worker. Banco e S3 interno usam a rede dos serviços; BETTER_AUTH_URL e S3_PUBLIC_ENDPOINT usam os domínios HTTPS acessíveis pelo navegador. Gere segredos novos para uma instalação nova; preserve-os ao atualizar uma instalação existente.
+
+1. Configure Postgres 17 com volume e RustFS com os volumes indicados no Compose. Atribua credenciais próprias e mantenha o banco na rede interna.
+2. Faça build do Dockerfile, app com porta interna 3000 e healthcheck `/api/health`. Esse endpoint confirma que o processo responde, sem revelar configuração e sem afirmar que as dependências estão disponíveis.
+3. Execute uma vez `node dist/tools/src/db/migrate.js` e `node dist/tools/scripts/init-storage.js`, com o runtime final, antes de aceitar tráfego.
+4. Inicie o worker da mesma imagem com `node dist/worker.js`, sem domínio público. Garanta acesso a Postgres e RustFS e timeouts adequados para jobs longos.
+5. Execute `node dist/tools/scripts/doctor.js --production --connections --strict-providers` dentro do worker. Corrija os FAILs antes de ativar todos os fluxos. Se quiser usar somente CSV/webhook inicialmente, omita `--strict-providers`.
+6. Faça os testes da tabela acima. No navegador, confirme que o endpoint público S3 permite PUT a partir do domínio final. Confira os logs do worker e acompanhe um asset até `done`; o diagnóstico não verifica heartbeat do worker nem a rede do navegador.
+7. Reinicie os serviços e confirme persistência, login e um resultado já salvo. Faça backup de Postgres, objetos RustFS e ENCRYPTION_KEY antes de atualizar.
+
+A infraestrutura, os domínios e as credenciais serão conectados por você depois. Esta preparação não publica em produção e não cria contas, assinaturas ou cobranças externas.

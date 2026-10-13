@@ -18,6 +18,10 @@ V1 de uma ferramenta em que a IA atua como copywriter de anúncios em vídeo. A 
 
 Não há edição/renderização de vídeos, publicação de anúncios nem alterações de campanhas. O conector VK Metrics permanece desabilitado até confirmação de uma API pública oficial, conforme solicitado.
 
+## Pronto para conectar os serviços
+
+O [guia de ativação](docs/ativacao.md) reúne a configuração posterior de DeepSeek, Groq, UTMify/webhook e o deploy no Coolify. `npm run setup:env` cria um ambiente local novo com segredos aleatórios sem sobrescrever arquivos existentes. `npm run doctor` aponta configurações pendentes sem expor valores; `npm run doctor -- --connections` verifica Postgres, migrations e bucket/CORS sem gravar dados. `--strict-providers` exige todas as configurações de IA e `--production` verifica HTTPS nas URLs públicas. A imagem inclui o diagnóstico em `dist/tools/scripts/doctor.js`. Use `.env.production.example` como referência de runtime para o deploy.
+
 ## Requisitos e configuração local
 
 Node.js 22+, npm, Docker e Docker Compose. O lockfile fixa a árvore de dependências.

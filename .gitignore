@@ -3,6 +3,7 @@ node_modules/
 dist/
 .env*
 !.env.example
+!.env.production.example
 *.tsbuildinfo
 coverage/
 playwright-report/

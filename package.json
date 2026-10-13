@@ -13,8 +13,10 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "storage:init": "tsx scripts/init-storage.ts",
-    "build:tools": "esbuild src/db/migrate.ts scripts/init-storage.ts --bundle --platform=node --target=node22 --packages=external --outdir=dist/tools",
-    "test": "vitest run"
+    "build:tools": "esbuild src/db/migrate.ts scripts/init-storage.ts scripts/doctor.ts --bundle --platform=node --target=node22 --packages=external --outdir=dist/tools",
+    "test": "vitest run",
+    "setup:env": "node scripts/setup-env.mjs",
+    "doctor": "tsx scripts/doctor.ts"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^3.0.64",
