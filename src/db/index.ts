@@ -1,0 +1,9 @@
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import * as schema from "./schema";
+// Connections are lazy: building the app requires no live database or credentials.
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10,
+});
+export const db = drizzle(pool, { schema });
