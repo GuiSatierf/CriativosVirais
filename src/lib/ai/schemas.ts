@@ -1,0 +1,137 @@
+import { z } from "zod";
+export const awareness = z.enum([
+  "unaware",
+  "problem_aware",
+  "solution_aware",
+  "product_aware",
+  "most_aware",
+]);
+export const skeleton = z.enum([
+  "E1",
+  "E2",
+  "E3",
+  "E4",
+  "E5",
+  "E6",
+  "E7",
+  "E8",
+  "E9",
+  "E10",
+  "E11",
+  "E12",
+  "hipotese",
+]);
+export const block = z.enum([
+  "H",
+  "ID",
+  "P",
+  "A",
+  "M",
+  "D",
+  "V",
+  "T",
+  "O",
+  "U",
+  "C",
+  "S",
+]);
+export const evidence = z.enum([
+  "hipotese",
+  "sinal_atencao",
+  "sinal_clique",
+  "sinal_lead",
+  "sinal_venda",
+  "validacao_economica",
+  "repetido",
+]);
+const text = z.string().min(1).max(8000);
+export const batchItemSchema = z.object({
+  ideia: text,
+  formato: z.string().max(1000),
+  referencia: z.string().max(2000),
+  instrucoes_gravacao: z.string().max(2000),
+  instrucoes_edicao: z.string().max(2000),
+  g1: text,
+  g2: text,
+  g3: text,
+  corpo: text,
+  narrativa: text,
+  awareness_entry: awareness,
+  awareness_exit: awareness,
+  skeleton,
+  hipotese: text,
+  bloco_testado: block,
+  prova_usada: text,
+  duracao_estimada: z.number().int().min(5).max(300),
+});
+export const batchSchema = z.object({
+  items: z.array(batchItemSchema).min(1).max(12),
+});
+export const analysisSchema = z.object({
+  transcript: z.string().max(100000),
+  segments: z
+    .array(
+      z
+        .object({
+          start: z.number().nonnegative(),
+          end: z.number().nonnegative(),
+          block,
+          summary: text,
+          confidence: z.number().min(0).max(1),
+        })
+        .refine((s) => s.end >= s.start),
+    )
+    .max(500),
+  narrative: text,
+  awareness_entry: awareness,
+  awareness_exit: awareness,
+  skeleton,
+  format: text,
+  proof_types: z.array(z.string().max(1000)).max(30),
+  cta: text,
+  visual_notes: z
+    .array(z.object({ timestamp: z.number().nonnegative(), description: text }))
+    .max(100),
+  uncertainties: z.array(z.string().max(2000)).max(30),
+});
+export const contextPatchSchema = z
+  .object({
+    produto: z.string().max(4000).optional(),
+    publico: z.string().max(4000).optional(),
+    transformacao: z.string().max(4000).optional(),
+    mecanismo: z.string().max(4000).optional(),
+    ticketCents: z
+      .string()
+      .regex(/^\d{1,15}$/)
+      .nullable()
+      .optional(),
+    tipoFunil: z.string().max(1000).optional(),
+    proximoPassoFunil: z.string().max(1000).optional(),
+    provasAutorizadas: z.array(z.string().max(4000)).max(30).optional(),
+    objecoes: z.array(z.string().max(4000)).max(30).optional(),
+    restricoes: z.array(z.string().max(4000)).max(30).optional(),
+    estadoCliente: z
+      .enum(["A_validado", "B_sinais", "C_zero"])
+      .nullable()
+      .optional(),
+    especialistaHandle: z.string().max(100).optional(),
+    produtoNome: z.string().max(300).optional(),
+    notas: z.array(z.string().max(4000)).max(50).optional(),
+  })
+  .strict();
+export const publicDataSchema = z.object({
+  upload: z.object({ creativeKeys: z.array(z.string()) }),
+  batch: z.object({ id: z.uuid(), title: z.string() }),
+});
+export const opening =
+  "Me conta o que você vende, como funciona sua operação e o que você quer melhorar nos seus anúncios. Pode escrever ou mandar um áudio.";
+
+export function contextValues(patch: z.infer<typeof contextPatchSchema>) {
+  const { ticketCents, ...rest } = patch;
+  return {
+    ...rest,
+    ...(ticketCents !== undefined
+      ? { ticketCents: ticketCents === null ? null : BigInt(ticketCents) }
+      : {}),
+  };
+}

@@ -1,7 +1,7 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { z } from "zod";
 // Server/worker only. No credentials or provider configuration is sent to the browser.
-export function getStorage() {
+export function getStorage(publicEndpoint = false) {
   const env = z
     .object({
       S3_ENDPOINT: z.url(),
@@ -15,8 +15,11 @@ export function getStorage() {
   return {
     bucket: env.S3_BUCKET,
     client: new S3Client({
-      endpoint: env.S3_ENDPOINT,
+      endpoint: publicEndpoint
+        ? process.env.S3_PUBLIC_ENDPOINT || env.S3_ENDPOINT
+        : env.S3_ENDPOINT,
       region: env.S3_REGION,
+      requestChecksumCalculation: "WHEN_REQUIRED",
       forcePathStyle: env.S3_FORCE_PATH_STYLE === "true",
       credentials: {
         accessKeyId: env.S3_ACCESS_KEY,

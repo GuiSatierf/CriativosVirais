@@ -193,6 +193,8 @@ export const conversations = pgTable(
     id: id(),
     tenantId: tenantId(),
     title: text("title").notNull(),
+    processingToken: text("processing_token"),
+    processingUntil: timestamp("processing_until", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [
@@ -211,10 +213,16 @@ export const messages = pgTable(
       enum: ["user", "assistant", "system", "tool"],
     }).notNull(),
     content: jsonb("content").notNull(),
+    clientMessageId: text("client_message_id"),
     createdAt: createdAt(),
   },
   (t) => [
     index("messages_tenant_idx").on(t.tenantId),
+    uniqueIndex("messages_client_unique").on(
+      t.tenantId,
+      t.conversationId,
+      t.clientMessageId,
+    ),
     unique("messages_tenant_id_unique").on(t.tenantId, t.id),
     foreignKey({
       columns: [t.tenantId, t.conversationId],
@@ -255,6 +263,8 @@ export const assets = pgTable(
     durationS: doublePrecision("duration_s"),
     status: assetStatus("status").default("uploaded").notNull(),
     errorMessage: text("error_message"),
+    uploadCompletedAt: timestamp("upload_completed_at", { withTimezone: true }),
+    transcription: jsonb("transcription"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -501,6 +511,8 @@ export const integrations = pgTable(
     tenantId: tenantId(),
     provider: provider("provider").notNull(),
     credentialsEncrypted: text("credentials_encrypted"),
+    tokenHash: text("token_hash").unique(),
+    metadata: jsonb("metadata"),
     webhookSecretEncrypted: text("webhook_secret_encrypted"),
     status: text("status").default("disconnected").notNull(),
     lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),

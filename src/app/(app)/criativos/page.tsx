@@ -1,10 +1,4 @@
-import { StagePlaceholder } from "@/components/stage-placeholder";
+import { CreativeTable } from "@/components/creative-table";
 export default function Page() {
-  return (
-    <StagePlaceholder
-      title="Criativos"
-      description="Acompanhe vídeos e métricas da sua operação em um só lugar."
-      stage={4}
-    />
-  );
+  return <CreativeTable />;
 }
