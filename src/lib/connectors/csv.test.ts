@@ -68,6 +68,15 @@ describe("CSV normalization", () => {
     expect(() => parseCsv({ ...base, decimal: "dot",
       csv: "key,spend,sales,profit\nAD-1,1,1.5," })).toThrow("métrica inválida");
   });
+  it("separates campaigns for the same creative and rejects ambiguous rows", () => {
+    const input = { ...base, decimal: "dot" as const,
+      csv: "key,campaign,sales\nAD-1,A,1\nAD-1,B,2",
+      mapping: { creative_key: "key", campaign_key: "campaign", approved_sales: "sales" } };
+    expect(parseCsv(input).map((row) => row.campaign_key)).toEqual(["A", "B"]);
+    expect(() => parseCsv({ ...input, csv: "key,campaign,sales\nAD-1,A,1\nAD-1,A,2" })).toThrow("repetidas");
+    expect(() => parseCsv({ ...input, csv: "key,campaign,sales\nAD-1,,1\nAD-1,A,2" })).toThrow("todas as linhas");
+    expect(() => parseCsv({ ...input, csv: "key,campaign,sales\nAD-1,A,1\nAD-1,,2" })).toThrow("todas as linhas");
+  });
   it("rejects missing keys, repeated keys, duplicate headers and invalid dates", () => {
     expect(() =>
       parseCsv({ ...base, csv: "key;spend;sales;profit\n;10;1;2" }),

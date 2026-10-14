@@ -72,7 +72,7 @@ export const recordSchema = metricsSchema
   .extend({
     creative_key: z.string().trim().min(1).max(200),
     creative_name: z.string().max(300).nullable(),
-    campaign_key: z.string().max(200).nullable(),
+    campaign_key: z.string().trim().min(1).max(200).nullable(),
     adset_key: z.string().max(200).nullable(),
     period_from: day,
     period_to: day,
@@ -92,7 +92,7 @@ export const periodSchema = z
     from: day,
     to: day,
     source: z.enum(["csv", "webhook"]).default("csv"),
-    campaignKey: z.string().max(200).optional(),
+    campaignKey: z.string().trim().min(1).max(200).optional(),
   })
   .refine((v) => v.from <= v.to, "Período inválido");
 export const attributionWarning =

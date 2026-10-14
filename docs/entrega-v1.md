@@ -19,6 +19,6 @@ A preparação para ativação inclui `setup:env`, `doctor`, template de runtime
 
 Configure Groq no runtime de app/worker e UTMify na tela Integrações. Substitua a chave DeepSeek compartilhada no chat antes do uso definitivo. Recrie os serviços para carregar variáveis novas e execute o diagnóstico dentro do worker. Faça a verificação final de áudio/vídeo e consulta UTMify com suas contas, conforme o guia.
 
-A CI do GitHub está configurada; a execução anterior foi bloqueada pela cobrança/limite de gastos da conta. A validação local inclui lint, TypeScript, doze testes Vitest e build de produção. A aplicação não simula resultado de um provedor indisponível.
+A CI do GitHub está configurada; a execução anterior foi bloqueada pela cobrança/limite de gastos da conta. A validação local inclui lint, TypeScript, treze testes Vitest e regressões de atribuição em PostgreSQL dedicado e build de produção. A aplicação não simula resultado de um provedor indisponível.
 
 A [revisão completa](revisao-v1.md) detalha as correções posteriores, inclusive logs privados, reserva de chaves, contabilidade de eventos pendentes, concorrência da UTMify e limites do pipeline.

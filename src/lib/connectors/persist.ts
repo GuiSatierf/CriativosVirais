@@ -49,43 +49,59 @@ export async function saveMetrics(
         .onConflictDoUpdate({
           target: [creatives.tenantId, creatives.creativeKey],
           set: {
-            name: r.creative_name,
-            campaignKey: r.campaign_key,
-            adsetKey: r.adset_key,
+            name: sql`coalesce(${r.creative_name}, ${creatives.name})`,
+            campaignKey: sql`coalesce(${r.campaign_key}, ${creatives.campaignKey})`,
+            adsetKey: sql`coalesce(${r.adset_key}, ${creatives.adsetKey})`,
           },
         })
-        .returning({ id: creatives.id });
+        .returning({ id: creatives.id, campaignKey: creatives.campaignKey });
       // Reject overlapping snapshots from the same source to avoid double counting different windows.
-      const existing = await tx
+      const history = await tx
         .select({
           id: creativeMetrics.id,
           from: creativeMetrics.periodFrom,
           to: creativeMetrics.periodTo,
+          campaign: creativeMetrics.campaignKey,
+          source: creativeMetrics.source,
         })
         .from(creativeMetrics)
         .where(
           and(
             eq(creativeMetrics.tenantId, tenantId),
             eq(creativeMetrics.creativeId, creative.id),
-            eq(creativeMetrics.source, r.source),
           ),
         );
+      const existing = history.filter((row) => row.source === r.source);
+      const knownCampaigns = new Set(history.map((row) => row.campaign).filter(Boolean));
+      if (creative.campaignKey) knownCampaigns.add(creative.campaignKey);
+      if (!r.campaign_key && knownCampaigns.size > 1)
+        throw new HttpError(400, "Informe a campanha: este criativo tem resultados em mais de uma campanha.");
+      const campaignKey = r.campaign_key || [...knownCampaigns][0] || "";
+      // A campaign-less snapshot may cover multiple campaigns; do not add it to
+      // campaign-specific snapshots. An exact reimport can replace an unknown row.
+      const replaceUnknown = existing.find((row) => !row.campaign && campaignKey &&
+        row.from === r.period_from && row.to === r.period_to);
       if (
         existing.some(
           (e) =>
-            e.from <= r.period_to &&
-            e.to >= r.period_from &&
-            (e.from !== r.period_from || e.to !== r.period_to),
+            e.id !== replaceUnknown?.id &&
+            e.from <= r.period_to && e.to >= r.period_from &&
+            (e.campaign === campaignKey || !e.campaign || !campaignKey) &&
+            (e.from !== r.period_from || e.to !== r.period_to || e.campaign !== campaignKey),
         )
       )
         throw new HttpError(
           400,
           "Já existe um período sobreposto. Importe o mesmo período para substituir ou use períodos separados.",
         );
+      if (replaceUnknown)
+        await tx.delete(creativeMetrics).where(and(eq(creativeMetrics.tenantId, tenantId),
+          eq(creativeMetrics.id, replaceUnknown.id)));
       const b = (v: string | null) => (v === null ? null : BigInt(v));
       const values = {
         tenantId,
         creativeId: creative.id,
+        campaignKey,
         periodFrom: r.period_from,
         periodTo: r.period_to,
         source: r.source,
@@ -115,6 +131,7 @@ export async function saveMetrics(
             creativeMetrics.periodFrom,
             creativeMetrics.periodTo,
             creativeMetrics.source,
+            creativeMetrics.campaignKey,
           ],
           set: values,
         });

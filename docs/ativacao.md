@@ -62,3 +62,37 @@ Use `.env.production.example` como referência dos campos de runtime; ele não c
 7. Reinicie os serviços e confirme persistência, login e um resultado já salvo. Faça backup de Postgres, objetos RustFS e ENCRYPTION_KEY antes de atualizar.
 
 A infraestrutura, os domínios e as credenciais serão conectados por você depois. Esta preparação não publica em produção e não cria contas, assinaturas ou cobranças externas.
+
+## Atualizar uma instalação anterior à atribuição por campanha
+
+A migration `0002_campaign-attribution` altera a chave única das métricas. Faça
+backup do banco, construa a imagem nova e pare app e worker antes de aplicar a
+migration: processos antigos tentariam gravar com a chave anterior. Não execute
+a versão anterior depois da migração sem restaurar o backup.
+
+```sh
+docker compose build app
+docker compose stop app worker
+docker compose run --rm --no-deps app node dist/tools/src/db/migrate.js
+docker compose --profile full up -d --wait app worker
+```
+
+O webhook é recalculado usando a campanha e o dia dos eventos originais. Eventos
+sem campanha continuam desconhecidos e não entram em filtros de uma campanha
+específica. CSVs antigos preservam valores e períodos, mas sua campanha histórica
+não pode ser recuperada de metadados mutáveis do criativo: reimporte o mesmo
+período com `campaign_key` explícito para habilitar esse filtro. Sem filtro, os
+valores preservados continuam disponíveis. Uma reimportação exata substitui o
+snapshot de campanha desconhecida; não soma ambos.
+
+Para CSVs novos, uma chave pode ter uma linha por campanha na mesma janela.
+Campos opcionais ausentes preservam nome, campanha e conjunto conhecidos. Se a
+chave já tem mais de uma campanha conhecida, o CSV exige campanha explícita.
+Janelas sobrepostas da mesma campanha ou snapshots sem campanha sobrepostos a
+snapshots por campanha são rejeitados para evitar dupla contagem.
+
+`npm run test:attribution` exige `TEST_DATABASE_URL` apontando para um banco de
+teste vazio cujo nome termine em `_test`; nunca usa DATABASE_URL como fallback.
+O teste aplica o schema anterior, cria dados sintéticos, migra e verifica os
+resultados. Use um banco descartável; o script remove as operações sintéticas,
+mas mantém o schema migrado. O CI executa esse fluxo em seu PostgreSQL temporário.

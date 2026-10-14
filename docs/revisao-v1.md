@@ -12,7 +12,8 @@ Revisão realizada em 13/10/2026, confrontando o código com o documento mestre 
 | Provas/contexto | Alterações do contexto durante geração/revisão podiam deixar a copy baseada em informação revogada | Releitura bloqueada e comparação com o contexto usado; se mudou, a transação é recusada |
 | Contexto | Texto composto apenas de espaços contava como oferta suficiente; edição do ticket precisava de tratamento consistente | Normalização das strings e atualização do campo numérico por input com limite de comprimento |
 | Webhook/contabilidade | Eventos apenas pendentes, cancelados ou falhos viravam receita/lucro zero | Valores monetários permanecem NULL sem evento financeiro; aprovação e reversão continuam calculadas por dia |
-| Webhook/campanha | Criativos já registrados sem campanha não recebiam o vínculo informado no primeiro evento | Primeira campanha conhecida preenche o vínculo vazio sem reatribuir os anteriores |
+| Webhook/campanha | Eventos da mesma chave em campanhas distintas eram somados sob a primeira campanha | Métricas e filtros usam a campanha de cada snapshot; a migration 0002 recalcula o webhook pelos eventos originais |
+| CSV/metadados | Campos não mapeados apagavam nome, campanha e conjunto conhecidos | Ausências preservam metadados; CSV permite uma linha por chave/campanha, rejeita campanhas ambíguas e mantém o histórico separado |
 | Webhook/chaves | IDs e chaves compostos apenas de espaços podiam entrar como identificadores | Trim e rejeição de IDs/atribuição vazios |
 | CSV/erros | Falhas do banco podiam ser apresentadas como erro de CSV e expor mensagens técnicas | Apenas erros de domínio conhecidos retornam 400; falhas internas são sanitizadas e retornam 503 |
 | CSV/tamanho | Limite de caracteres não garantia 5 MB em UTF-8; transporte JSON podia rejeitar arquivos com muitas aspas; mapeamento aceitava campos desconhecidos | Limite em bytes, margem para escape JSON e somente campos de mapeamento previstos |
@@ -29,12 +30,13 @@ Revisão realizada em 13/10/2026, confrontando o código com o documento mestre 
 
 ## Validação realizada
 
-- ESLint, TypeScript, doze testes Vitest e builds de produção do app, worker e ferramentas. Novos testes se limitam a CSV e webhook, conforme o escopo solicitado.
+- ESLint, TypeScript, treze testes Vitest e builds de produção do app, worker e ferramentas. Novos testes se limitam a CSV e webhook, conforme o escopo solicitado.
 - Postgres real: eventos pendentes, pagamentos e reembolsos; precisão de centavos; rollback quando o contexto muda; reserva de chaves sem colisão e registro de criativos gerados. Fixtures temporárias removidas.
 - Respostas controladas de HTTP/IA: troca de credencial enquanto a consulta estava em andamento, Retry-After em data HTTP, geração/revisão e logging de erro sem o marcador privado. Esses cenários exercitam a integração do código; não são apresentados como chamadas reais aos provedores.
 - Navegador: login com conta temporária, navegação, gravação e releitura do ticket/contexto e layout móvel do chat. Não houve gravação de áudio ambiente nem envio das credenciais preenchidas automaticamente pelo navegador.
 - HTTP real no app atualizado: importação CSV de quase 5 MB com muitas aspas, rejeição de mapeamento desconhecido e origem inválida, webhook HMAC/idempotente e worker preservando NULL em eventos pendentes.
 - Objeto S3 temporário real recusou leitura anônima com 403 e foi removido. Conta, dados e jobs concluídos da revisão foram removidos.
+- Regressão durável `npm run test:attribution` em banco dedicado: migração do schema anterior, reprocessamento, receitas/reembolsos por campanha, dinheiro exato/NULL, CSV sem metadados, múltiplas campanhas, sobreposições e isolamento de conta/resultado da leva. O CI provisiona PostgreSQL 17 temporário para esse teste.
 - Execução Docker e diagnóstico de Postgres, migrations e S3/CORS. As verificações anteriores de HMAC/idempotência com worker, upload real/HEAD, duas contas/isolamento, resultados/benchmark e renderização DOCX permanecem registradas na entrega.
 - Auditorias completa e de produção: zero vulnerabilidades conhecidas. Os nove alertas de desenvolvimento associados a braces foram corrigidos em um fork local com limite de profundidade, preservando as versões da stack. `npm run check:security` verifica entradas maliciosas, ASTs, integridade do pacote instalado e compatibilidade de fast-glob/ts-morph. Consulte [Dependências e segurança](dependencias-seguranca.md) para a origem e a manutenção da correção.
 

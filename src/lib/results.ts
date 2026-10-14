@@ -26,7 +26,7 @@ export async function getBatchResults(
       and(
         eq(creatives.tenantId, tenantId),
         eq(creativeMetrics.source, p.source),
-        p.campaignKey ? eq(creatives.campaignKey, p.campaignKey) : undefined,
+        p.campaignKey ? eq(creativeMetrics.campaignKey, p.campaignKey) : undefined,
         sql`((${p.source}='csv' AND ${creativeMetrics.periodFrom}=${p.from}::date AND ${creativeMetrics.periodTo}=${p.to}::date) OR (${p.source}='webhook' AND ${creativeMetrics.periodFrom}>=${p.from}::date AND ${creativeMetrics.periodTo}<=${p.to}::date))`,
       ),
     );

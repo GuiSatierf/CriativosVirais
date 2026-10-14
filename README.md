@@ -89,7 +89,7 @@ docker compose logs -f app worker
 docker compose stop
 ```
 
-Volumes persistem ao parar/recriar serviços. Faça backup antes de remover volumes ou aplicar migrations futuras.
+Volumes persistem ao parar/recriar serviços. Faça backup antes de remover volumes ou aplicar migrations futuras. Ao atualizar uma instalação existente, siga o [procedimento da migration de campanha](docs/ativacao.md#atualizar-uma-instalação-anterior-à-atribuição-por-campanha): app e worker devem estar parados durante a alteração da chave única. CSVs antigos precisam de reimportação com campanha explícita para filtros por campanha; o webhook é recalculado pelos eventos preservados.
 
 ## Fluxo de uso
 

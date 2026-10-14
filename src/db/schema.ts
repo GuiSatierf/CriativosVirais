@@ -284,6 +284,8 @@ export const creativeMetrics = pgTable(
     id: id(),
     tenantId: tenantId(),
     creativeId: uuid("creative_id").notNull(),
+    // Empty means unknown; never infer a historical campaign from mutable creative metadata.
+    campaignKey: text("campaign_key").default("").notNull(),
     periodFrom: date("period_from").notNull(),
     periodTo: date("period_to").notNull(),
     spendCents: money("spend_cents"),
@@ -312,6 +314,7 @@ export const creativeMetrics = pgTable(
       t.periodFrom,
       t.periodTo,
       t.source,
+      t.campaignKey,
     ),
     check(
       "creative_metrics_period_check",

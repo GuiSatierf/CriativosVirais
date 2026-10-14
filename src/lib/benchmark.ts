@@ -68,7 +68,7 @@ export async function getBenchmark(tenantId: string, input: unknown) {
  FROM creatives c JOIN creative_metrics m ON m.tenant_id=c.tenant_id AND m.creative_id=c.id
  WHERE c.tenant_id=${tenantId} AND m.tenant_id=${tenantId} AND m.source=${p.source}
  AND ((${p.source}='csv' AND m.period_from=${p.from}::date AND m.period_to=${p.to}::date) OR (${p.source}='webhook' AND m.period_from>=${p.from}::date AND m.period_to<=${p.to}::date))
- AND (${p.campaignKey ?? null}::text IS NULL OR c.campaign_key=${p.campaignKey ?? null}) GROUP BY c.id,c.creative_key
+ AND (${p.campaignKey ?? null}::text IS NULL OR m.campaign_key=${p.campaignKey ?? null}) GROUP BY c.id,c.creative_key
  ), expanded AS (
  SELECT creative_key,metric,value FROM totals CROSS JOIN LATERAL (VALUES ('spend_cents',spend_cents),('impressions',impressions),('clicks',clicks),('leads',leads),('checkouts',checkouts),('refunds',refunds),('chargebacks',chargebacks),('approved_sales',approved_sales),('revenue_cents',revenue_cents),('profit_cents',profit_cents),('roas',roas::numeric),('ctr',ctr::numeric),('hook_rate',hook_rate::numeric),('body_rate',body_rate::numeric)) v(metric,value) WHERE value IS NOT NULL
  ) SELECT creative_key,metric,value::text,ROW_NUMBER() OVER(PARTITION BY metric ORDER BY CASE WHEN metric IN ('refunds','chargebacks') THEN -value ELSE value END DESC,creative_key)::int rank,PERCENT_RANK() OVER(PARTITION BY metric ORDER BY CASE WHEN metric IN ('refunds','chargebacks') THEN -value ELSE value END DESC) percentile FROM expanded ORDER BY metric,rank`);

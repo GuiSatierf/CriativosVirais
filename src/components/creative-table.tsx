@@ -122,7 +122,7 @@ export function CreativeTable() {
       <p className="text-sm text-muted-foreground">
         Compare a mesma fonte, período e campanha. Importações CSV usam o
         período exato; eventos do webhook aparecem por dia. “Não disponível”
-        preserva ausência de dados.
+        preserva ausência de dados. Informe a campanha no CSV para filtrar resultados antigos; campanhas não informadas ficam fora desse filtro.
       </p>
       {!loaded && (
         <p className="text-sm">

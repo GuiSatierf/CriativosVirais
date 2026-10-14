@@ -83,6 +83,7 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
     if (header && !parsed.meta.fields.includes(header))
       throw new HttpError(400, "Coluna não encontrada.");
   const seen = new Set<string>();
+  const campaigns = new Map<string, Set<string | null>>();
   return parsed.data.map((row, index) => {
     const read = (field: keyof typeof p.mapping) =>
       p.mapping[field] ? (row[p.mapping[field]]?.trim() ?? "") : "";
@@ -112,12 +113,18 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
     if (!result.success)
       throw new HttpError(400, `Linha ${index + 2}: chave, data ou métrica inválida.`);
     const r = result.data;
-    if (seen.has(r.creative_key))
+    const identity = JSON.stringify([r.creative_key, r.campaign_key]);
+    if (seen.has(identity))
       throw new HttpError(
           400,
-        `Linha ${index + 2}: chave repetida no período. Consolide as linhas antes de importar.`,
+        `Linha ${index + 2}: chave e campanha repetidas no período. Consolide as linhas antes de importar.`,
       );
-    seen.add(r.creative_key);
+    const previousCampaigns = campaigns.get(r.creative_key) ?? new Set<string | null>();
+    if (previousCampaigns.size && (r.campaign_key === null || previousCampaigns.has(null)))
+      throw new HttpError(400, `Linha ${index + 2}: informe a campanha em todas as linhas deste criativo.`);
+    previousCampaigns.add(r.campaign_key);
+    campaigns.set(r.creative_key, previousCampaigns);
+    seen.add(identity);
     for (const metric of metricNames)
       if (
         metric !== "profit_cents" &&

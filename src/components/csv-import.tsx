@@ -63,7 +63,7 @@ export function CsvImport() {
       }}
     >
       <p className="text-sm text-muted-foreground">
-        Selecione um CSV com uma linha por criativo no mesmo período. Métricas
+        Selecione um CSV com uma linha por criativo e campanha no mesmo período. Métricas
         ausentes permanecem indisponíveis. Uma nova importação do mesmo período
         substitui os valores; períodos sobrepostos são rejeitados.
       </p>
