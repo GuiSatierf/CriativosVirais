@@ -1,3 +1,4 @@
+import { HttpError } from "../errors";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { creatives, creativeMetrics, integrations } from "@/db/schema";
@@ -28,7 +29,8 @@ export async function saveMetrics(
       )?.metricDefinitions ?? {};
     for (const [metric, formula] of Object.entries(definitions))
       if (existing[metric] && existing[metric] !== formula)
-        throw new Error(
+        throw new HttpError(
+          400,
           "A fórmula desta métrica difere da importação anterior. Use a mesma definição para manter comparações válidas.",
         );
     const combined = { ...existing, ...definitions };
@@ -76,7 +78,8 @@ export async function saveMetrics(
             (e.from !== r.period_from || e.to !== r.period_to),
         )
       )
-        throw new Error(
+        throw new HttpError(
+          400,
           "Já existe um período sobreposto. Importe o mesmo período para substituir ou use períodos separados.",
         );
       const b = (v: string | null) => (v === null ? null : BigInt(v));

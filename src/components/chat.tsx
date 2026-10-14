@@ -58,6 +58,7 @@ export function Chat({
     [],
   );
   async function voice() {
+    let activeStream: MediaStream | undefined;
     try {
       if (
         !navigator.mediaDevices?.getUserMedia ||
@@ -67,6 +68,7 @@ export function Chat({
           "Gravação indisponível neste navegador. Envie um arquivo de áudio.",
         );
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      activeStream = stream;
       const mime = [
         "audio/webm;codecs=opus",
         "audio/mp4",
@@ -78,6 +80,14 @@ export function Chat({
       );
       recorder.current = media;
       const chunks: Blob[] = [];
+      let failed = false;
+      media.onerror = () => {
+        failed = true;
+        stream.getTracks().forEach((track) => track.stop());
+        if (timer.current) clearTimeout(timer.current);
+        setRecording(false);
+        toast.error("A gravação falhou. Tente novamente ou envie um arquivo de áudio.");
+      };
       media.ondataavailable = (e) => {
         if (e.data.size) chunks.push(e.data);
       };
@@ -85,6 +95,7 @@ export function Chat({
         stream.getTracks().forEach((t) => t.stop());
         if (timer.current) clearTimeout(timer.current);
         setRecording(false);
+        if (failed) return;
         setUploading(true);
         try {
           const type = media.mimeType.split(";")[0];
@@ -105,6 +116,8 @@ export function Chat({
         120_000,
       );
     } catch (e) {
+      activeStream?.getTracks().forEach((track) => track.stop());
+      setRecording(false);
       toast.error(
         e instanceof Error
           ? e.message

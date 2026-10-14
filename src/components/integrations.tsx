@@ -141,7 +141,8 @@ export function Integrations() {
             <Input
               id="utm-key"
               type="password"
-              autoComplete="off"
+              autoComplete="new-password"
+              name="utmify-api-key"
               value={apiKey}
               onInput={(e) => setApiKey(e.currentTarget.value)}
               required
@@ -150,6 +151,8 @@ export function Integrations() {
             <Label htmlFor="utm-dashboard">ID do dashboard</Label>
             <Input
               id="utm-dashboard"
+              name="utmify-dashboard-id"
+              autoComplete="off"
               value={dashboardId}
               onInput={(e) => setDashboardId(e.currentTarget.value)}
               required

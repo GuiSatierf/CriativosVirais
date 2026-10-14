@@ -54,6 +54,7 @@ export async function analyzeVideo(data: unknown) {
       throw new Error("Invalid tenant asset key");
     const response = await client.send(
       new GetObjectCommand({ Bucket: bucket, Key: asset.s3Key }),
+      { abortSignal: AbortSignal.timeout(120_000) },
     );
     if (!response.Body) throw new Error("Missing asset body");
     if (
@@ -165,6 +166,8 @@ export async function analyzeVideo(data: unknown) {
       "audio.mp3",
       "audio/mpeg",
     );
+    if (transcript.segments.some((segment) => segment.end > duration + 1))
+      throw new Error("Invalid transcript timestamps");
     if (asset.kind === "audio") {
       await db
         .update(assets)
@@ -253,7 +256,8 @@ export async function analyzeVideo(data: unknown) {
       maxRetries: 1,
       abortSignal: AbortSignal.timeout(120_000),
     });
-    if (object.segments.some((s) => s.end > duration + 1))
+    if (object.segments.some((s) => s.end > duration + 1) ||
+      object.visual_notes.some((note) => note.timestamp > duration + 1))
       throw new Error("Invalid segment timestamps");
     await db.transaction(async (tx) => {
       await tx

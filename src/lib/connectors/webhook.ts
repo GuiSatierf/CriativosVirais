@@ -2,7 +2,7 @@ import { z } from "zod";
 const cents = z.number().int().safe().nonnegative().nullable();
 export const eventSchema = z
   .object({
-    event_id: z.string().min(1).max(200),
+    event_id: z.string().trim().min(1).max(200),
     occurred_at: z.iso.datetime({ offset: true }),
     status: z.enum([
       "pending",
@@ -15,11 +15,11 @@ export const eventSchema = z
     currency: z.literal("BRL"),
     revenue: cents.default(null),
     profit: z.number().int().safe().nullable().default(null),
-    creative_key: z.string().min(1).max(200).optional(),
+    creative_key: z.string().trim().min(1).max(200).optional(),
     utm_source: z.string().max(200).optional(),
-    utm_campaign: z.string().max(200).optional(),
+    utm_campaign: z.string().trim().max(200).optional(),
     utm_medium: z.string().max(200).optional(),
-    utm_content: z.string().max(200).optional(),
+    utm_content: z.string().trim().min(1).max(200).optional(),
     utm_term: z.string().max(200).optional(),
   })
   .strict();

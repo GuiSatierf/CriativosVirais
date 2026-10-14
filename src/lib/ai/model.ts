@@ -17,3 +17,8 @@ export function textModel(vision = false) {
 export const providerOptions = {
   deepseek: { thinking: { type: "disabled" as const } },
 };
+
+// AI SDK streaming defaults log raw provider errors, which can contain private prompts.
+export function onModelError() {
+  console.error("Model request failed. Check provider availability and configuration.");
+}

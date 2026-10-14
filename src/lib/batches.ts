@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { generateObject } from "ai";
 import { db } from "@/db";
-import { batches, batchItems, clientContexts } from "@/db/schema";
+import { batches, batchItems, clientContexts, creatives } from "@/db/schema";
 import { batchSchema, batchItemSchema } from "./ai/schemas";
 import { textModel, providerOptions } from "./ai/model";
 import { buildSystemPrompt, untrusted } from "./ai/system-prompt";
@@ -100,13 +100,27 @@ export async function generateBatch(
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtextextended(${tenantId},1))`,
     );
+    signal?.throwIfAborted();
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${tenantId},2))`);
+    const [currentContext] = await tx.select().from(clientContexts)
+      .where(eq(clientContexts.tenantId, tenantId)).for("update");
+    const serialize = (value: unknown) => JSON.stringify(value,
+      (_, v) => typeof v === "bigint" ? v.toString() : v);
+    if (serialize(currentContext) !== serialize(context))
+      throw new Error("O contexto mudou durante a geração. Confira as provas e gere novamente.");
     const count = await tx
       .select({
         round: sql<number>`coalesce(max(${batches.roundNumber}),0)::int`,
       })
       .from(batches)
       .where(eq(batches.tenantId, tenantId));
-    const round = count[0].round + 1;
+    let round = count[0].round + 1;
+    const occupied = new Set((await tx.select({ key: creatives.creativeKey })
+      .from(creatives).where(and(eq(creatives.tenantId, tenantId),
+        sql`${creatives.creativeKey} ~ '^L[0-9]+-C[0-9]+$'`))).map((row) => row.key));
+    const keyAt = (position: number) => `L${String(round).padStart(2, "0")}-C${String(position).padStart(2, "0")}`;
+    while (object.items.some((_, index) => occupied.has(keyAt(index + 1)))) round++;
+    if (round > 2147483647) throw new Error("Limite de rodadas atingido.");
     const month = new Intl.DateTimeFormat("pt-BR", {
       month: "long",
       year: "numeric",
@@ -131,7 +145,7 @@ export async function generateBatch(
         tenantId,
         batchId: batch.id,
         position: idx + 1,
-        creativeKey: `L${String(round).padStart(2, "0")}-C${String(idx + 1).padStart(2, "0")}`,
+        creativeKey: keyAt(idx + 1),
         ideia: i.ideia,
         formato: i.formato,
         referencia: i.referencia,
@@ -151,6 +165,10 @@ export async function generateBatch(
         duracaoEstimada: i.duracao_estimada,
       })),
     );
+    await tx.insert(creatives).values(object.items.map((item, index) => ({
+      tenantId, creativeKey: keyAt(index + 1), name: item.ideia, source: "generated",
+    })));
+    signal?.throwIfAborted();
     return { id: batch.id, title: batch.title };
   });
 }

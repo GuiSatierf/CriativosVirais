@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCsv, type CsvInput } from "./csv";
+import { parseCsv, csvImportSchema, type CsvInput } from "./csv";
 const base: CsvInput = {
   csv: "",
   mapping: {
@@ -56,6 +56,17 @@ describe("CSV normalization", () => {
         csv: "key,spend,sales,profit\nAD-1,1.234,1,",
       }),
     ).toThrow();
+  });
+  it("enforces UTF-8 byte limits and rejects unknown mapping fields", () => {
+    expect(() => parseCsv({ ...base, csv: "á".repeat(2_500_001) })).toThrow("5 MB");
+    expect(() => csvImportSchema.parse({ ...base, csv: "key;spend;sales;profit\nAD-1;1;1;1",
+      mapping: { ...base.mapping, tenant_id: "key" } })).toThrow();
+  });
+  it("rejects excessive numeric lengths and fractional counts before bigint conversion", () => {
+    expect(() => parseCsv({ ...base, decimal: "dot", moneyUnit: "cents",
+      csv: "key,spend,sales,profit\nAD-1," + "9".repeat(1000) + ",1," })).toThrow("limite");
+    expect(() => parseCsv({ ...base, decimal: "dot",
+      csv: "key,spend,sales,profit\nAD-1,1,1.5," })).toThrow("métrica inválida");
   });
   it("rejects missing keys, repeated keys, duplicate headers and invalid dates", () => {
     expect(() =>

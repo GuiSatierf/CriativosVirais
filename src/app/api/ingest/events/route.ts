@@ -82,7 +82,7 @@ export function POST(request: Request) {
           creativeKey: input.creative_key ?? input.utm_content ?? null,
           utmContent: input.utm_content,
           utmSource: input.utm_source,
-          utmCampaign: input.utm_campaign,
+          utmCampaign: input.utm_campaign || null,
           utmMedium: input.utm_medium,
           utmTerm: input.utm_term,
           source: "webhook",

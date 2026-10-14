@@ -5,7 +5,7 @@ import { integrations } from "@/db/schema";
 import { handle, apiTenant, readJson, json } from "@/lib/http";
 import { encrypt, newSecret, tokenHash } from "@/lib/crypto";
 import { utmifyCredentials } from "@/lib/connectors/utmify";
-import { getJobs } from "@/jobs";
+import { getJobs, jobTransaction } from "@/jobs";
 const schema = z.discriminatedUnion("provider", [
   utmifyCredentials.extend({ provider: z.literal("utmify") }),
   z.object({ provider: z.literal("webhook") }),
@@ -49,7 +49,7 @@ export function POST(request: Request) {
           set: values,
         });
       return json({
-        url: process.env.BETTER_AUTH_URL + "/api/ingest/events",
+        url: new URL("/api/ingest/events", process.env.BETTER_AUTH_URL).toString(),
         token,
         secret,
       });
@@ -62,21 +62,24 @@ export function POST(request: Request) {
       ),
       status: "pending",
       metadata: null,
+      lastSyncAt: null,
     };
-    const [row] = await db
-      .insert(integrations)
-      .values(values)
-      .onConflictDoUpdate({
-        target: [integrations.tenantId, integrations.provider],
-        set: values,
-      })
-      .returning({ id: integrations.id });
     const boss = await getJobs();
-    await boss.send(
-      "sync-metrics",
-      { tenantId, integrationId: row.id },
-      { singletonKey: row.id },
-    );
+    await jobTransaction(async (tx, connection) => {
+      const [row] = await tx
+        .insert(integrations)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [integrations.tenantId, integrations.provider],
+          set: values,
+        })
+        .returning({ id: integrations.id });
+      await boss.send(
+        "sync-metrics",
+        { tenantId, integrationId: row.id },
+        { db: connection, singletonKey: row.id },
+      );
+    });
     return json({ saved: true }, 202);
   });
 }

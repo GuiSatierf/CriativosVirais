@@ -8,7 +8,7 @@ export const transcriptSchema = z.object({
         start: z.number().nonnegative(),
         end: z.number().nonnegative(),
         text: z.string().max(10000),
-      }),
+      }).refine((segment) => segment.end >= segment.start),
     )
     .max(1000)
     .default([]),

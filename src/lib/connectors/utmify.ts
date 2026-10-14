@@ -2,8 +2,8 @@ import { z } from "zod";
 import { RetryLaterError } from "../errors";
 import type { Connector } from "./types";
 export const utmifyCredentials = z.object({
-  apiKey: z.string().min(10).max(500),
-  dashboardId: z.string().regex(/^[a-fA-F0-9]{24}$/),
+  apiKey: z.string().trim().min(10).max(500),
+  dashboardId: z.string().trim().regex(/^[a-fA-F0-9]{24}$/),
 });
 const n = z.number().int().safe().nullable().optional();
 const summarySchema = z.object({
@@ -39,21 +39,19 @@ export class UtmifyConnector implements Connector {
       },
     );
     if (response.status === 429) {
-      const seconds = Number(response.headers.get("retry-after"));
-      const delay =
-        Number.isFinite(seconds) && seconds > 0
-          ? Math.min(86400, Math.max(60, seconds))
-          : 60;
+      const header = response.headers.get("retry-after");
+      const seconds = Number(header);
+      const now = Date.now();
+      const requested = Number.isFinite(seconds) && seconds > 0
+        ? now + seconds * 1000 : Date.parse(header ?? "");
+      const retryAt = Number.isFinite(requested) && requested <= 8.64e15
+        ? Math.max(now + 60_000, requested) : now + 60_000;
       throw new RetryLaterError(
-        new Date(Date.now() + delay * 1000).toISOString(),
+        new Date(retryAt).toISOString(),
       );
     }
     if (!response.ok)
-      throw new Error(
-        response.status === 429
-          ? "UTMify: limite temporário. Aguarde a próxima sincronização."
-          : "UTMify: verifique plano, acesso beta, dashboard e chave.",
-      );
+      throw new Error("UTMify: verifique plano, acesso beta, dashboard e chave.");
     const summary = summarySchema.parse(await response.json());
     return {
       records: [],

@@ -96,27 +96,27 @@ export const analysisSchema = z.object({
 });
 export const contextPatchSchema = z
   .object({
-    produto: z.string().max(4000).optional(),
-    publico: z.string().max(4000).optional(),
-    transformacao: z.string().max(4000).optional(),
-    mecanismo: z.string().max(4000).optional(),
+    produto: z.string().trim().max(4000).optional(),
+    publico: z.string().trim().max(4000).optional(),
+    transformacao: z.string().trim().max(4000).optional(),
+    mecanismo: z.string().trim().max(4000).optional(),
     ticketCents: z
       .string()
       .regex(/^\d{1,15}$/)
       .nullable()
       .optional(),
-    tipoFunil: z.string().max(1000).optional(),
-    proximoPassoFunil: z.string().max(1000).optional(),
-    provasAutorizadas: z.array(z.string().max(4000)).max(30).optional(),
-    objecoes: z.array(z.string().max(4000)).max(30).optional(),
-    restricoes: z.array(z.string().max(4000)).max(30).optional(),
+    tipoFunil: z.string().trim().max(1000).optional(),
+    proximoPassoFunil: z.string().trim().max(1000).optional(),
+    provasAutorizadas: z.array(z.string().trim().max(4000)).max(30).optional(),
+    objecoes: z.array(z.string().trim().max(4000)).max(30).optional(),
+    restricoes: z.array(z.string().trim().max(4000)).max(30).optional(),
     estadoCliente: z
       .enum(["A_validado", "B_sinais", "C_zero"])
       .nullable()
       .optional(),
-    especialistaHandle: z.string().max(100).optional(),
-    produtoNome: z.string().max(300).optional(),
-    notas: z.array(z.string().max(4000)).max(50).optional(),
+    especialistaHandle: z.string().trim().max(100).optional(),
+    produtoNome: z.string().trim().max(300).optional(),
+    notas: z.array(z.string().trim().max(4000)).max(50).optional(),
   })
   .strict();
 export const publicDataSchema = z.object({

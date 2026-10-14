@@ -21,6 +21,7 @@ export function POST(request: Request) {
     try {
       const head = await client.send(
         new HeadObjectCommand({ Bucket: bucket, Key: asset.s3Key }),
+        { abortSignal: AbortSignal.timeout(20_000) },
       );
       if (
         head.ContentLength !== Number(asset.size) ||

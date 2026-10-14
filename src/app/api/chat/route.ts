@@ -11,7 +11,7 @@ import {
 import { db } from "@/db";
 import { conversations, messages } from "@/db/schema";
 import { handle, apiTenant, readJson, HttpError } from "@/lib/http";
-import { textModel, providerOptions } from "@/lib/ai/model";
+import { textModel, providerOptions, onModelError } from "@/lib/ai/model";
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import { chatTools } from "@/lib/ai/tools";
 export const runtime = "nodejs";
@@ -49,6 +49,7 @@ export function POST(request: Request) {
       .min(1)
       .max(12000)
       .parse(incoming.parts.map((p) => z.string().parse(p.text)).join("\n"));
+    const turnSignal = AbortSignal.any([request.signal, AbortSignal.timeout(600_000)]);
     const turn = randomUUID();
     const [claimed] = await db
       .update(conversations)
@@ -153,12 +154,13 @@ export function POST(request: Request) {
           const result = streamText({
             model: textModel(),
             providerOptions,
+            onError: onModelError,
             system,
             messages: modelMessages,
-            tools: chatTools(tenantId, input.conversationId, writer, request.signal),
+            tools: chatTools(tenantId, input.conversationId, writer, turnSignal),
             stopWhen: stepCountIs(8),
             maxOutputTokens: 6000,
-            abortSignal: request.signal,
+            abortSignal: turnSignal,
             onAbort: async () => {
               await release();
             },

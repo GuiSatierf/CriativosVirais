@@ -4,6 +4,8 @@ V1 de uma ferramenta em que a IA atua como copywriter de anúncios em vídeo. A 
 
 O [registro de entrega das seis fases](docs/entrega-v1.md) relaciona cada fase às funcionalidades e validações realizadas.
 
+O [relatório da revisão completa](docs/revisao-v1.md) registra os problemas corrigidos, as verificações e os limites de ativação.
+
 ## Funcionalidades implementadas
 
 - Autenticação email/senha com Better Auth, criação automática de tenant e contexto, logout e páginas protegidas.
@@ -149,7 +151,7 @@ Não existe deploy automático ou alteração de produção neste PR. Faça back
 
 Identidade do tenant vem da sessão no servidor; APIs de sessão validam origem nas mutações. Helpers `tenantWhere`/`tenantValues` estão disponíveis, e serviços internos recebem o tenant resolvido pelo servidor e aplicam filtros explícitos em todas as queries. IDs de rota, jobs e vínculos passam por validação/propriedade. Vínculos compostos `(tenant_id,id)` impedem referências entre operações. Não há RLS nesta V1.
 
-A geração de levas recebe o texto recente da conversa e as análises dos vídeos selecionados ou referenciados por asset_id, sempre filtrados pelo tenant. Os motivos de seleção permanecem privados. Cancelar a conversa também interrompe as chamadas de geração/revisão pendentes. O histórico de assistente/tools fornecido pelo front não entra no contexto. Conteúdo de clientes, transcrições, imagens, contexto e aprendizados é delimitado como dado não confiável. Nenhuma ferramenta recebe credenciais de integração; inputs/resultados de tools e reasoning são removidos do stream público. A extração ffmpeg/ffprobe usa argumentos sem shell, somente protocolos file/pipe, demuxers forçados pelo MIME para recusar playlists, limites de duração/timeout e diretórios temporários exclusivos.
+As chaves de criativos gerados são reservadas junto da leva, evitando colisões com importações e permitindo upload antes dos primeiros resultados. Mudanças de contexto/provas durante a geração recusam o salvamento. A geração de levas recebe o texto recente da conversa e as análises dos vídeos selecionados ou referenciados por asset_id, sempre filtrados pelo tenant. Os motivos de seleção permanecem privados. Cancelar a conversa também interrompe as chamadas de geração/revisão pendentes. O histórico de assistente/tools fornecido pelo front não entra no contexto. Conteúdo de clientes, transcrições, imagens, contexto e aprendizados é delimitado como dado não confiável. Nenhuma ferramenta recebe credenciais de integração; inputs/resultados de tools e reasoning são removidos do stream público. A extração ffmpeg/ffprobe usa argumentos sem shell, somente protocolos file/pipe, demuxers forçados pelo MIME para recusar playlists, limites de duração/timeout e diretórios temporários exclusivos.
 
 `shared_patterns` recebe apenas estruturas/consciência de enums e frases fixas anônimas; aprendizado privado nunca é copiado para lá. Mesmo um padrão observado é tratado como hipótese na próxima operação. Dados permanecem enquanto a conta/operação existir; a V1 não implementa expiração automática. Exclusão administrativa solicitada deve abranger tenant (cascade no banco), prefixo S3 correspondente e backups conforme a política do operador. Jobs de assets removidos deixam de processar registros ausentes. Não há reset de senha/verificação de email: requer serviço de email e escopo adicional.
 

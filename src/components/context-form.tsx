@@ -70,9 +70,10 @@ export function ContextForm({
         <Input
           id="ctx-ticket"
           inputMode="numeric"
+          maxLength={15}
           value={context.ticketCents ?? ""}
-          onChange={(e) =>
-            setContext({ ...context, ticketCents: e.target.value || null })
+          onInput={(e) =>
+            setContext({ ...context, ticketCents: e.currentTarget.value || null })
           }
         />
       </div>

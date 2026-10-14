@@ -16,6 +16,15 @@ describe("webhook signature and contract", () => {
     expect(verifyHmac(body, secret, "a".repeat(63))).toBe(false);
     expect(verifyHmac(body, "other", signature)).toBe(false);
   });
+  it("rejects blank event and attribution keys and trims meaningful keys", () => {
+    const event = { event_id: " event-1 ", occurred_at: "2026-10-13T12:00:00-03:00",
+      status: "approved", currency: "BRL", creative_key: " AD-1 " };
+    expect(eventSchema.parse(event).creative_key).toBe("AD-1");
+    expect(eventSchema.parse(event).event_id).toBe("event-1");
+    expect(eventSchema.safeParse({ ...event, event_id: "   " }).success).toBe(false);
+    expect(eventSchema.safeParse({ ...event, creative_key: "   " }).success).toBe(false);
+    expect(eventSchema.safeParse({ ...event, utm_content: "" }).success).toBe(false);
+  });
   it("rejects client-supplied tenant IDs, unsupported currency and unsafe cents", () => {
     const event = {
       event_id: "order-1-paid",

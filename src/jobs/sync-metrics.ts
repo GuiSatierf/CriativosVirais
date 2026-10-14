@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { RetryLaterError } from "@/lib/errors";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { integrations } from "@/db/schema";
 import { decrypt } from "@/lib/crypto";
@@ -40,6 +40,8 @@ export async function syncMetrics(data: unknown) {
     const where = and(
       eq(integrations.tenantId, row.tenantId),
       eq(integrations.id, row.id),
+      eq(integrations.credentialsEncrypted, row.credentialsEncrypted),
+      row.lastSyncAt ? eq(integrations.lastSyncAt, row.lastSyncAt) : isNull(integrations.lastSyncAt),
     );
     try {
       const today = new Intl.DateTimeFormat("en-CA", {

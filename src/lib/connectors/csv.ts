@@ -1,3 +1,4 @@
+import { HttpError } from "../errors";
 import Papa from "papaparse";
 import { z } from "zod";
 import {
@@ -10,8 +11,9 @@ import {
 } from "./types";
 export const csvImportSchema = z
   .object({
-    csv: z.string().min(1).max(5_000_000),
-    mapping: z.record(z.string(), z.string().max(300)),
+    csv: z.string().min(1).max(5_000_000)
+      .refine((value) => Buffer.byteLength(value, "utf8") <= 5_000_000, "CSV acima de 5 MB."),
+    mapping: z.partialRecord(z.enum(["creative_key", "creative_name", "campaign_key", "adset_key", ...metricNames]), z.string().max(300)),
     from: day,
     to: day,
     decimal: z.enum(["comma", "dot"]),
@@ -35,12 +37,13 @@ function numeric(
   if (!v) return null;
   if (decimal === "comma") {
     if (!/^-?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?$/.test(v))
-      throw new Error("Número inválido");
+      throw new HttpError(400, "Número inválido");
     v = v.replaceAll(".", "").replace(",", ".");
-  } else if (!/^-?\d+(?:\.\d+)?$/.test(v)) throw new Error("Número inválido");
+  } else if (!/^-?\d+(?:\.\d+)?$/.test(v)) throw new HttpError(400, "Número inválido");
+  if (v.length > 40) throw new HttpError(400, "Número acima do limite permitido");
   if (money && major) {
     if (!/^-?\d+(?:\.\d{1,2})?$/.test(v))
-      throw new Error("Máximo duas casas para moeda");
+      throw new HttpError(400, "Máximo duas casas para moeda");
     const negative = v.startsWith("-");
     const [a, b = ""] = v.replace(/^-/, "").split(".");
     return (
@@ -54,7 +57,7 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
   const p = csvImportSchema.parse(input);
   for (const metric of ["hook_rate", "body_rate"] as const)
     if (p.mapping[metric] && !p.metricDefinitions[metric])
-      throw new Error(`Informe a fórmula de ${metric} antes de importar.`);
+      throw new HttpError(400, `Informe a fórmula de ${metric} antes de importar.`);
   const parsed = Papa.parse<Record<string, string>>(p.csv, {
     header: true,
     skipEmptyLines: "greedy",
@@ -64,24 +67,24 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
     parsed.meta.renamedHeaders &&
     Object.keys(parsed.meta.renamedHeaders).length
   )
-    throw new Error("Colunas repetidas no CSV.");
+    throw new HttpError(400, "Colunas repetidas no CSV.");
   if (
     parsed.errors.length ||
     !parsed.meta.fields?.length ||
     parsed.data.length > 5000
   )
-    throw new Error("CSV inválido, colunas repetidas ou acima de 5000 linhas.");
+    throw new HttpError(400, "CSV inválido, colunas repetidas ou acima de 5000 linhas.");
   if (
     !p.mapping.creative_key ||
     !parsed.meta.fields.includes(p.mapping.creative_key)
   )
-    throw new Error("Mapeie uma chave estável de criativo.");
+    throw new HttpError(400, "Mapeie uma chave estável de criativo.");
   for (const header of Object.values(p.mapping))
     if (header && !parsed.meta.fields.includes(header))
-      throw new Error("Coluna não encontrada.");
+      throw new HttpError(400, "Coluna não encontrada.");
   const seen = new Set<string>();
   return parsed.data.map((row, index) => {
-    const read = (field: string) =>
+    const read = (field: keyof typeof p.mapping) =>
       p.mapping[field] ? (row[p.mapping[field]]?.trim() ?? "") : "";
     const base: Record<string, unknown> = {
       creative_key: read("creative_key"),
@@ -107,10 +110,11 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
     }
     const result = recordSchema.safeParse(base);
     if (!result.success)
-      throw new Error(`Linha ${index + 2}: chave, data ou métrica inválida.`);
+      throw new HttpError(400, `Linha ${index + 2}: chave, data ou métrica inválida.`);
     const r = result.data;
     if (seen.has(r.creative_key))
-      throw new Error(
+      throw new HttpError(
+          400,
         `Linha ${index + 2}: chave repetida no período. Consolide as linhas antes de importar.`,
       );
     seen.add(r.creative_key);
@@ -120,7 +124,7 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
         r[metric] !== null &&
         Number(r[metric]) < 0
       )
-        throw new Error(`Linha ${index + 2}: métrica negativa.`);
+        throw new HttpError(400, `Linha ${index + 2}: métrica negativa.`);
     return r;
   });
 }

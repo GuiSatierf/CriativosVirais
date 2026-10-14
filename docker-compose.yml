@@ -69,6 +69,7 @@ services:
     <<: *app
     profiles: [full]
     command: ["node", "dist/worker.js"]
+    stop_grace_period: 35s
 volumes:
   postgres_data:
   rustfs_data:
