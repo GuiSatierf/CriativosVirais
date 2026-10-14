@@ -4,6 +4,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 FROM base AS deps
 COPY package*.json ./
+COPY vendor/*.tgz ./vendor/
 RUN npm ci
 
 FROM base AS builder
@@ -13,6 +14,7 @@ RUN npm run build
 
 FROM base AS production-deps
 COPY package*.json ./
+COPY vendor/*.tgz ./vendor/
 RUN npm ci --omit=dev && npm cache clean --force
 
 FROM base AS runner

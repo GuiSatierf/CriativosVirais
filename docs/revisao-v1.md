@@ -36,7 +36,7 @@ Revisão realizada em 13/10/2026, confrontando o código com o documento mestre 
 - HTTP real no app atualizado: importação CSV de quase 5 MB com muitas aspas, rejeição de mapeamento desconhecido e origem inválida, webhook HMAC/idempotente e worker preservando NULL em eventos pendentes.
 - Objeto S3 temporário real recusou leitura anônima com 403 e foi removido. Conta, dados e jobs concluídos da revisão foram removidos.
 - Execução Docker e diagnóstico de Postgres, migrations e S3/CORS. As verificações anteriores de HMAC/idempotência com worker, upload real/HEAD, duas contas/isolamento, resultados/benchmark e renderização DOCX permanecem registradas na entrega.
-- Auditoria de produção: zero vulnerabilidades conhecidas no resultado consultado. A árvore de desenvolvimento tem nove alertas associados ao advisory de braces; as sugestões do npm envolvem downgrades de ferramentas da stack e não foram aplicadas automaticamente.
+- Auditorias completa e de produção: zero vulnerabilidades conhecidas. Os nove alertas de desenvolvimento associados a braces foram corrigidos em um fork local com limite de profundidade, preservando as versões da stack. `npm run check:security` verifica entradas maliciosas, ASTs, integridade do pacote instalado e compatibilidade de fast-glob/ts-morph. Consulte [Dependências e segurança](dependencias-seguranca.md) para a origem e a manutenção da correção.
 
 ## Limites da revisão e da ativação
 
