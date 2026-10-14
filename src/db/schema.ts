@@ -1,0 +1,547 @@
+import { sql } from "drizzle-orm";
+import {
+  pgTable,
+  pgEnum,
+  uuid,
+  text,
+  timestamp,
+  boolean,
+  bigint,
+  integer,
+  doublePrecision,
+  jsonb,
+  date,
+  index,
+  unique,
+  uniqueIndex,
+  primaryKey,
+  foreignKey,
+  check,
+} from "drizzle-orm/pg-core";
+
+const createdAt = () =>
+  timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
+const updatedAt = () =>
+  timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date());
+const id = () => uuid("id").defaultRandom().primaryKey();
+const tenantId = () =>
+  uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" });
+const money = (name: string) => bigint(name, { mode: "bigint" });
+const count = (name: string) => bigint(name, { mode: "bigint" });
+const jsonArray = (name: string) =>
+  jsonb(name).$type<unknown[]>().default([]).notNull();
+export const clientState = pgEnum("client_state", [
+  "A_validado",
+  "B_sinais",
+  "C_zero",
+]);
+export const assetKind = pgEnum("asset_kind", ["video", "audio"]);
+export const assetStatus = pgEnum("asset_status", [
+  "uploaded",
+  "processing",
+  "done",
+  "error",
+]);
+export const provider = pgEnum("integration_provider", [
+  "utmify",
+  "vkmetrics",
+  "csv",
+  "webhook",
+]);
+export const evidenceLevel = pgEnum("evidence_level", [
+  "hipotese",
+  "sinal_atencao",
+  "sinal_clique",
+  "sinal_lead",
+  "sinal_venda",
+  "validacao_economica",
+  "repetido",
+]);
+export const saleStatus = pgEnum("sale_status", [
+  "pending",
+  "approved",
+  "refunded",
+  "chargeback",
+  "cancelled",
+  "failed",
+]);
+export const memberRole = pgEnum("member_role", ["owner", "member"]);
+
+// Better Auth owns these four tables; they are identity records, not tenant content.
+export const user = pgTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").default(false).notNull(),
+  image: text("image"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+export const session = pgTable(
+  "session",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (t) => [index("session_user_idx").on(t.userId)],
+);
+export const account = pgTable(
+  "account",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", {
+      withTimezone: true,
+    }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", {
+      withTimezone: true,
+    }),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("account_user_idx").on(t.userId),
+    uniqueIndex("account_provider_unique").on(t.providerId, t.accountId),
+  ],
+);
+export const verification = pgTable(
+  "verification",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("verification_identifier_idx").on(t.identifier)],
+);
+export const tenants = pgTable("tenants", {
+  id: id(),
+  nome: text("nome").notNull(),
+  createdAt: createdAt(),
+});
+export const tenantMembers = pgTable(
+  "tenant_members",
+  {
+    tenantId: tenantId(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: memberRole("role").default("owner").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.userId] }),
+    index("tenant_members_tenant_idx").on(t.tenantId),
+    uniqueIndex("tenant_members_user_unique").on(t.userId),
+  ],
+);
+
+export const clientContexts = pgTable(
+  "client_contexts",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    produto: text("produto"),
+    publico: text("publico"),
+    transformacao: text("transformacao"),
+    mecanismo: text("mecanismo"),
+    ticketCents: money("ticket_cents"),
+    tipoFunil: text("tipo_funil"),
+    proximoPassoFunil: text("proximo_passo_funil"),
+    provasAutorizadas: jsonArray("provas_autorizadas"),
+    objecoes: jsonArray("objecoes"),
+    restricoes: jsonArray("restricoes"),
+    estadoCliente: clientState("estado_cliente"),
+    especialistaHandle: text("especialista_handle"),
+    produtoNome: text("produto_nome"),
+    notas: jsonArray("notas"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("client_contexts_tenant_idx").on(t.tenantId),
+    unique("client_contexts_tenant_id_unique").on(t.tenantId, t.id),
+    uniqueIndex("client_contexts_tenant_unique").on(t.tenantId),
+  ],
+);
+
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    title: text("title").notNull(),
+    processingToken: text("processing_token"),
+    processingUntil: timestamp("processing_until", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("conversations_tenant_idx").on(t.tenantId),
+    unique("conversations_tenant_id_unique").on(t.tenantId, t.id),
+  ],
+);
+
+export const messages = pgTable(
+  "messages",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    conversationId: uuid("conversation_id").notNull(),
+    role: text("role", {
+      enum: ["user", "assistant", "system", "tool"],
+    }).notNull(),
+    content: jsonb("content").notNull(),
+    clientMessageId: text("client_message_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("messages_tenant_idx").on(t.tenantId),
+    uniqueIndex("messages_client_unique").on(
+      t.tenantId,
+      t.conversationId,
+      t.clientMessageId,
+    ),
+    unique("messages_tenant_id_unique").on(t.tenantId, t.id),
+    foreignKey({
+      columns: [t.tenantId, t.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const creatives = pgTable(
+  "creatives",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    creativeKey: text("creative_key").notNull(),
+    name: text("name"),
+    campaignKey: text("campaign_key"),
+    adsetKey: text("adset_key"),
+    source: text("source").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("creatives_tenant_idx").on(t.tenantId),
+    unique("creatives_tenant_id_unique").on(t.tenantId, t.id),
+    uniqueIndex("creatives_key_unique").on(t.tenantId, t.creativeKey),
+  ],
+);
+
+export const assets = pgTable(
+  "assets",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    creativeId: uuid("creative_id"),
+    kind: assetKind("kind").notNull(),
+    s3Key: text("s3_key").notNull(),
+    mime: text("mime").notNull(),
+    size: count("size").notNull(),
+    durationS: doublePrecision("duration_s"),
+    status: assetStatus("status").default("uploaded").notNull(),
+    errorMessage: text("error_message"),
+    uploadCompletedAt: timestamp("upload_completed_at", { withTimezone: true }),
+    transcription: jsonb("transcription"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("assets_tenant_idx").on(t.tenantId),
+    unique("assets_tenant_id_unique").on(t.tenantId, t.id),
+    uniqueIndex("assets_key_unique").on(t.tenantId, t.s3Key),
+    foreignKey({
+      columns: [t.tenantId, t.creativeId],
+      foreignColumns: [creatives.tenantId, creatives.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const creativeMetrics = pgTable(
+  "creative_metrics",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    creativeId: uuid("creative_id").notNull(),
+    // Empty means unknown; never infer a historical campaign from mutable creative metadata.
+    campaignKey: text("campaign_key").default("").notNull(),
+    periodFrom: date("period_from").notNull(),
+    periodTo: date("period_to").notNull(),
+    spendCents: money("spend_cents"),
+    impressions: count("impressions"),
+    clicks: count("clicks"),
+    ctr: doublePrecision("ctr"),
+    hookRate: doublePrecision("hook_rate"),
+    bodyRate: doublePrecision("body_rate"),
+    leads: count("leads"),
+    checkouts: count("checkouts"),
+    approvedSales: count("approved_sales"),
+    revenueCents: money("revenue_cents"),
+    profitCents: money("profit_cents"),
+    roas: doublePrecision("roas"),
+    refunds: count("refunds"),
+    chargebacks: count("chargebacks"),
+    source: text("source").notNull(),
+    confidence: text("confidence"),
+  },
+  (t) => [
+    index("creative_metrics_tenant_idx").on(t.tenantId),
+    unique("creative_metrics_tenant_id_unique").on(t.tenantId, t.id),
+    uniqueIndex("creative_metrics_period_unique").on(
+      t.tenantId,
+      t.creativeId,
+      t.periodFrom,
+      t.periodTo,
+      t.source,
+      t.campaignKey,
+    ),
+    check(
+      "creative_metrics_period_check",
+      sql`${t.periodFrom} <= ${t.periodTo}`,
+    ),
+    foreignKey({
+      columns: [t.tenantId, t.creativeId],
+      foreignColumns: [creatives.tenantId, creatives.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const salesEvents = pgTable(
+  "sales_events",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    eventId: text("event_id").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    status: saleStatus("status").notNull(),
+    currency: text("currency").notNull(),
+    revenueCents: money("revenue_cents"),
+    profitCents: money("profit_cents"),
+    creativeKey: text("creative_key"),
+    utmSource: text("utm_source"),
+    utmCampaign: text("utm_campaign"),
+    utmMedium: text("utm_medium"),
+    utmContent: text("utm_content"),
+    utmTerm: text("utm_term"),
+    source: text("source").notNull(),
+    raw: jsonb("raw").notNull(),
+  },
+  (t) => [
+    index("sales_events_tenant_idx").on(t.tenantId),
+    unique("sales_events_tenant_id_unique").on(t.tenantId, t.id),
+    uniqueIndex("sales_events_idempotency_unique").on(t.tenantId, t.eventId),
+    index("sales_events_creative_period_idx").on(
+      t.tenantId,
+      t.creativeKey,
+      t.occurredAt,
+    ),
+    check("sales_events_currency_check", sql`${t.currency} ~ '^[A-Z]{3}$'`),
+  ],
+);
+
+export const videoAnalyses = pgTable(
+  "video_analyses",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    assetId: uuid("asset_id").notNull(),
+    creativeId: uuid("creative_id"),
+    transcript: text("transcript").notNull(),
+    segments: jsonArray("segments"),
+    narrative: text("narrative").notNull(),
+    awarenessEntry: text("awareness_entry").notNull(),
+    awarenessExit: text("awareness_exit").notNull(),
+    skeleton: text("skeleton").notNull(),
+    format: text("format").notNull(),
+    proofTypes: jsonArray("proof_types"),
+    cta: text("cta").notNull(),
+    visualNotes: jsonArray("visual_notes"),
+    uncertainties: jsonArray("uncertainties"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("video_analyses_tenant_idx").on(t.tenantId),
+    unique("video_analyses_tenant_id_unique").on(t.tenantId, t.id),
+    uniqueIndex("video_analyses_asset_unique").on(t.tenantId, t.assetId),
+    foreignKey({
+      columns: [t.tenantId, t.assetId],
+      foreignColumns: [assets.tenantId, assets.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.tenantId, t.creativeId],
+      foreignColumns: [creatives.tenantId, creatives.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const creativeSelections = pgTable(
+  "creative_selections",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    creativeId: uuid("creative_id").notNull(),
+    reason: text("reason").notNull(),
+    metricGroups: jsonArray("metric_groups"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("creative_selections_tenant_idx").on(t.tenantId),
+    unique("creative_selections_tenant_id_unique").on(t.tenantId, t.id),
+    foreignKey({
+      columns: [t.tenantId, t.creativeId],
+      foreignColumns: [creatives.tenantId, creatives.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const batches = pgTable(
+  "batches",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    conversationId: uuid("conversation_id").notNull(),
+    title: text("title").notNull(),
+    produtoNome: text("produto_nome").notNull(),
+    especialistaHandle: text("especialista_handle"),
+    roundNumber: integer("round_number").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("batches_tenant_idx").on(t.tenantId),
+    unique("batches_tenant_id_unique").on(t.tenantId, t.id),
+    uniqueIndex("batches_round_unique").on(t.tenantId, t.roundNumber),
+    check("batches_round_positive", sql`${t.roundNumber} > 0`),
+    foreignKey({
+      columns: [t.tenantId, t.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const batchItems = pgTable(
+  "batch_items",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    batchId: uuid("batch_id").notNull(),
+    position: integer("position").notNull(),
+    creativeKey: text("creative_key").notNull(),
+    ideia: text("ideia").notNull(),
+    formato: text("formato").default("").notNull(),
+    referencia: text("referencia").default("").notNull(),
+    instrucoesGravacao: text("instrucoes_gravacao").default("").notNull(),
+    instrucoesEdicao: text("instrucoes_edicao").default("").notNull(),
+    g1: text("g1").notNull(),
+    g2: text("g2").notNull(),
+    g3: text("g3").notNull(),
+    corpo: text("corpo").notNull(),
+    narrativa: text("narrativa").notNull(),
+    awarenessEntry: text("awareness_entry").notNull(),
+    awarenessExit: text("awareness_exit").notNull(),
+    skeleton: text("skeleton").notNull(),
+    hipotese: text("hipotese").notNull(),
+    blocoTestado: text("bloco_testado").notNull(),
+    provaUsada: text("prova_usada").notNull(),
+    duracaoEstimada: integer("duracao_estimada").notNull(),
+  },
+  (t) => [
+    index("batch_items_tenant_idx").on(t.tenantId),
+    unique("batch_items_tenant_id_unique").on(t.tenantId, t.id),
+    uniqueIndex("batch_items_position_unique").on(
+      t.tenantId,
+      t.batchId,
+      t.position,
+    ),
+    uniqueIndex("batch_items_key_unique").on(t.tenantId, t.creativeKey),
+    check("batch_items_position_positive", sql`${t.position} > 0`),
+    foreignKey({
+      columns: [t.tenantId, t.batchId],
+      foreignColumns: [batches.tenantId, batches.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const learnings = pgTable(
+  "learnings",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    batchId: uuid("batch_id"),
+    creativeId: uuid("creative_id"),
+    texto: text("texto").notNull(),
+    evidenceLevel: evidenceLevel("evidence_level").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("learnings_tenant_idx").on(t.tenantId),
+    unique("learnings_tenant_id_unique").on(t.tenantId, t.id),
+    foreignKey({
+      columns: [t.tenantId, t.batchId],
+      foreignColumns: [batches.tenantId, batches.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.tenantId, t.creativeId],
+      foreignColumns: [creatives.tenantId, creatives.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const integrations = pgTable(
+  "integrations",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    provider: provider("provider").notNull(),
+    credentialsEncrypted: text("credentials_encrypted"),
+    tokenHash: text("token_hash").unique(),
+    metadata: jsonb("metadata"),
+    webhookSecretEncrypted: text("webhook_secret_encrypted"),
+    status: text("status").default("disconnected").notNull(),
+    lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("integrations_tenant_idx").on(t.tenantId),
+    unique("integrations_tenant_id_unique").on(t.tenantId, t.id),
+    uniqueIndex("integrations_provider_unique").on(t.tenantId, t.provider),
+  ],
+);
+
+// Curated anonymous abstractions only; never insert client copy, names or identifying numbers here.
+export const sharedPatterns = pgTable("shared_patterns", {
+  id: id(),
+  tipo: text("tipo").notNull(),
+  descricao: text("descricao").notNull(),
+  esqueleto: text("esqueleto"),
+  nivelConsciencia: text("nivel_consciencia"),
+  condicoes: jsonArray("condicoes"),
+  evidenceLevel: evidenceLevel("evidence_level").notNull(),
+  createdAt: createdAt(),
+});
+
+export const rateLimit = pgTable("rate_limit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+});

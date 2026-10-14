@@ -1,0 +1,9 @@
+node_modules/
+.next/
+dist/
+.env*
+!.env.example
+!.env.production.example
+*.tsbuildinfo
+coverage/
+playwright-report/

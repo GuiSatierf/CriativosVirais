@@ -1,0 +1,116 @@
+import { z } from "zod";
+export const metricNames = [
+  "spend_cents",
+  "impressions",
+  "clicks",
+  "ctr",
+  "hook_rate",
+  "body_rate",
+  "leads",
+  "checkouts",
+  "approved_sales",
+  "revenue_cents",
+  "profit_cents",
+  "roas",
+  "refunds",
+  "chargebacks",
+] as const;
+export const centsNames = [
+  "spend_cents",
+  "revenue_cents",
+  "profit_cents",
+] as const;
+export const floatNames = ["ctr", "hook_rate", "body_rate", "roas"] as const;
+export const day = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((v) => {
+    const d = new Date(v + "T00:00:00Z");
+    return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+  }, "Data inválida");
+const integer = z
+  .string()
+  .max(20)
+  .regex(/^-?\d+$/)
+  .refine(
+    (v) =>
+      v.length <= 20 && /^-?\d+$/.test(v) &&
+      BigInt(v) >= -9223372036854775808n && BigInt(v) <= 9223372036854775807n,
+  )
+  .nullable();
+export const metricsSchema = z.object({
+  spend_cents: integer,
+  impressions: integer,
+  clicks: integer,
+  ctr: z.number().finite().nullable(),
+  hook_rate: z.number().finite().nullable(),
+  body_rate: z.number().finite().nullable(),
+  leads: integer,
+  checkouts: integer,
+  approved_sales: integer,
+  revenue_cents: integer,
+  profit_cents: integer,
+  roas: z.number().finite().nullable(),
+  refunds: integer,
+  chargebacks: integer,
+});
+// Aggregates can exceed a single PostgreSQL bigint while remaining exact text.
+const aggregatedInteger = z.string().max(40).regex(/^-?\d+$/).nullable();
+export const aggregatedMetricsSchema = metricsSchema.extend({
+  spend_cents: aggregatedInteger,
+  impressions: aggregatedInteger,
+  clicks: aggregatedInteger,
+  leads: aggregatedInteger,
+  checkouts: aggregatedInteger,
+  approved_sales: aggregatedInteger,
+  revenue_cents: aggregatedInteger,
+  profit_cents: aggregatedInteger,
+  refunds: aggregatedInteger,
+  chargebacks: aggregatedInteger,
+});
+export const recordSchema = metricsSchema
+  .extend({
+    creative_key: z.string().trim().min(1).max(200),
+    creative_name: z.string().max(300).nullable(),
+    campaign_key: z.string().trim().min(1).max(200).nullable(),
+    adset_key: z.string().max(200).nullable(),
+    period_from: day,
+    period_to: day,
+    source: z.enum(["csv", "webhook", "utmify"]),
+    confidence: z.string().max(100),
+  })
+  .refine((v) => v.period_from <= v.period_to, "Período inválido");
+export type MetricRecord = z.infer<typeof recordSchema>;
+export interface Connector {
+  sync(
+    from: string,
+    to: string,
+  ): Promise<{ records: MetricRecord[]; warning?: string; summary?: unknown }>;
+}
+export const periodSchema = z
+  .object({
+    from: day,
+    to: day,
+    source: z.enum(["csv", "webhook"]).default("csv"),
+    campaignKey: z.string().trim().min(1).max(200).optional(),
+  })
+  .refine((v) => v.from <= v.to, "Período inválido");
+export const attributionWarning =
+  "Não encontramos uma chave confiável ligando vendas aos criativos. Podemos analisar os vídeos, mas não atribuir automaticamente o resultado por criativo.";
+
+export const metricLabels: Record<(typeof metricNames)[number], string> = {
+  spend_cents: "Gasto",
+  impressions: "Impressões",
+  clicks: "Cliques",
+  ctr: "CTR",
+  hook_rate: "Hook Rate",
+  body_rate: "Body Rate",
+  leads: "Leads",
+  checkouts: "Checkouts",
+  approved_sales: "Vendas aprovadas",
+  revenue_cents: "Receita",
+  profit_cents: "Lucro",
+  roas: "ROAS",
+  refunds: "Reembolsos",
+  chargebacks: "Chargebacks",
+};
