@@ -9,6 +9,7 @@ O [relatório da revisão completa](docs/revisao-v1.md) registra os problemas co
 ## Funcionalidades implementadas
 
 - Autenticação email/senha com Better Auth, criação automática de tenant e contexto, logout e páginas protegidas.
+- Modo escuro por padrão, com alternância para modo claro no login/cadastro e na navegação do app. A preferência fica salva no navegador por um ano e é aplicada pelo servidor antes de renderizar, incluindo notificações e controles nativos.
 - Chat em streaming com Vercel AI SDK e DeepSeek; histórico persistido por conversa, contexto editável pela IA e pelo cliente e abertura em português. O servidor carrega o histórico da própria conta e ignora mensagens de assistente/tools fornecidas pelo navegador.
 - Geração de levas estruturadas com Zod, contexto privado, documento mestre inteiro, memória recente e padrões anônimos. Uma segunda chamada verifica todos os critérios de qualidade; somente itens reprovados são regenerados e revistos antes de salvar.
 - Levas com três hooks e corpo completo, chave `Lxx-Cxx` para `utm_content`, detalhes do teste recolhíveis, copiar e exportar `.docx` com tabelas no formato solicitado.

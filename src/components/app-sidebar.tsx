@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/theme-toggle";
 const links = [
   { href: "/chat", label: "Conversa", icon: MessageSquare },
   { href: "/criativos", label: "Criativos", icon: Film },
@@ -70,6 +71,7 @@ export function AppSidebar({ userName }: { userName: string }) {
         ))}
       </nav>
       <div className="px-3 pb-3 md:mt-auto">
+        <ThemeToggle className="w-full justify-start" />
         <Button
           variant="ghost"
           onClick={logout}
