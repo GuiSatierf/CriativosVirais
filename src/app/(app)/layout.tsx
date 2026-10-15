@@ -1,18 +1,30 @@
 import { requireTenant } from "@/lib/tenant";
-import { AppSidebar } from "@/components/app-sidebar";
+import { getRecentConversations } from "@/lib/onboarding";
+import { AppShell } from "@/components/app-shell";
+import { avatarUrl } from "@/lib/avatar";
 export const dynamic = "force-dynamic";
 export default async function AppLayout({
   children,
+  panel,
 }: {
   children: React.ReactNode;
+  /** Intercepted pages (levas, resultados, oferta…) opened over the chat. */
+  panel: React.ReactNode;
 }) {
-  const tenant = await requireTenant();
+  const { tenantId, user } = await requireTenant();
+  // The history drawer groups these by date and filters them client-side.
+  const conversations = await getRecentConversations(tenantId, 50);
   return (
-    <div className="min-h-svh md:flex">
-      <AppSidebar userName={tenant.user.name} />
-      <main className="min-w-0 flex-1 p-5 md:p-10">
-        <div className="mx-auto max-w-5xl">{children}</div>
-      </main>
-    </div>
+    <AppShell
+      user={{
+        name: user.name,
+        email: user.email,
+        image: avatarUrl(user.id, user.image),
+      }}
+      conversations={conversations}
+      panel={panel}
+    >
+      {children}
+    </AppShell>
   );
 }

@@ -1,12 +1,12 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
-import { Toaster } from "sonner";
+import { createContext, useContext, useEffect, useState } from "react";
+import { Toaster } from "@/components/ui/sonner";
 import { themeCookie, themeSchema, type Theme } from "@/lib/theme";
 
 const ThemeContext = createContext<{
   theme: Theme;
-  toggleTheme: () => void;
+  setTheme: (theme: Theme) => void;
 } | null>(null);
 
 export function ThemeProvider({
@@ -16,20 +16,37 @@ export function ThemeProvider({
   initialTheme: Theme;
   children: React.ReactNode;
 }) {
-  const [theme, setTheme] = useState(initialTheme);
+  const [theme, updateTheme] = useState(initialTheme);
 
-  function toggleTheme() {
-    const nextTheme = themeSchema.parse(theme === "dark" ? "light" : "dark");
-    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    function apply() {
+      const resolved =
+        theme === "system" ? (media.matches ? "dark" : "light") : theme;
+      document.documentElement.classList.remove("light", "dark", "system");
+      document.documentElement.classList.add(resolved);
+      // Browser chrome (mobile address bar) follows the chosen theme.
+      for (const meta of document.querySelectorAll<HTMLMetaElement>(
+        'meta[name="theme-color"]',
+      ))
+        meta.content = resolved === "dark" ? "#232322" : "#efeeea";
+    }
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [theme]);
+
+  function setTheme(value: Theme) {
+    const nextTheme = themeSchema.parse(value);
     const secure = window.location.protocol === "https:" ? "; Secure" : "";
     document.cookie = `${themeCookie}=${nextTheme}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
-    setTheme(nextTheme);
+    updateTheme(nextTheme);
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme }}>
       {children}
-      <Toaster theme={theme} richColors />
+      <Toaster theme={theme} />
     </ThemeContext.Provider>
   );
 }

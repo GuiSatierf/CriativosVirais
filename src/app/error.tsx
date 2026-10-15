@@ -1,15 +1,43 @@
 "use client";
-import { Button } from "@/components/ui/button";
-export default function ErrorPage({ reset }: { reset: () => void }) {
+import { useEffect } from "react";
+import Link from "next/link";
+import { House, RotateCw, TriangleAlert } from "@/components/icons";
+import { Button, buttonVariants } from "@/components/ui/button";
+
+export default function ErrorPage({
+  error,
+  retry,
+}: {
+  error: Error & { digest?: string };
+  retry: () => void;
+}) {
+  useEffect(() => {
+    // Only the digest is logged; it matches the server log without exposing details.
+    if (error.digest) console.error("Erro ao carregar a página", error.digest);
+  }, [error.digest]);
   return (
-    <div className="p-8">
-      <h2 className="text-xl font-semibold">
-        Não foi possível carregar esta página.
-      </h2>
-      <p className="my-4 text-muted-foreground">
-        Tente novamente em instantes.
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="flex min-h-svh flex-col items-center justify-center px-4 py-16 text-center outline-none"
+    >
+      <span className="mb-4 flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <TriangleAlert strokeWidth={1.75} className="size-5" aria-hidden />
+      </span>
+      <h1 className="section-title">Algo deu errado</h1>
+      <p role="alert" className="mt-1.5 max-w-sm text-sm text-muted-foreground">
+        Não foi possível carregar esta página. Tente de novo em instantes.
       </p>
-      <Button onClick={reset}>Tentar novamente</Button>
-    </div>
+      <div className="mt-5 flex flex-wrap justify-center gap-2">
+        <Button onClick={() => retry()}>
+          <RotateCw aria-hidden />
+          Tentar novamente
+        </Button>
+        <Link className={buttonVariants({ variant: "outline" })} href="/">
+          <House aria-hidden />
+          Ir para o início
+        </Link>
+      </div>
+    </main>
   );
 }

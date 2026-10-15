@@ -1,4 +1,1 @@
-import { Integrations } from "@/components/integrations";
-export default function Page() {
-  return <Integrations />;
-}
+export { IntegrationsView as default } from "@/components/views/integrations";

@@ -1,193 +1,394 @@
 "use client";
-import { useState, useMemo } from "react";
-import { useTable } from "@tanstack/react-table";
-import { z } from "zod";
+import Link from "next/link";
+import { useState } from "react";
+import { CircleAlert, Eye, EyeOff, FileUp, RotateCw, Film, Upload } from "@/components/icons";
 import { toast } from "sonner";
-import { api, recentPeriod, formatCents } from "@/lib/client";
+import { EmptyState } from "@/components/empty-state";
+import { UploadArea } from "@/components/upload-area";
+import { CreativeActions } from "@/components/creative-actions";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
-  metricNames,
-  metricLabels,
-  metricsSchema,
-} from "@/lib/connectors/types";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+  CardMetrics,
+  DataTable,
+  type DataColumn,
+} from "@/components/metrics/data-table";
+import { MetricGlossary } from "@/components/metrics/metric-glossary";
+import { metricText, type MetricName } from "@/components/metrics/metric-labels";
+import { MetricSummary } from "@/components/metrics/metric-summary";
+import { MetricValue } from "@/components/metrics/metric-value";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { UploadArea } from "./upload-area";
-const rowSchema = metricsSchema.extend({
-  creative_key: z.string(),
-  name: z.string().nullable(),
-  campaign_key: z.string().nullable(),
-  period_from: z.string().nullable(),
-  period_to: z.string().nullable(),
-  video_status: z.string().nullable(),
-});
-type Row = z.infer<typeof rowSchema>;
-export function CreativeTable() {
-  const [period, setPeriod] = useState(recentPeriod);
-  const [campaign, setCampaign] = useState("");
-  const [rows, setRows] = useState<Row[]>([]);
-  const [pending, setPending] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [selected, setSelected] = useState<string>();
-  const columns = useMemo(
-    () => [
-      { accessorKey: "creative_key", header: "Criativo" },
-      { accessorKey: "campaign_key", header: "Campanha" },
-      { accessorKey: "period_from", header: "Período" },
-      ...metricNames.map((name) => ({
-        accessorKey: name,
-        header: metricLabels[name],
-      })),
-      { accessorKey: "video_status", header: "Vídeo / análise" },
-    ],
-    [],
-  );
-  const table = useTable({ features: {}, data: rows, columns });
+  MetricsFilter,
+  metricsQuery,
+  type MetricsFilters,
+} from "@/components/metrics/metrics-filter";
+import {
+  creativesResponseSchema,
+  type CreativeRow,
+  type CreativesResponse,
+} from "@/components/metrics/creatives-schema";
+import { MetricsLoading } from "@/components/metrics/metrics-loading";
+import { formatMetric, formatPeriod } from "@/lib/client";
+import { metricNames } from "@/lib/connectors/types";
+import { useMetricsQuery } from "@/components/metrics/use-metrics-query";
+import { cn } from "@/lib/utils";
+
+const videoStatuses: Record<string, { label: string; dot: string }> = {
+  uploaded: { label: "Aguardando análise", dot: "bg-warning" },
+  processing: { label: "Em análise", dot: "bg-warning animate-pulse" },
+  done: { label: "Analisado", dot: "bg-success" },
+  error: { label: "Erro na análise", dot: "bg-destructive" },
+};
+const noVideo = { label: "Sem vídeo", dot: "bg-muted-foreground/40" };
+
+function VideoStatus({ status }: { status: string | null }) {
+  const config = (status && videoStatuses[status]) || noVideo;
   return (
-    <div className="space-y-5">
-      <h1 className="text-2xl font-semibold">Criativos e métricas</h1>
-      <form
-        className="flex flex-wrap gap-3"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setPending(true);
-          try {
-            setRows(
-              await api(
-                `/api/creatives?${new URLSearchParams({ ...period, ...(campaign ? { campaignKey: campaign } : {}) })}`,
-                z.array(rowSchema),
-              ),
-            );
-            setLoaded(true);
-          } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Falha ao consultar.");
-          } finally {
-            setPending(false);
+    <span className="inline-flex items-center gap-2 text-sm whitespace-nowrap">
+      <span className={cn("size-2 shrink-0 rounded-full", config.dot)} aria-hidden />
+      <span className={cn(!status && "text-muted-foreground")}>
+        {config.label}
+      </span>
+    </span>
+  );
+}
+
+function KeyChip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex w-fit items-center rounded-md border bg-muted/50 px-1.5 py-0.5 font-mono text-xs font-medium">
+      {children}
+    </span>
+  );
+}
+
+/** Secondary line: name, plus period/campaign when they set this row apart. */
+function rowMeta(row: CreativeRow, filters: MetricsFilters) {
+  if (!row.period_from || !row.period_to) return "Sem resultados neste período";
+  const parts = [];
+  if (row.period_from !== filters.from || row.period_to !== filters.to)
+    parts.push(formatPeriod(row.period_from, row.period_to));
+  if (row.campaign_key && !filters.campaignKey) parts.push(row.campaign_key);
+  return parts.join(" · ");
+}
+
+const metricColumn = (name: MetricName): DataColumn<CreativeRow> => ({
+  id: name,
+  header: metricText[name].label,
+  numeric: true,
+  hasValue: (row) => row[name] !== null && row[name] !== undefined,
+  render: (row) => <MetricValue name={name} value={row[name]} />,
+});
+
+const mainMetrics: MetricName[] = [
+  "spend_cents",
+  "revenue_cents",
+  "roas",
+  "approved_sales",
+  "ctr",
+];
+
+const optionalColumns: DataColumn<CreativeRow>[] = [
+  {
+    id: "period",
+    header: "Período",
+    hasValue: (row) => Boolean(row.period_from && row.period_to),
+    render: (row) =>
+      row.period_from && row.period_to ? (
+        formatPeriod(row.period_from, row.period_to)
+      ) : (
+        <span className="text-muted-foreground">Sem resultados</span>
+      ),
+  },
+  {
+    id: "campaign_key",
+    header: "Campanha",
+    hasValue: (row) => Boolean(row.campaign_key),
+    render: (row) =>
+      row.campaign_key ?? (
+        <span className="text-muted-foreground">Não informada</span>
+      ),
+  },
+  ...metricNames.filter((n) => !mainMetrics.includes(n)).map(metricColumn),
+];
+
+function plural(n: number) {
+  return `${n.toLocaleString("pt-BR")} ${n === 1 ? "criativo" : "criativos"}`;
+}
+
+export function CreativeTable({
+  initialFilters,
+  initialData,
+  showSource = false,
+}: {
+  initialFilters: MetricsFilters;
+  initialData?: CreativesResponse;
+  /** Offer the "Planilha | Vendas do checkout" switch (tenant has webhook data). */
+  showSource?: boolean;
+}) {
+  const query = useMetricsQuery({
+    endpoint: "/api/creatives",
+    schema: creativesResponseSchema,
+    initialFilters,
+    initialData,
+  });
+  const { filters, data, loading, error } = query;
+  // The key stays set while the sheet animates closed so the title does not blank.
+  const [upload, setUpload] = useState<{ key: string; open: boolean }>();
+  const [showHidden, setShowHidden] = useState(false);
+
+  function applyFilters(next: MetricsFilters) {
+    // Keeps the URL shareable and reload-safe without a server round trip.
+    window.history.replaceState(null, "", `?${metricsQuery(next)}`);
+    setUpload(undefined);
+    query.load(next);
+  }
+
+  const openUpload = (key: string) => setUpload({ key, open: true });
+  const uploadButton = (row: CreativeRow, className?: string) => (
+    <Button
+      variant="ghost"
+      size="xs"
+      className={cn("text-muted-foreground hover:text-foreground", className)}
+      onClick={() => openUpload(row.creative_key)}
+    >
+      <Upload aria-hidden />
+      Enviar vídeo
+      <span className="sr-only"> de {row.creative_key}</span>
+    </Button>
+  );
+
+  const rowActions = (row: CreativeRow, className?: string) => (
+    <div className={cn("flex items-center justify-end gap-1", className)}>
+      {uploadButton(row)}
+      <CreativeActions
+        creativeKey={row.creative_key}
+        hidden={row.hidden}
+        hasVideo={row.video_status !== null}
+        onChange={query.revalidate}
+      />
+    </div>
+  );
+
+  const columns: DataColumn<CreativeRow>[] = [
+    {
+      id: "creative_key",
+      header: "Criativo",
+      render: (row) => {
+        const meta = rowMeta(row, filters);
+        return (
+          <div className="flex max-w-64 min-w-40 flex-col gap-1">
+            <span className="flex items-center gap-1.5">
+              <KeyChip>{row.creative_key}</KeyChip>
+              {row.hidden && <Badge variant="outline">Oculto</Badge>}
+            </span>
+            {row.name && (
+              <span className="truncate text-sm" title={row.name}>
+                {row.name}
+              </span>
+            )}
+            {meta && (
+              <span className="truncate text-xs text-muted-foreground">
+                {meta}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: "video_status",
+      header: "Vídeo",
+      render: (row) => <VideoStatus status={row.video_status} />,
+    },
+    ...mainMetrics.map(metricColumn),
+  ];
+
+  const allRows = data?.rows ?? [];
+  const hiddenKeys = new Set(
+    allRows.filter((row) => row.hidden).map((row) => row.creative_key),
+  ).size;
+  const rows = showHidden ? allRows : allRows.filter((row) => !row.hidden);
+  const hiddenToggle = hiddenKeys > 0 && (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="text-muted-foreground"
+      aria-pressed={showHidden}
+      onClick={() => setShowHidden(!showHidden)}
+    >
+      {showHidden ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+      {showHidden ? "Esconder ocultos" : `Mostrar ocultos (${hiddenKeys})`}
+    </Button>
+  );
+  const keys = new Set(rows.map((row) => row.creative_key)).size;
+
+  return (
+    <div className="space-y-6">
+      <MetricsFilter
+        idPrefix="creatives"
+        defaultValue={initialFilters}
+        pending={loading}
+        onChange={applyFilters}
+        onRefresh={query.refresh}
+        showSource={showSource}
+      />
+
+      {error ? (
+        <Alert variant="destructive">
+          <CircleAlert aria-hidden />
+          <AlertTitle>Não foi possível carregar os criativos</AlertTitle>
+          <AlertDescription>
+            <p>{error}</p>
+            <Button variant="outline" size="sm" onClick={query.refresh}>
+              <RotateCw aria-hidden />
+              Tentar novamente
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : !data ? (
+        <MetricsLoading label="Carregando criativos" />
+      ) : rows.length === 0 && hiddenKeys > 0 ? (
+        <EmptyState
+          icon={EyeOff}
+          title="Todos os criativos estão ocultos"
+          description="Mostre os ocultos para vê-los de novo."
+          action={hiddenToggle}
+        />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon={Film}
+          title="Nenhum criativo encontrado"
+          description={
+            filters.campaignKey
+              ? "Nenhum criativo nesta campanha. Tente buscar sem a campanha."
+              : "Importe a planilha do Gerenciador de Anúncios para ver os resultados de cada criativo."
           }
+          action={
+            <Link className={buttonVariants()} href="/integracoes">
+              <FileUp aria-hidden />
+              Importar planilha
+            </Link>
+          }
+        />
+      ) : (
+        <>
+          <MetricSummary
+            rows={rows.map((row) => ({
+              key: row.creative_key,
+              metrics: row.period_from ? row : null,
+            }))}
+          />
+
+          <DataTable
+            label="Tabela de criativos"
+            busy={loading}
+            summary={
+              <>
+                {plural(keys)}
+                {hiddenToggle && <> · {hiddenToggle}</>}
+                {data.truncated && (
+                  <span role="status">
+                    {" "}
+                    · mostrando os primeiros 1.000. Diminua o período para ver
+                    todos.
+                  </span>
+                )}
+              </>
+            }
+            columns={columns}
+            optional={optionalColumns}
+            trailing={{
+              id: "actions",
+              header: "Ações",
+              hideHeader: true,
+              className: "w-0 text-right",
+              render: (row) => rowActions(row),
+            }}
+            rows={rows}
+            rowKey={(row, i) =>
+              `${row.creative_key}|${row.period_from}|${row.campaign_key}|${i}`
+            }
+            renderCard={(row) => {
+              // The metrics area already says when there are no results.
+              const meta = row.period_from ? rowMeta(row, filters) : "";
+              return (
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <span className="flex items-center gap-1.5">
+                        <KeyChip>{row.creative_key}</KeyChip>
+                        {row.hidden && <Badge variant="outline">Oculto</Badge>}
+                      </span>
+                      {row.name && (
+                        <span className="truncate text-sm">{row.name}</span>
+                      )}
+                      {meta && (
+                        <span className="truncate text-xs text-muted-foreground">
+                          {meta}
+                        </span>
+                      )}
+                    </div>
+                    <VideoStatus status={row.video_status} />
+                  </div>
+                  <CardMetrics
+                    items={mainMetrics.map((name) => ({
+                      label: metricText[name].label,
+                      value:
+                        row[name] === null || row[name] === undefined
+                          ? null
+                          : formatMetric(name, row[name]),
+                    }))}
+                  />
+                  {rowActions(row, "-ml-2 justify-start")}
+                </div>
+              );
+            }}
+          />
+
+          <MetricGlossary />
+        </>
+      )}
+
+      <Sheet
+        open={upload?.open ?? false}
+        onOpenChange={(open) => {
+          if (open || !upload) return;
+          setUpload({ ...upload, open: false });
+          // Refreshes video statuses without clearing the table.
+          query.revalidate();
         }}
       >
-        <Input
-          aria-label="Início do período"
-          type="date"
-          className="w-auto"
-          value={period.from}
-          onInput={(e) => setPeriod({ ...period, from: e.currentTarget.value })}
-        />
-        <Input
-          aria-label="Fim do período"
-          type="date"
-          className="w-auto"
-          value={period.to}
-          onInput={(e) => setPeriod({ ...period, to: e.currentTarget.value })}
-        />
-        <Input
-          aria-label="Chave de campanha"
-          className="w-auto"
-          placeholder="Campanha (opcional)"
-          value={campaign}
-          onInput={(e) => setCampaign(e.currentTarget.value)}
-        />
-        <NativeSelect
-          aria-label="Fonte das métricas"
-          value={period.source}
-          onChange={(e) =>
-            setPeriod({
-              ...period,
-              source: e.target.value as "csv" | "webhook",
-            })
-          }
-        >
-          <NativeSelectOption value="csv">
-            CSV (período exato)
-          </NativeSelectOption>
-          <NativeSelectOption value="webhook">
-            Webhook (por dia)
-          </NativeSelectOption>
-        </NativeSelect>
-        <Button type="submit" disabled={pending}>
-          Consultar
-        </Button>
-      </form>
-      <p className="text-sm text-muted-foreground">
-        Compare a mesma fonte, período e campanha. Importações CSV usam o
-        período exato; eventos do webhook aparecem por dia. “Não disponível”
-        preserva ausência de dados. Informe a campanha no CSV para filtrar resultados antigos; campanhas não informadas ficam fora desse filtro.
-      </p>
-      {!loaded && (
-        <p className="text-sm">
-          Escolha o período e consulte. Para trazer dados, importe um CSV ou
-          conecte o webhook em Integrações.
-        </p>
-      )}
-      {loaded && rows.length === 0 && <p>Nenhum criativo encontrado.</p>}
-      {rows.length > 0 && (
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((group) => (
-              <TableRow key={group.id}>
-                {group.headers.map((header) => (
-                  <TableHead key={header.id} className="whitespace-nowrap">
-                    {String(header.column.columnDef.header)}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getAllCells().map((cell) => {
-                  const value = cell.getValue();
-                  const key = cell.column.id;
-                  return (
-                    <TableCell key={cell.id} className="whitespace-nowrap">
-                      {key === "creative_key" ? (
-                        <Button
-                          variant="link"
-                          onClick={() => setSelected(row.original.creative_key)}
-                        >
-                          {String(value)}
-                        </Button>
-                      ) : key === "period_from" ? (
-                        `${row.original.period_from ?? "—"} a ${row.original.period_to ?? "—"}`
-                      ) : key === "video_status" ? (
-                        ({
-                          uploaded: "Aguardando",
-                          processing: "Em análise",
-                          done: "Pronto",
-                          error: "Erro",
-                        }[String(value)] ?? "Sem vídeo")
-                      ) : key.endsWith("_cents") ? (
-                        formatCents(value === null ? null : String(value))
-                      ) : value === null || value === undefined ? (
-                        "Não disponível"
-                      ) : (
-                        String(value)
-                      )}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-      {selected && (
-        <div className="rounded-md border p-4">
-          <UploadArea key={selected} creativeKey={selected} />
-        </div>
-      )}
+        <SheetContent side="right">
+          <SheetHeader>
+            <SheetTitle>Enviar vídeo de {upload?.key}</SheetTitle>
+            <SheetDescription>
+              O vídeo é analisado automaticamente. Pode fechar este painel; a
+              análise continua.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="px-4 pb-4">
+            {upload && (
+              <UploadArea
+                key={upload.key}
+                creativeKey={upload.key}
+                onVideoReady={() => {
+                  toast.success(`Vídeo de ${upload.key} analisado.`);
+                  setUpload({ ...upload, open: false });
+                  query.revalidate();
+                }}
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

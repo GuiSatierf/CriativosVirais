@@ -1,20 +1,30 @@
 import "dotenv/config";
-import { startJobs } from "./jobs";
+import { startWorkerJobs } from "./jobs";
 import { analyzeVideo } from "./jobs/analyze-video";
 import { ingestEvent } from "./jobs/ingest-event";
 import { syncMetrics } from "./jobs/sync-metrics";
 import { pool } from "./db";
+import { logError } from "./lib/log";
 async function main() {
-  const boss = await startJobs();
-  await boss.work("analyze-video", { batchSize: 1 }, async (jobs) => {
-    for (const job of jobs) await analyzeVideo(job.data);
-  });
-  await boss.work("ingest-event", { batchSize: 1 }, async (jobs) => {
-    for (const job of jobs) await ingestEvent(job.data);
-  });
-  await boss.work("sync-metrics", { batchSize: 1 }, async (jobs) => {
-    for (const job of jobs) await syncMetrics(job.data);
-  });
+  const boss = await startWorkerJobs();
+  const handlers: Record<string, (data: unknown) => Promise<void>> = {
+    "analyze-video": analyzeVideo,
+    "ingest-event": ingestEvent,
+    "sync-metrics": (data) =>
+      syncMetrics(data, (job) =>
+        boss.send("sync-metrics", job, { singletonKey: job.integrationId }),
+      ),
+  };
+  for (const [name, handler] of Object.entries(handlers))
+    await boss.work(name, { batchSize: 1 }, async ([job]) => {
+      try {
+        await handler(job.data);
+      } catch (error) {
+        // pg-boss stores the thrown error on the job row; keep raw details out of it.
+        logError(name, error);
+        throw new Error(`${name} failed`);
+      }
+    });
   await boss.schedule("sync-metrics", "0 */6 * * *", {});
   console.info(
     "Worker ready: video analysis, sales ingestion and six-hour metrics sync.",
@@ -33,7 +43,8 @@ async function main() {
     void stop();
   });
 }
-main().catch(() => {
+main().catch((error) => {
+  logError("worker-startup", error);
   console.error(
     "Worker startup failed. Check database and queue configuration.",
   );
