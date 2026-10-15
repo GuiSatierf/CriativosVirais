@@ -1,5 +1,7 @@
 # Prompt para o agente de código — Ferramenta de Criativos que Vendem (V1)
 
+> Prompt original das etapas da V1, mantido como registro. A implementação atual está descrita no `README.md`; onde houver diferença, vale o código.
+
 ## Contexto
 
 Você vai construir a V1 de um sistema web em que uma IA atua como **copywriter sênior de anúncios em vídeo**. O usuário conversa num chat (texto ou áudio), a IA entende o negócio dele, analisa vídeos de anúncios e métricas de vendas e entrega uma **"leva" de roteiros prontos para gravar**.
