@@ -119,7 +119,7 @@ async function main() {
   } else {
     console.info("[INFO] Nenhuma conexão externa executada. Use --connections para consultar Postgres e S3.");
   }
-  console.info("[INFO] UTMify e webhook são conectados pela tela Integrações; VK Metrics aguarda documentação oficial.");
+  console.info("[INFO] UTMify e webhook são conectados pela tela Integrações.");
   console.info("[INFO] O endpoint público S3, o worker ativo e os provedores precisam de validação final no ambiente de destino.");
   console.info(failures ? `Diagnóstico: ${failures} requisito(s) pendente(s).` : "Diagnóstico: requisitos verificados; revise os avisos e conexões não executadas.");
   process.exitCode = failures ? 1 : 0;

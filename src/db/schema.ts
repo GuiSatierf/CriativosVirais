@@ -31,8 +31,8 @@ const tenantId = () =>
   uuid("tenant_id")
     .notNull()
     .references(() => tenants.id, { onDelete: "cascade" });
-const money = (name: string) => bigint(name, { mode: "bigint" });
-const count = (name: string) => bigint(name, { mode: "bigint" });
+// Money (cents) and counts are exact bigints; missing values stay NULL.
+const int64 = (name: string) => bigint(name, { mode: "bigint" });
 const jsonArray = (name: string) =>
   jsonb(name).$type<unknown[]>().default([]).notNull();
 export const clientState = pgEnum("client_state", [
@@ -72,7 +72,7 @@ export const saleStatus = pgEnum("sale_status", [
 ]);
 export const memberRole = pgEnum("member_role", ["owner", "member"]);
 
-// Better Auth owns these four tables; they are identity records, not tenant content.
+// Better Auth owns these five tables; they are identity records, not tenant content.
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -138,6 +138,12 @@ export const verification = pgTable(
   },
   (t) => [index("verification_identifier_idx").on(t.identifier)],
 );
+export const rateLimit = pgTable("rate_limit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+});
 export const tenants = pgTable("tenants", {
   id: id(),
   nome: text("nome").notNull(),
@@ -168,7 +174,7 @@ export const clientContexts = pgTable(
     publico: text("publico"),
     transformacao: text("transformacao"),
     mecanismo: text("mecanismo"),
-    ticketCents: money("ticket_cents"),
+    ticketCents: int64("ticket_cents"),
     tipoFunil: text("tipo_funil"),
     proximoPassoFunil: text("proximo_passo_funil"),
     provasAutorizadas: jsonArray("provas_autorizadas"),
@@ -180,11 +186,8 @@ export const clientContexts = pgTable(
     notas: jsonArray("notas"),
     updatedAt: updatedAt(),
   },
-  (t) => [
-    index("client_contexts_tenant_idx").on(t.tenantId),
-    unique("client_contexts_tenant_id_unique").on(t.tenantId, t.id),
-    uniqueIndex("client_contexts_tenant_unique").on(t.tenantId),
-  ],
+  // One context per tenant; the unique index also serves tenant lookups.
+  (t) => [uniqueIndex("client_contexts_tenant_unique").on(t.tenantId)],
 );
 
 export const conversations = pgTable(
@@ -195,6 +198,7 @@ export const conversations = pgTable(
     title: text("title").notNull(),
     processingToken: text("processing_token"),
     processingUntil: timestamp("processing_until", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [
@@ -241,6 +245,7 @@ export const creatives = pgTable(
     campaignKey: text("campaign_key"),
     adsetKey: text("adset_key"),
     source: text("source").notNull(),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [
@@ -259,7 +264,7 @@ export const assets = pgTable(
     kind: assetKind("kind").notNull(),
     s3Key: text("s3_key").notNull(),
     mime: text("mime").notNull(),
-    size: count("size").notNull(),
+    size: int64("size").notNull(),
     durationS: doublePrecision("duration_s"),
     status: assetStatus("status").default("uploaded").notNull(),
     errorMessage: text("error_message"),
@@ -288,20 +293,20 @@ export const creativeMetrics = pgTable(
     campaignKey: text("campaign_key").default("").notNull(),
     periodFrom: date("period_from").notNull(),
     periodTo: date("period_to").notNull(),
-    spendCents: money("spend_cents"),
-    impressions: count("impressions"),
-    clicks: count("clicks"),
+    spendCents: int64("spend_cents"),
+    impressions: int64("impressions"),
+    clicks: int64("clicks"),
     ctr: doublePrecision("ctr"),
     hookRate: doublePrecision("hook_rate"),
     bodyRate: doublePrecision("body_rate"),
-    leads: count("leads"),
-    checkouts: count("checkouts"),
-    approvedSales: count("approved_sales"),
-    revenueCents: money("revenue_cents"),
-    profitCents: money("profit_cents"),
+    leads: int64("leads"),
+    checkouts: int64("checkouts"),
+    approvedSales: int64("approved_sales"),
+    revenueCents: int64("revenue_cents"),
+    profitCents: int64("profit_cents"),
     roas: doublePrecision("roas"),
-    refunds: count("refunds"),
-    chargebacks: count("chargebacks"),
+    refunds: int64("refunds"),
+    chargebacks: int64("chargebacks"),
     source: text("source").notNull(),
     confidence: text("confidence"),
   },
@@ -336,8 +341,8 @@ export const salesEvents = pgTable(
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     status: saleStatus("status").notNull(),
     currency: text("currency").notNull(),
-    revenueCents: money("revenue_cents"),
-    profitCents: money("profit_cents"),
+    revenueCents: int64("revenue_cents"),
+    profitCents: int64("profit_cents"),
     creativeKey: text("creative_key"),
     utmSource: text("utm_source"),
     utmCampaign: text("utm_campaign"),
@@ -425,6 +430,7 @@ export const batches = pgTable(
     produtoNome: text("produto_nome").notNull(),
     especialistaHandle: text("especialista_handle"),
     roundNumber: integer("round_number").notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [
@@ -537,11 +543,4 @@ export const sharedPatterns = pgTable("shared_patterns", {
   condicoes: jsonArray("condicoes"),
   evidenceLevel: evidenceLevel("evidence_level").notNull(),
   createdAt: createdAt(),
-});
-
-export const rateLimit = pgTable("rate_limit", {
-  id: text("id").primaryKey(),
-  key: text("key").notNull().unique(),
-  count: integer("count").notNull(),
-  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
 });

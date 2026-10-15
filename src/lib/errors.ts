@@ -7,10 +7,44 @@ export class HttpError extends Error {
   }
 }
 
+const domainStatus = {
+  invalid_input: 400,
+  not_found: 404,
+  conflict: 409,
+  unavailable: 503,
+} as const;
+export type DomainErrorCode = keyof typeof domainStatus;
+
+/** Domain failure whose message is plain pt-BR text safe to show to the end user. */
+export class DomainError extends Error {
+  constructor(
+    public code: DomainErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "DomainError";
+  }
+  get status() {
+    return domainStatus[this.code];
+  }
+}
+
 export class RetryLaterError extends Error {
-  constructor(public retryAt: string) {
+  constructor(
+    public provider: string,
+    public retryAt: string,
+  ) {
     super(
-      "Limite temporário da UTMify. Aguarde o intervalo indicado pela plataforma.",
+      `${provider} limitou as consultas temporariamente. A próxima sincronização acontece depois do intervalo indicado.`,
     );
+    this.name = "RetryLaterError";
+  }
+}
+
+/** Server misconfiguration; names only the group, never values. */
+export class ConfigError extends Error {
+  constructor(group: string) {
+    super(`Missing or invalid ${group} configuration`);
+    this.name = "ConfigError";
   }
 }

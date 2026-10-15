@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { user, session, account, verification, rateLimit } from "@/db/schema";
 import { authEnv } from "./env";
 import { provisionTenant } from "./provision-tenant";
+import { deleteAccountData } from "./account-deletion";
 function createAuth() {
   const env = authEnv();
   return betterAuth({
@@ -20,6 +21,14 @@ function createAuth() {
       enabled: true,
       minPasswordLength: 12,
       maxPasswordLength: 128,
+    },
+    user: {
+      deleteUser: {
+        enabled: true,
+        beforeDelete: async (user) => {
+          await deleteAccountData(user.id);
+        },
+      },
     },
     databaseHooks: {
       user: {

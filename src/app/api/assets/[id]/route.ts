@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { assets } from "@/db/schema";
 import { handle, apiTenant, json, HttpError } from "@/lib/http";
+import { tenantWhere } from "@/lib/tenant-scope";
 export function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -19,7 +20,7 @@ export function GET(
         transcription: assets.transcription,
       })
       .from(assets)
-      .where(and(eq(assets.tenantId, tenantId), eq(assets.id, id)));
+      .where(tenantWhere(assets, tenantId, eq(assets.id, id)));
     if (!asset) throw new HttpError(404, "Arquivo não encontrado.");
     return json(asset);
   });

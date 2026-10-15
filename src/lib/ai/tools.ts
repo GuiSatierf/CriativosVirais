@@ -3,7 +3,6 @@ import { z } from "zod";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  clientContexts,
   creatives,
   creativeSelections,
   videoAnalyses,
@@ -13,15 +12,18 @@ import {
 } from "@/db/schema";
 import {
   contextPatchSchema,
-  contextValues,
   evidence,
   awareness,
   skeleton,
+  panelIds,
 } from "./schemas";
+import { analysisColumns } from "./analysis-columns";
 import { getBenchmark } from "../benchmark";
 import { generateBatch } from "../batches";
 import { getBatchResults } from "../results";
 import { periodSchema } from "../connectors/types";
+import { updateContext } from "../context";
+import { tenantValues, tenantWhere } from "../tenant-scope";
 const keys = z.array(z.string().min(1).max(200)).min(1).max(12);
 export function chatTools(
   tenantId: string,
@@ -35,12 +37,21 @@ export function chatTools(
         "Salve o contexto confirmado do negócio. Não invente provas nem ticket.",
       inputSchema: contextPatchSchema,
       execute: async (patch) => {
-        const values = contextValues(patch);
-        await db
-          .update(clientContexts)
-          .set(values)
-          .where(eq(clientContexts.tenantId, tenantId));
+        await updateContext(tenantId, patch);
+        const fields = Object.keys(patch).filter(
+          (key) => patch[key as keyof typeof patch] !== undefined,
+        );
+        if (fields.length) writer.write({ type: "data-context", data: { fields } });
         return { saved: true };
+      },
+    }),
+    showPanel: tool({
+      description:
+        "Mostre ao cliente um atalho para abrir um painel: levas, resultados (tabela de criativos), integracoes (conectar UTMify, webhook ou importar planilha), oferta (revisar o contexto salvo) ou perfil.",
+      inputSchema: z.object({ panel: z.enum(panelIds) }),
+      execute: async ({ panel }) => {
+        writer.write({ type: "data-panel", data: { panel } });
+        return { shown: true };
       },
     }),
     getTopCreatives: tool({
@@ -63,20 +74,18 @@ export function chatTools(
           .select()
           .from(creatives)
           .where(
-            and(
-              eq(creatives.tenantId, tenantId),
-              inArray(creatives.creativeKey, creativeKeys),
-            ),
+            tenantWhere(creatives, tenantId, inArray(creatives.creativeKey, creativeKeys)),
           );
         if (records.length !== new Set(creativeKeys).size)
           throw new Error("Chave de criativo não encontrada");
         await db.insert(creativeSelections).values(
-          records.map((r) => ({
-            tenantId,
-            creativeId: r.id,
-            reason: internalReasons[creativeKeys.indexOf(r.creativeKey)],
-            metricGroups: [],
-          })),
+          records.map((r) =>
+            tenantValues(tenantId, {
+              creativeId: r.id,
+              reason: internalReasons[creativeKeys.indexOf(r.creativeKey)],
+              metricGroups: [],
+            }),
+          ),
         );
         writer.write({ type: "data-upload", data: { creativeKeys } });
         return { creativeKeys };
@@ -96,29 +105,17 @@ export function chatTools(
           .select({
             creativeKey: creatives.creativeKey,
             assetId: videoAnalyses.assetId,
-            transcript: videoAnalyses.transcript,
-            segments: videoAnalyses.segments,
-            narrative: videoAnalyses.narrative,
-            awarenessEntry: videoAnalyses.awarenessEntry,
-            awarenessExit: videoAnalyses.awarenessExit,
-            format: videoAnalyses.format,
-            proofTypes: videoAnalyses.proofTypes,
-            cta: videoAnalyses.cta,
-            skeleton: videoAnalyses.skeleton,
-            visualNotes: videoAnalyses.visualNotes,
-            uncertainties: videoAnalyses.uncertainties,
+            ...analysisColumns,
           })
           .from(videoAnalyses)
           .leftJoin(
             creatives,
-            and(
-              eq(creatives.id, videoAnalyses.creativeId),
-              eq(creatives.tenantId, tenantId),
-            ),
+            tenantWhere(creatives, tenantId, eq(creatives.id, videoAnalyses.creativeId)),
           )
           .where(
-            and(
-              eq(videoAnalyses.tenantId, tenantId),
+            tenantWhere(
+              videoAnalyses,
+              tenantId,
               creativeKeys
                 ? inArray(creatives.creativeKey, creativeKeys)
                 : undefined,
@@ -168,8 +165,9 @@ export function chatTools(
           .select()
           .from(batchItems)
           .where(
-            and(
-              eq(batchItems.tenantId, tenantId),
+            tenantWhere(
+              batchItems,
+              tenantId,
               eq(batchItems.batchId, input.batchId),
               eq(batchItems.creativeKey, input.creativeKey),
             ),
@@ -203,22 +201,21 @@ export function chatTools(
             .from(learnings)
             .innerJoin(
               creatives,
-              and(
-                eq(creatives.id, learnings.creativeId),
-                eq(creatives.tenantId, tenantId),
-              ),
+              tenantWhere(creatives, tenantId, eq(creatives.id, learnings.creativeId)),
             )
             .innerJoin(
               batchItems,
-              and(
+              tenantWhere(
+                batchItems,
+                tenantId,
                 eq(batchItems.batchId, learnings.batchId),
-                eq(batchItems.tenantId, tenantId),
                 eq(batchItems.creativeKey, creatives.creativeKey),
               ),
             )
             .where(
-              and(
-                eq(learnings.tenantId, tenantId),
+              tenantWhere(
+                learnings,
+                tenantId,
                 eq(batchItems.skeleton, item.skeleton),
                 eq(batchItems.blocoTestado, item.blocoTestado),
                 eq(batchItems.awarenessEntry, item.awarenessEntry),
@@ -237,19 +234,17 @@ export function chatTools(
           .select({ id: creatives.id })
           .from(creatives)
           .where(
-            and(
-              eq(creatives.tenantId, tenantId),
-              eq(creatives.creativeKey, input.creativeKey),
-            ),
+            tenantWhere(creatives, tenantId, eq(creatives.creativeKey, input.creativeKey)),
           )
           .limit(1);
-        await db.insert(learnings).values({
-          tenantId,
-          batchId: input.batchId,
-          creativeId: creative?.id ?? null,
-          texto: input.texto,
-          evidenceLevel: input.evidence_level,
-        });
+        await db.insert(learnings).values(
+          tenantValues(tenantId, {
+            batchId: input.batchId,
+            creativeId: creative?.id ?? null,
+            texto: input.texto,
+            evidenceLevel: input.evidence_level,
+          }),
+        );
         // Shared memory uses ONLY finite enums and a fixed abstract sentence, never client text or numbers.
         if (input.evidence_level === "repetido") {
           const s = skeleton.parse(item.skeleton);

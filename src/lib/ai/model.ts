@@ -1,18 +1,18 @@
 import { createDeepSeek } from "@ai-sdk/deepseek";
-import { HttpError } from "../errors";
+import { DomainError } from "../errors";
+import { aiEnv } from "../env";
+const unavailable =
+  "O assistente está indisponível no momento. Tente novamente mais tarde.";
+/** Throws a user-safe error when the text (or vision) model is not configured. */
+export function assertModelConfigured(vision = false) {
+  const env = aiEnv();
+  const model = vision ? env?.DEEPSEEK_MODEL_VISION : env?.DEEPSEEK_MODEL_TEXT;
+  if (!env || !model) throw new DomainError("unavailable", unavailable);
+  return { apiKey: env.DEEPSEEK_API_KEY, model };
+}
 export function textModel(vision = false) {
-  const key = process.env.DEEPSEEK_API_KEY;
-  const model = vision
-    ? process.env.DEEPSEEK_MODEL_VISION
-    : process.env.DEEPSEEK_MODEL_TEXT;
-  if (!key || !model)
-    throw new HttpError(
-      503,
-      vision
-        ? "Configure a chave DeepSeek e um modelo com entrada de imagem para analisar vídeos."
-        : "Configure DEEPSEEK_API_KEY e DEEPSEEK_MODEL_TEXT para usar o chat.",
-    );
-  return createDeepSeek({ apiKey: key })(model);
+  const { apiKey, model } = assertModelConfigured(vision);
+  return createDeepSeek({ apiKey })(model);
 }
 export const providerOptions = {
   deepseek: { thinking: { type: "disabled" as const } },

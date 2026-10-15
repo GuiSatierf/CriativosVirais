@@ -1,7 +1,8 @@
 import { eq, and } from "drizzle-orm";
 import { integrations, salesEvents } from "@/db/schema";
 import { db } from "@/db";
-import { handle, json, HttpError } from "@/lib/http";
+import { handle, json, readBody, HttpError } from "@/lib/http";
+import { tenantValues } from "@/lib/tenant-scope";
 import { verifyHmac, tokenHash, decrypt } from "@/lib/crypto";
 import { eventSchema, allowEvent } from "@/lib/connectors/webhook";
 import { getJobs, jobTransaction } from "@/jobs";
@@ -27,21 +28,7 @@ export function POST(request: Request) {
     const tenantId = integration.tenantId;
     if (!allowEvent(tenantId))
       throw new HttpError(429, "Limite temporário de eventos.");
-    const reader = request.body?.getReader();
-    if (!reader) throw new HttpError(400, "Evento obrigatório.");
-    let size = 0;
-    const chunks: Uint8Array[] = [];
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.length;
-      if (size > 64_000) {
-        await reader.cancel();
-        throw new HttpError(413, "Evento muito grande.");
-      }
-      chunks.push(value);
-    }
-    const body = Buffer.concat(chunks);
+    const body = await readBody(request, 64_000);
     if (
       !verifyHmac(
         body,
@@ -56,7 +43,7 @@ export function POST(request: Request) {
     } catch {
       throw new HttpError(
         400,
-        "Evento inválido. Use moeda BRL, data ISO e valores inteiros em centavos.",
+        "Evento inválido. Use moeda BRL, data com fuso horário e valores inteiros em centavos.",
       );
     }
     if (new Date(input.occurred_at).getTime() > Date.now() + 300_000)
@@ -71,8 +58,7 @@ export function POST(request: Request) {
     await jobTransaction(async (tx, connection) => {
       const [event] = await tx
         .insert(salesEvents)
-        .values({
-          tenantId,
+        .values(tenantValues(tenantId, {
           eventId: input.event_id,
           occurredAt: new Date(input.occurred_at),
           status: input.status,
@@ -87,7 +73,7 @@ export function POST(request: Request) {
           utmTerm: input.utm_term,
           source: "webhook",
           raw: input,
-        })
+        }))
         .onConflictDoNothing({
           target: [salesEvents.tenantId, salesEvents.eventId],
         })
@@ -96,7 +82,7 @@ export function POST(request: Request) {
         await boss.send(
           "ingest-event",
           { tenantId, eventId: event.id },
-          { db: connection, singletonKey: event.id, retryLimit: 3 },
+          { db: connection, singletonKey: event.id },
         );
     });
     return json({ accepted: true }, 202);

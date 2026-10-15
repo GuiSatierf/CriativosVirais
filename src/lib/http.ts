@@ -1,27 +1,24 @@
 import { z } from "zod";
 import { getAuth } from "./auth";
+import { authEnv } from "./env";
 import { provisionTenant } from "./provision-tenant";
-import { HttpError } from "./errors";
+import { DomainError, HttpError } from "./errors";
+import { bigintReplacer } from "./json";
+import { logError } from "./log";
 export { HttpError } from "./errors";
 export function json(value: unknown, status = 200) {
-  return new Response(
-    JSON.stringify(value, (_, v) => (typeof v === "bigint" ? v.toString() : v)),
-    {
-      status,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-      },
+  return new Response(JSON.stringify(value, bigintReplacer), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
     },
-  );
+  });
 }
-export async function readJson<T>(
-  request: Request,
-  schema: z.ZodType<T>,
-  max = 1_000_000,
-): Promise<T> {
+/** Reads the raw body, stopping as soon as it exceeds `max` bytes. */
+export async function readBody(request: Request, max: number) {
   const reader = request.body?.getReader();
-  if (!reader) throw new HttpError(400, "Corpo obrigatório.");
+  if (!reader) throw new HttpError(400, "Envie o conteúdo da requisição.");
   let size = 0;
   const chunks: Uint8Array[] = [];
   for (;;) {
@@ -34,7 +31,14 @@ export async function readJson<T>(
     }
     chunks.push(value);
   }
-  const body = Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks);
+}
+export async function readJson<T>(
+  request: Request,
+  schema: z.ZodType<T>,
+  max = 1_000_000,
+): Promise<T> {
+  const body = (await readBody(request, max)).toString("utf8");
   try {
     return schema.parse(JSON.parse(body));
   } catch {
@@ -42,12 +46,10 @@ export async function readJson<T>(
   }
 }
 export async function apiTenant(request: Request) {
-  if (!process.env.BETTER_AUTH_URL)
-    throw new HttpError(503, "Configure a autenticação.");
+  const { BETTER_AUTH_URL } = authEnv();
   if (
     !["GET", "HEAD"].includes(request.method) &&
-    request.headers.get("origin") !==
-      new URL(process.env.BETTER_AUTH_URL).origin
+    request.headers.get("origin") !== new URL(BETTER_AUTH_URL).origin
   )
     throw new HttpError(403, "Origem não autorizada.");
   const session = await getAuth().api.getSession({ headers: request.headers });
@@ -60,13 +62,15 @@ export async function handle(fn: () => Promise<Response>) {
   } catch (error) {
     if (error instanceof HttpError)
       return json({ error: error.message }, error.status);
+    if (error instanceof DomainError) {
+      if (error.code === "unavailable") logError("api", error);
+      return json({ error: error.message }, error.status);
+    }
     if (error instanceof z.ZodError)
       return json({ error: "Dados inválidos." }, 400);
+    logError("api", error);
     return json(
-      {
-        error:
-          "Não foi possível concluir. Verifique a configuração e tente novamente.",
-      },
+      { error: "Não foi possível concluir agora. Tente novamente em instantes." },
       503,
     );
   }

@@ -28,14 +28,15 @@ export const day = z
     const d = new Date(v + "T00:00:00Z");
     return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
   }, "Data inválida");
+// A single refinement: Zod 4 keeps running later checks after a failed regex,
+// so the pattern must guard the BigInt conversion itself.
 const integer = z
   .string()
-  .max(20)
-  .regex(/^-?\d+$/)
   .refine(
     (v) =>
-      v.length <= 20 && /^-?\d+$/.test(v) &&
-      BigInt(v) >= -9223372036854775808n && BigInt(v) <= 9223372036854775807n,
+      /^-?\d{1,19}$/.test(v) &&
+      BigInt(v) >= -9223372036854775808n &&
+      BigInt(v) <= 9223372036854775807n,
   )
   .nullable();
 export const metricsSchema = z.object({
@@ -81,12 +82,6 @@ export const recordSchema = metricsSchema
   })
   .refine((v) => v.period_from <= v.period_to, "Período inválido");
 export type MetricRecord = z.infer<typeof recordSchema>;
-export interface Connector {
-  sync(
-    from: string,
-    to: string,
-  ): Promise<{ records: MetricRecord[]; warning?: string; summary?: unknown }>;
-}
 export const periodSchema = z
   .object({
     from: day,
