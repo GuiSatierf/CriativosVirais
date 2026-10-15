@@ -1,4 +1,4 @@
-import { HttpError } from "../errors";
+import { DomainError } from "../errors";
 import Papa from "papaparse";
 import { z } from "zod";
 import {
@@ -7,6 +7,7 @@ import {
   floatNames,
   centsNames,
   day,
+  metricLabels,
   type MetricRecord,
 } from "./types";
 export const csvImportSchema = z
@@ -37,13 +38,13 @@ function numeric(
   if (!v) return null;
   if (decimal === "comma") {
     if (!/^-?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?$/.test(v))
-      throw new HttpError(400, "Número inválido");
+      throw new DomainError("invalid_input", "Número inválido");
     v = v.replaceAll(".", "").replace(",", ".");
-  } else if (!/^-?\d+(?:\.\d+)?$/.test(v)) throw new HttpError(400, "Número inválido");
-  if (v.length > 40) throw new HttpError(400, "Número acima do limite permitido");
+  } else if (!/^-?\d+(?:\.\d+)?$/.test(v)) throw new DomainError("invalid_input", "Número inválido");
+  if (v.length > 40) throw new DomainError("invalid_input", "Número acima do limite permitido");
   if (money && major) {
     if (!/^-?\d+(?:\.\d{1,2})?$/.test(v))
-      throw new HttpError(400, "Máximo duas casas para moeda");
+      throw new DomainError("invalid_input", "Máximo duas casas para moeda");
     const negative = v.startsWith("-");
     const [a, b = ""] = v.replace(/^-/, "").split(".");
     return (
@@ -57,7 +58,7 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
   const p = csvImportSchema.parse(input);
   for (const metric of ["hook_rate", "body_rate"] as const)
     if (p.mapping[metric] && !p.metricDefinitions[metric])
-      throw new HttpError(400, `Informe a fórmula de ${metric} antes de importar.`);
+      throw new DomainError("invalid_input", `Informe a fórmula de ${metricLabels[metric]} antes de importar.`);
   const parsed = Papa.parse<Record<string, string>>(p.csv, {
     header: true,
     skipEmptyLines: "greedy",
@@ -67,21 +68,21 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
     parsed.meta.renamedHeaders &&
     Object.keys(parsed.meta.renamedHeaders).length
   )
-    throw new HttpError(400, "Colunas repetidas no CSV.");
+    throw new DomainError("invalid_input", "Colunas repetidas no CSV.");
   if (
     parsed.errors.length ||
     !parsed.meta.fields?.length ||
     parsed.data.length > 5000
   )
-    throw new HttpError(400, "CSV inválido, colunas repetidas ou acima de 5000 linhas.");
+    throw new DomainError("invalid_input", "CSV inválido, colunas repetidas ou acima de 5000 linhas.");
   if (
     !p.mapping.creative_key ||
     !parsed.meta.fields.includes(p.mapping.creative_key)
   )
-    throw new HttpError(400, "Mapeie uma chave estável de criativo.");
+    throw new DomainError("invalid_input", "Mapeie uma chave estável de criativo.");
   for (const header of Object.values(p.mapping))
     if (header && !parsed.meta.fields.includes(header))
-      throw new HttpError(400, "Coluna não encontrada.");
+      throw new DomainError("invalid_input", "Coluna não encontrada.");
   const seen = new Set<string>();
   const campaigns = new Map<string, Set<string | null>>();
   return parsed.data.map((row, index) => {
@@ -111,17 +112,15 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
     }
     const result = recordSchema.safeParse(base);
     if (!result.success)
-      throw new HttpError(400, `Linha ${index + 2}: chave, data ou métrica inválida.`);
+      throw new DomainError("invalid_input", `Linha ${index + 2}: chave, data ou métrica inválida.`);
     const r = result.data;
     const identity = JSON.stringify([r.creative_key, r.campaign_key]);
     if (seen.has(identity))
-      throw new HttpError(
-          400,
-        `Linha ${index + 2}: chave e campanha repetidas no período. Consolide as linhas antes de importar.`,
+      throw new DomainError("invalid_input", `Linha ${index + 2}: chave e campanha repetidas no período. Consolide as linhas antes de importar.`,
       );
     const previousCampaigns = campaigns.get(r.creative_key) ?? new Set<string | null>();
     if (previousCampaigns.size && (r.campaign_key === null || previousCampaigns.has(null)))
-      throw new HttpError(400, `Linha ${index + 2}: informe a campanha em todas as linhas deste criativo.`);
+      throw new DomainError("invalid_input", `Linha ${index + 2}: informe a campanha em todas as linhas deste criativo.`);
     previousCampaigns.add(r.campaign_key);
     campaigns.set(r.creative_key, previousCampaigns);
     seen.add(identity);
@@ -131,7 +130,7 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
         r[metric] !== null &&
         Number(r[metric]) < 0
       )
-        throw new HttpError(400, `Linha ${index + 2}: métrica negativa.`);
+        throw new DomainError("invalid_input", `Linha ${index + 2}: métrica negativa.`);
     return r;
   });
 }

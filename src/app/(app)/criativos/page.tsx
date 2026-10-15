@@ -1,4 +1,1 @@
-import { CreativeTable } from "@/components/creative-table";
-export default function Page() {
-  return <CreativeTable />;
-}
+export { CreativesView as default } from "@/components/views/creatives";

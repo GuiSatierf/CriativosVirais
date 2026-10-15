@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { RetryLaterError } from "../errors";
-import type { Connector } from "./types";
 export const utmifyCredentials = z.object({
   apiKey: z.string().trim().min(10).max(500),
   dashboardId: z.string().trim().regex(/^[a-fA-F0-9]{24}$/),
@@ -18,10 +17,8 @@ const summarySchema = z.object({
   }),
 });
 // Official read API provides consolidated dashboards, not a documented utm_content breakdown.
-export class UtmifyConnector implements Connector {
-  constructor(private credentials: z.infer<typeof utmifyCredentials>) {
-    utmifyCredentials.parse(credentials);
-  }
+export class UtmifyConnector {
+  constructor(private credentials: z.infer<typeof utmifyCredentials>) {}
   async sync(from: string, to: string) {
     const response = await fetch(
       `https://query-api.utmify.com.br/public-api/v1/dashboards/${this.credentials.dashboardId}/summary`,
@@ -46,12 +43,12 @@ export class UtmifyConnector implements Connector {
         ? now + seconds * 1000 : Date.parse(header ?? "");
       const retryAt = Number.isFinite(requested) && requested <= 8.64e15
         ? Math.max(now + 60_000, requested) : now + 60_000;
-      throw new RetryLaterError(
-        new Date(retryAt).toISOString(),
-      );
+      throw new RetryLaterError("UTMify", new Date(retryAt).toISOString());
     }
     if (!response.ok)
-      throw new Error("UTMify: verifique plano, acesso beta, dashboard e chave.");
+      throw Object.assign(new Error("UTMify request failed"), {
+        statusCode: response.status,
+      });
     const summary = summarySchema.parse(await response.json());
     return {
       records: [],

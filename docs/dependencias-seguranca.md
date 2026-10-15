@@ -45,8 +45,16 @@ lockfile e completou dependências opcionais da plataforma WASM do Tailwind.
   build Docker Node 22, Drizzle sem alterações e diagnóstico de banco/S3.
 
 O CI executa `npm run check:security` e `npm audit --audit-level=low`, além das
-validações existentes. A execução remota depende dos limites de cobrança da
-conta GitHub; uma configuração de CI não comprova que um run remoto foi executado.
+validações existentes.
+
+## Dependências diretas removidas
+
+`clsx`, `tailwind-merge`, `radix-ui`, `@ai-sdk/groq` e `@tanstack/react-table`
+não tinham uso. Classes CSS passam pelo pacote `cn` (reexportado em
+`src/lib/utils.ts`), os componentes usam `@base-ui/react`, a tabela de criativos
+usa o componente `Table` do shadcn/ui e a transcrição chama a API HTTP da Groq
+diretamente. `clsx` continua instalado como dependência transitiva de
+`class-variance-authority`.
 
 ## Manutenção e limites
 

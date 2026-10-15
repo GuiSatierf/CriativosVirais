@@ -1,6 +1,6 @@
-# Ativação dos serviços e preparação para deploy
+# Ativação dos serviços e deploy
 
-A V1 está implementada. Você pode configurar os serviços nesta ordem quando estiver pronto. As credenciais de IA são do servidor; UTMify e webhook pertencem à operação autenticada e são conectados na tela Integrações.
+Credenciais de IA ficam no runtime do servidor. UTMify e webhook pertencem a cada operação e são conectados na tela Integrações.
 
 ## Preparar um ambiente novo
 
@@ -25,6 +25,19 @@ Sem `--connections`, o diagnóstico verifica formatos e arquivos sem acessar pro
 
 O diagnóstico verifica ffmpeg/ffprobe no ambiente em que é executado. Se o worker roda em Docker, verifique dentro dele; o executável no host não é obrigatório nesse caso.
 
+## Executar tudo com Docker
+
+```sh
+docker compose build app
+docker compose up -d --wait postgres rustfs
+docker compose run --rm --no-deps app node dist/tools/src/db/migrate.js
+docker compose run --rm --no-deps app node dist/tools/scripts/init-storage.js
+docker compose --profile full up -d worker app
+docker compose logs -f app worker
+```
+
+A mesma imagem executa `node server.js` no app e `node dist/worker.js` no worker. Ela inclui ffmpeg, migrations e o documento mestre, roda sem privilégios e não precisa de segredos nem banco no build. Os volumes persistem ao parar ou recriar serviços; faça backup antes de removê-los.
+
 ## Conectar depois
 
 | Serviço | Onde configurar | O que será habilitado | Verificação final |
@@ -34,9 +47,10 @@ O diagnóstico verifica ffmpeg/ffprobe no ambiente em que é executado. Se o wor
 | UTMify | Tela Integrações: chave e ID oficial do dashboard | Resumo consolidado, sincronização manual e cron | Sincronizar e conferir status da integração |
 | Webhook | Gerar token/secret na tela Integrações e configurar no sistema emissor | Eventos de venda/reembolso atribuídos por creative_key/utm_content | Assinar corpo bruto, enviar evento com ID único e conferir resultado após o worker |
 | CSV | Tela Integrações: arquivo, mapeamento, período e fórmulas | Ranking por criativo sem depender de uma API externa | Importar e consultar a mesma janela/fonte |
-| VK Metrics | Pendente de documentação de API pública oficial | Ainda desabilitado | Confirmar contrato antes de implementar chamadas |
 
-Confirme os IDs atuais nos documentos oficiais de [DeepSeek](https://api-docs.deepseek.com/guides/vision/) e [Groq](https://console.groq.com/docs/speech-to-text). O código recebe os IDs por configuração. Não cole segredos em chats ou commits. Substitua a chave DeepSeek anteriormente compartilhada antes do uso definitivo.
+Confirme os IDs atuais nos documentos oficiais de [DeepSeek](https://api-docs.deepseek.com/guides/vision/) e [Groq](https://console.groq.com/docs/speech-to-text). O código recebe os IDs por configuração. Segredos entram só no `.env` ignorado pelo Git ou nos segredos de runtime.
+
+O worker instala o schema do pg-boss e cria as filas ao iniciar. O app só envia jobs, então inicie o worker pelo menos uma vez antes de usar upload, webhook ou sincronização; até lá essas ações respondem com erro temporário. Falhas de configuração e de provedores aparecem no log do processo com o tipo do erro, sem valores de segredos ou conteúdo de clientes.
 
 Depois de editar `.env`, recrie app e worker para carregar os valores novos:
 
@@ -56,19 +70,16 @@ Use `.env.production.example` como referência dos campos de runtime; ele não c
 1. Configure Postgres 17 com volume e RustFS com os volumes indicados no Compose. Atribua credenciais próprias e mantenha o banco na rede interna.
 2. Faça build do Dockerfile, app com porta interna 3000 e healthcheck `/api/health`. Esse endpoint confirma que o processo responde, sem revelar configuração e sem afirmar que as dependências estão disponíveis.
 3. Execute uma vez `node dist/tools/src/db/migrate.js` e `node dist/tools/scripts/init-storage.js`, com o runtime final, antes de aceitar tráfego.
-4. Inicie o worker da mesma imagem com `node dist/worker.js`, sem domínio público. Garanta acesso a Postgres e RustFS e timeouts adequados para jobs longos.
+4. Inicie o worker da mesma imagem com `node dist/worker.js`, sem domínio público, antes de liberar tráfego no app. Garanta acesso a Postgres e RustFS, jobs de até 30 minutos e desligamento gracioso de 35 segundos. O proxy do app precisa permitir streaming e respostas longas.
 5. Execute `node dist/tools/scripts/doctor.js --production --connections --strict-providers` dentro do worker. Corrija os FAILs antes de ativar todos os fluxos. Se quiser usar somente CSV/webhook inicialmente, omita `--strict-providers`.
 6. Faça os testes da tabela acima. No navegador, confirme que o endpoint público S3 permite PUT a partir do domínio final. Confira os logs do worker e acompanhe um asset até `done`; o diagnóstico não verifica heartbeat do worker nem a rede do navegador.
 7. Reinicie os serviços e confirme persistência, login e um resultado já salvo. Faça backup de Postgres, objetos RustFS e ENCRYPTION_KEY antes de atualizar.
 
-A infraestrutura, os domínios e as credenciais serão conectados por você depois. Esta preparação não publica em produção e não cria contas, assinaturas ou cobranças externas.
+## Atualizar uma instalação existente
 
-## Atualizar uma instalação anterior à atribuição por campanha
-
-A migration `0002_campaign-attribution` altera a chave única das métricas. Faça
-backup do banco, construa a imagem nova e pare app e worker antes de aplicar a
-migration: processos antigos tentariam gravar com a chave anterior. Não execute
-a versão anterior depois da migração sem restaurar o backup.
+App e worker precisam rodar a mesma versão do schema. Faça backup do banco,
+construa a imagem nova, pare os dois processos, aplique as migrations e suba de
+novo. Não execute a versão anterior depois de migrar sem restaurar o backup.
 
 ```sh
 docker compose build app
@@ -76,6 +87,15 @@ docker compose stop app worker
 docker compose run --rm --no-deps app node dist/tools/src/db/migrate.js
 docker compose --profile full up -d --wait app worker
 ```
+
+`0003_client-context-indexes` só remove índices duplicados de `client_contexts`
+e não exige passos extras.
+
+### Instalações anteriores à atribuição por campanha
+
+A migration `0002_campaign-attribution` altera a chave única das métricas.
+Processos antigos tentariam gravar com a chave anterior, por isso app e worker
+precisam estar parados durante a migração, como no procedimento acima.
 
 O webhook é recalculado usando a campanha e o dia dos eventos originais. Eventos
 sem campanha continuam desconhecidos e não entram em filtros de uma campanha

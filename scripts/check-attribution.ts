@@ -58,9 +58,9 @@ async function main() {
     const [other] = await db.insert(tenants).values({ nome: "Attribution isolation fixture" }).returning();
     otherTenantId = other.id;
     assert.deepEqual((await getBenchmark(other.id, period)).top, {});
-    assert.deepEqual(await getCreatives(other.id, period), []);
-    const tableA = await getCreatives(tenantId!, { ...period, campaignKey: "A" });
-    const tableB = await getCreatives(tenantId!, { ...period, campaignKey: "B" });
+    assert.deepEqual(await getCreatives(other.id, period), { rows: [], truncated: false });
+    const { rows: tableA } = await getCreatives(tenantId!, { ...period, campaignKey: "A" });
+    const { rows: tableB } = await getCreatives(tenantId!, { ...period, campaignKey: "B" });
     assert.equal(tableA[0].campaign_key, "A"); assert.equal(tableA[0].revenue_cents, "100");
     assert.equal(tableB[0].campaign_key, "B"); assert.equal(tableB[0].revenue_cents, "700");
 

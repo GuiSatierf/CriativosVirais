@@ -1,111 +1,130 @@
 # Criativos Virais
 
-V1 de uma ferramenta em que a IA atua como copywriter de anúncios em vídeo. A fonte de verdade de negócio é [`docs/documento-mestre.md`](docs/documento-mestre.md). O plano original e os contratos das etapas estão em [`docs/PROMPT-code-agent.md`](docs/PROMPT-code-agent.md).
+Ferramenta em que a IA atua como copywriter de anúncios em vídeo para uma operação de infoproduto. A conversa coleta o contexto do negócio, cruza métricas por criativo, pede os vídeos que valem análise e gera levas de roteiros prontos para gravar, com códigos `Lxx-Cxx` para usar como `utm_content`. Os resultados desses códigos voltam por CSV ou webhook e alimentam a memória da operação.
 
-O [registro de entrega das seis fases](docs/entrega-v1.md) relaciona cada fase às funcionalidades e validações realizadas.
+A fonte de verdade de negócio é [`docs/documento-mestre.md`](docs/documento-mestre.md). O plano original de implementação por etapas está em [`docs/PROMPT-code-agent.md`](docs/PROMPT-code-agent.md); onde ele diverge do código, vale o código e este README.
 
-O [relatório da revisão completa](docs/revisao-v1.md) registra os problemas corrigidos, as verificações e os limites de ativação.
+## Funcionalidades
 
-## Funcionalidades implementadas
+- Cadastro por email e senha (Better Auth). Cada usuário recebe uma operação (tenant) e um contexto vazio. Não há redefinição de senha por email: `/recuperar-senha` orienta o contato com o suporte.
+- Uma tela só: a conversa com o Estrategista (`/chat`). Antes da primeira mensagem ela mostra novidades (vídeos em análise, integrações com erro, leva com resultados) e as próximas ações sugeridas pelo servidor, sem chamar o modelo. Não há barra lateral: o topo tem nova conversa, histórico (Ctrl/⌘ + K, com renomear, arquivar e excluir) e o menu da conta. Tema claro e escuro.
+- Levas (`/levas`), Resultados (`/criativos`), Minha oferta (`/configuracoes`), Integrações e Perfil abrem como painéis sobre a conversa (rotas interceptadas no slot `@panel`); acessados direto pelo endereço, abrem como página inteira. O assistente mostra atalhos para esses painéis na conversa.
+- Arrastar um vídeo, áudio ou CSV para a conversa envia o arquivo; o CSV abre a importação já preenchida.
+- Conversas vazias não aparecem no histórico e são reaproveitadas ao criar uma nova. Levas podem ser renomeadas e arquivadas, nunca excluídas; criativos podem ser ocultados da lista e ter o vídeo excluído; a conta pode trocar a senha e ser excluída com todos os dados.
+- Chat em streaming (Vercel AI SDK + DeepSeek) com histórico por conversa. O servidor monta o histórico a partir do banco e ignora mensagens de assistente enviadas pelo navegador.
+- Áudio gravado no chat é transcrito (Groq) e o texto entra no campo de mensagem para revisão; nada é enviado automaticamente. Vídeos enviados podem ser anexados à mensagem.
+- Geração de levas com saída estruturada (Zod), revisão de qualidade por item e regeneração apenas dos itens reprovados. Título no formato `Leva 03 · Produto · 14/10/2026`. Exportação em `.docx`.
+- Análise de vídeo no worker: transcrição, até 40 frames, descrição visual e análise com blocos, timestamps e incertezas.
+- Contexto do negócio coletado na conversa (o assistente salva cada resposta e mostra o cartão "Anotei na sua oferta") e editável no painel Minha oferta; o preço é informado em reais e salvo em centavos.
+- Métricas por CSV (mapeamento de colunas), webhook de vendas assinado e resumo UTMify. Ranking interno top 5 das 14 métricas por janela, fonte e campanha, com glossário das métricas na tela Criativos.
+- Resultados por leva, aprendizados privados com nível de evidência e padrões compartilhados anônimos.
 
-- Autenticação email/senha com Better Auth, criação automática de tenant e contexto, logout e páginas protegidas.
-- Chat em streaming com Vercel AI SDK e DeepSeek; histórico persistido por conversa, contexto editável pela IA e pelo cliente e abertura em português. O servidor carrega o histórico da própria conta e ignora mensagens de assistente/tools fornecidas pelo navegador.
-- Geração de levas estruturadas com Zod, contexto privado, documento mestre inteiro, memória recente e padrões anônimos. Uma segunda chamada verifica todos os critérios de qualidade; somente itens reprovados são regenerados e revistos antes de salvar.
-- Levas com três hooks e corpo completo, chave `Lxx-Cxx` para `utm_content`, detalhes do teste recolhíveis, copiar e exportar `.docx` com tabelas no formato solicitado.
-- Gravação de áudio pelo MediaRecorder e upload direto ao RustFS. O worker transcreve via Groq, e o chat envia a transcrição como texto quando está disponível; enquanto o chat estiver ocupado ou sem configuração, ela fica como rascunho.
-- Upload de vídeos por chave de criativo ou como anexo avulso. O worker baixa para diretório temporário, usa ffprobe/ffmpeg para extrair áudio e até 40 frames de no máximo 768px, descreve os frames em lotes e salva análise estruturada com timestamps, blocos e incertezas. Arquivos temporários são removidos inclusive em falhas.
-- CSV com Papa Parse, mapeamento de colunas, datas/decimal/unidade monetária explícitos, upsert de snapshots e tabela TanStack. Dinheiro permanece bigint centavos; ausências permanecem NULL. Fórmulas de Hook Rate/Body Rate são obrigatórias ao mapear essas métricas e ficam registradas por operação/fonte.
-- Benchmark SQL com window functions: top cinco de cada métrica disponível, interseções e classificações internas de atenção versus venda, sem comparar operações diferentes ou usar limites universais.
-- Webhook autenticado, HMAC-SHA256 do corpo bruto, idempotência por `event_id`, BRL/centavos/datas validados, rate limit em memória por tenant e processamento pg-boss. Evento e enqueue são uma única transação; responder 202 confirma aceitação durável. A fila atualiza snapshots diários a partir dos eventos, incluindo reembolsos e chargebacks.
-- Conector UTMify para o endpoint oficial de resumo, credenciais AES-256-GCM, sincronização manual e cron a cada seis horas. O resumo não é atribuído a criativos.
-- Histórico de conversas reabrível na própria conta, com títulos a partir da primeira mensagem e navegação bloqueada enquanto grava/envia uma resposta.
-- Resultados das levas com as 14 métricas por janela/fonte/campanha, CTR e ROAS derivados somente com denominadores disponíveis e Hook/Body Rate não agregáveis preservados como NULL, aprendizados privados com níveis de evidência e reutilização na próxima geração. Repetição exige outra rodada comparável; padrões compartilhados usam somente enums finitos e uma frase abstrata fixa, sem nomes, frases privadas ou números da operação.
+Fora do escopo: edição ou renderização de vídeo, publicação de anúncios e alteração de campanhas.
 
-Não há edição/renderização de vídeos, publicação de anúncios nem alterações de campanhas. O conector VK Metrics permanece desabilitado até confirmação de uma API pública oficial, conforme solicitado.
+## Arquitetura
 
-## Pronto para conectar os serviços
+| Processo | Responsabilidade |
+| --- | --- |
+| App (Next.js 16, standalone) | Páginas, APIs, chat em streaming, envio de jobs |
+| Worker (`dist/worker.js`) | Filas `analyze-video`, `ingest-event` e `sync-metrics`; sincronização UTMify a cada seis horas, com um job por integração |
+| PostgreSQL 17 | Dados, sessões, rate limit de autenticação e filas pg-boss |
+| RustFS (S3) | Áudios e vídeos em bucket privado, enviados pelo navegador com URL assinada |
 
-O [guia de ativação](docs/ativacao.md) reúne a configuração posterior de DeepSeek, Groq, UTMify/webhook e o deploy no Coolify. `npm run setup:env` cria um ambiente local novo com segredos aleatórios sem sobrescrever arquivos existentes. `npm run doctor` aponta configurações pendentes sem expor valores; `npm run doctor -- --connections` verifica Postgres, migrations e bucket/CORS sem gravar dados. `--strict-providers` exige todas as configurações de IA e `--production` verifica HTTPS nas URLs públicas. A imagem inclui o diagnóstico em `dist/tools/scripts/doctor.js`. Use `.env.production.example` como referência de runtime para o deploy.
+O app usa pg-boss só para enviar jobs. O worker instala o schema do pg-boss, cria as filas e roda manutenção e cron; por isso precisa iniciar ao menos uma vez antes de o app enfileirar trabalho. App e worker usam a mesma imagem e precisam estar na mesma versão do schema.
 
-## Requisitos e configuração local
+| Diretório | Conteúdo |
+| --- | --- |
+| `src/app` | Páginas (`(app)`, `(auth)`) e rotas HTTP em `api/` |
+| `src/lib` | Domínio: métricas, conectores (`connectors/`), levas, IA (`ai/`), criptografia, storage, `env.ts`, `tenant-scope.ts` |
+| `src/jobs`, `src/worker.ts` | Handlers das filas, cliente pg-boss e entrypoint do worker |
+| `src/db`, `drizzle/` | Schema Drizzle e migrations (`0000`–`0003`) |
+| `src/components` | Componentes da interface; `ui/` contém os componentes shadcn/ui (Base UI) |
+| `scripts` | Setup de ambiente, diagnóstico, bucket, start standalone e teste de atribuição |
 
-Node.js 22+, npm, Docker e Docker Compose. O lockfile fixa a árvore de dependências.
+A configuração é validada por grupo em `src/lib/env.ts` no primeiro uso, então o build não precisa de banco nem de segredos. Erros de domínio (`DomainError`) carregam mensagens em português seguras para o usuário; detalhes técnicos ficam só no log do servidor.
+
+## Requisitos
+
+Node.js 22+, npm, Docker e Docker Compose. ffmpeg e ffprobe são necessários onde o worker roda (já incluídos na imagem Docker).
+
+## Configuração local
 
 ```sh
 npm ci
-cp .env.example .env
-```
-
-Preencha `.env` antes de iniciar:
-
-- `POSTGRES_PASSWORD` e `DATABASE_URL`: credenciais correspondentes. Prefira senha hexadecimal ou faça URL-encoding de caracteres especiais na URL.
-- `BETTER_AUTH_SECRET`: segredo aleatório de pelo menos 32 caracteres; `BETTER_AUTH_URL`: URL exata do app, usada como origem confiável.
-- `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`, `S3_ENDPOINT`: RustFS privado. `S3_PUBLIC_ENDPOINT` é a URL do mesmo serviço alcançável pelo navegador e usada na assinatura de PUT. O endpoint interno pode usar o hostname Docker.
-- `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL_TEXT`, `DEEPSEEK_MODEL_VISION`: chave e IDs de modelos disponíveis na sua conta. O modelo de imagem precisa aceitar imagens de fato. Nenhum ID é hardcoded. Confirme os modelos na [documentação DeepSeek](https://api-docs.deepseek.com/quick_start/pricing/).
-- `GROQ_API_KEY`, `GROQ_WHISPER_MODEL`: chave e modelo de transcrição disponíveis na sua conta, conforme [Groq Speech to Text](https://console.groq.com/docs/speech-to-text).
-- `ENCRYPTION_KEY`: exatamente 32 bytes codificados em base64, para criptografar integrações. Guarde-a junto dos backups de forma segura; trocar a chave sem migrar os ciphertexts impede a leitura das credenciais existentes.
-
-Gere segredos localmente:
-
-```sh
-node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
-node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
-```
-
-```sh
+npm run setup:env
 docker compose up -d --wait postgres rustfs
 npm run db:migrate
 npm run storage:init
+npm run build:worker
+npm run worker   # em outro terminal; inicie antes de usar upload, webhook ou sync
 npm run dev
 ```
 
-Em outro terminal:
+Abra `http://localhost:3000/signup`. `setup:env` cria `.env` com segredos aleatórios e não sobrescreve um arquivo existente. As portas do Compose ficam em loopback: Postgres `55432` (`POSTGRES_PORT`), RustFS `9000` e console `9001`.
 
-```sh
-npm run build:worker
-npm run worker
+Para rodar app e worker também em containers (perfil `full`), atualizar instalações existentes e publicar no Coolify, siga o [guia de ativação e deploy](docs/ativacao.md).
+
+### Variáveis de ambiente
+
+Referências: [`.env.example`](.env.example) (local) e [`.env.production.example`](.env.production.example) (runtime de produção).
+
+| Variável | Uso |
+| --- | --- |
+| `DATABASE_URL` | Conexão Postgres. Use senha hexadecimal ou URL-encoding |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT` | Só para o Postgres do Compose |
+| `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | Segredo de 32+ caracteres e URL exata do app, usada como origem confiável |
+| `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE` | Storage acessado pelo servidor |
+| `S3_PUBLIC_ENDPOINT` | Opcional. Endpoint que o navegador alcança para enviar arquivos; padrão é `S3_ENDPOINT` |
+| `ENCRYPTION_KEY` | 32 bytes em base64 para AES-256-GCM das credenciais de integração. Trocar a chave torna as credenciais salvas ilegíveis |
+| `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL_TEXT` | Chat, geração e revisão de levas, análise estruturada |
+| `DEEPSEEK_MODEL_VISION` | Descrição dos frames; precisa aceitar imagens |
+| `GROQ_API_KEY`, `GROQ_WHISPER_MODEL` | Transcrição de áudio e da trilha dos vídeos |
+| `TEST_DATABASE_URL` | Só para `test:attribution`; banco vazio cujo nome termina em `_test` |
+
+Sem DeepSeek ou Groq, chat e análise ficam indisponíveis com mensagem ao usuário; nada é simulado. CSV, webhook, métricas e exportação funcionam sem provedores de IA. Os IDs de modelo vêm só da configuração.
+
+`npm run doctor` aponta configurações pendentes sem exibir valores (opções em [ativação](docs/ativacao.md#preparar-um-ambiente-novo)).
+
+## Scripts
+
+| Script | Função |
+| --- | --- |
+| `dev` | Servidor de desenvolvimento |
+| `build` | Build do app (webpack), do worker e das ferramentas em `dist/tools` |
+| `start` | Servidor standalone (`scripts/start.mjs`); exige `build` |
+| `build:worker`, `worker` | Empacota e executa o worker |
+| `db:generate`, `db:migrate` | Gera migration a partir do schema; aplica as pendentes |
+| `storage:init` | Cria o bucket privado e o CORS de upload para a origem do app |
+| `setup:env`, `doctor` | Cria `.env` local; diagnostica configuração (`--connections`, `--strict-providers`, `--production`, `--file`) |
+| `lint`, `typecheck`, `test` | ESLint, TypeScript e Vitest (benchmark, CSV e HMAC do webhook) |
+| `test:attribution` | Migração e atribuição por campanha contra `TEST_DATABASE_URL` |
+| `check:security` | Valida o fork local de `braces` ([detalhes](docs/dependencias-seguranca.md)) |
+
+O CI roda `check:security`, `npm audit --audit-level=low`, `lint`, `typecheck`, `test`, `test:attribution` e `build`.
+
+## Contratos
+
+### Convenções das APIs
+
+- Erros retornam `{ "error": "mensagem" }` em português, pronta para exibir.
+- Dinheiro é inteiro em centavos e trafega como string decimal. Contagens grandes também são strings.
+- Métrica ausente é `null`, nunca zero.
+- `GET /api/creatives` responde `{ "rows": [...], "truncated": boolean }`; `truncated` indica mais de 1000 linhas.
+- Mutações autenticadas exigem o header `Origin` igual à origem de `BETTER_AUTH_URL`.
+
+### Anexos no chat
+
+O cliente envia vídeos já enviados como metadados da mensagem do usuário:
+
+```ts
+sendMessage({ text, metadata: { assetIds: ["<uuid>"] } }); // até 5
 ```
 
-Abra `http://localhost:3000/signup`. Sem chaves/modelos configurados, o chat fica explicitamente indisponível e a análise retorna um erro de configuração; nenhuma resposta/análise é simulada. CSV, webhook, métricas e exportação podem ser usados sem provedores de IA.
+O servidor confirma que cada asset é um vídeo da própria operação (400 se algum não for encontrado), salva a mensagem com os metadados e informa os IDs ao modelo numa cópia da mensagem que não aparece na conversa. Mensagens só aceitam partes de texto; áudio precisa ser transcrito antes.
 
-Portas locais: app `3000`, Postgres `55432`, RustFS S3 `9000` e console `9001`, todas limitadas a loopback no Compose. Altere `POSTGRES_PORT` e a URL no host quando necessário. O Compose injeta os hostnames internos em app/worker e preserva o endpoint público das assinaturas.
+### Webhook de vendas
 
-`storage:init` cria um bucket privado e configura CORS somente para a origem de `BETTER_AUTH_URL`. O bucket nunca fica público. Em produção, use HTTPS tanto no app quanto no S3 para evitar bloqueio de mixed content.
-
-## Execução completa com Docker
-
-```sh
-docker compose build app
-docker compose up -d --wait postgres rustfs
-docker compose run --rm --no-deps app node dist/tools/src/db/migrate.js
-docker compose run --rm --no-deps app node dist/tools/scripts/init-storage.js
-docker compose --profile full up -d app worker
-```
-
-A mesma imagem executa `node server.js` no app e `node dist/worker.js` no worker. Ela inclui ffmpeg, migrations e documento mestre, roda como usuário sem privilégios e não precisa de segredos ou banco no build. As tarefas pontuais de migration/bucket não são serviços permanentes.
-
-```sh
-docker compose logs -f app worker
-docker compose stop
-```
-
-Volumes persistem ao parar/recriar serviços. Faça backup antes de remover volumes ou aplicar migrations futuras. Ao atualizar uma instalação existente, siga o [procedimento da migration de campanha](docs/ativacao.md#atualizar-uma-instalação-anterior-à-atribuição-por-campanha): app e worker devem estar parados durante a alteração da chave única. CSVs antigos precisam de reimportação com campanha explícita para filtros por campanha; o webhook é recalculado pelos eventos preservados.
-
-## Fluxo de uso
-
-1. Conte sobre produto, público, transformação, mecanismo, ticket e próximo passo na conversa. Revise provas autorizadas e restrições em Configurações.
-2. Em Integrações, importe CSV ou conecte webhook. UTMify é opcional e fornece somente resumo; ranking precisa de chave estável por criativo.
-3. Informe na conversa período e fonte/campanha. A IA consulta o ranking internamente e solicita apenas as chaves dos vídeos escolhidos. Motivos da seleção e chamadas internas nunca são enviados no stream/UI.
-4. Envie os vídeos solicitados e aguarde análise. Peça uma leva após completar o contexto. A geração revisa a qualidade antes de salvar; copie ou exporte os roteiros em Levas.
-5. Use cada `creative_key` como `utm_content` ao publicar manualmente. Retorne resultados com CSV ou webhook e peça à IA para consultar a leva e salvar aprendizados compatíveis com a evidência.
-
-CSV aceita até 5 MB/5000 linhas, uma linha por criativo no período. Campos numéricos não aceitam símbolos de moeda/% ou notação científica. Escolha decimal vírgula/ponto e reais/centavos. Snapshots no mesmo período/fonte substituem valores; janelas sobrepostas são rejeitadas para evitar dupla contagem. O filtro CSV exige o período exato importado; webhook soma dias dentro da janela. Não combine fontes na mesma comparação. Hook Rate e Body Rate não são inventados a partir de vídeos; sem denominadores comuns não são agregados entre snapshots.
-
-Uploads aceitam até 250 MB para vídeo e 25 MB para áudio, com duração máxima de 15 minutos. Vídeos longos têm frames amostrados ao longo da duração inteira com intervalo mínimo de dois segundos; os limites da evidência visual devem aparecer nas incertezas da análise. O gravador do chat limita mensagens a dois minutos. Falhas de jobs têm até três retries, backoff e opção de reenfileirar um asset em erro. App/worker devem usar a mesma versão do schema.
-
-## Contrato do webhook
-
-Gere token e secret em Integrações; eles são exibidos uma única vez. Regenerar revoga a credencial anterior; revogar conexão remove sua autenticação. A aplicação nunca retorna esses segredos em consultas posteriores.
+Token e secret são gerados em Integrações e exibidos uma única vez. Gerar de novo revoga os anteriores.
 
 ```http
 POST /api/ingest/events
@@ -123,53 +142,57 @@ Content-Type: application/json
   "revenue": 99700,
   "profit": 65000,
   "creative_key": "L01-C01",
+  "utm_campaign": "lancamento",
   "utm_content": "L01-C01"
 }
 ```
 
-Assine exatamente os bytes enviados, incluindo espaços. Estados: pending, approved, refunded, chargeback, cancelled, failed. BRL é a moeda da V1; não há mistura/conversão automática de moedas. Valores ausentes viram NULL; lucros podem ser negativos. Pagamento e reembolso precisam de `event_id` distintos. Informe a parcela reembolsada/estornada em revenue/profit de seus eventos de reversão; o worker a subtrai do aprovado. Datas devem ter timezone e não podem exceder cinco minutos no futuro. Se creative_key e utm_content existirem, precisam coincidir. Eventos sem chave são armazenados, mas não viram ranking por criativo.
+- Campos aceitos: os acima mais `utm_source`, `utm_medium` e `utm_term`. Campos desconhecidos são recusados.
+- Assine exatamente os bytes enviados com o secret (HMAC-SHA256, hexadecimal).
+- `status`: `pending`, `approved`, `refunded`, `chargeback`, `cancelled` ou `failed`. Só BRL.
+- `revenue` (não negativo) e `profit` em centavos inteiros; ausentes viram NULL e lucro pode ser negativo.
+- Pagamento e reembolso precisam de `event_id` distintos. No reembolso ou chargeback, informe em `revenue`/`profit` a parcela revertida; ela é subtraída do aprovado.
+- Datas com fuso horário, no máximo cinco minutos no futuro. Se `creative_key` e `utm_content` vierem juntos, devem coincidir; sem `creative_key`, `utm_content` é a chave.
+- Eventos sem chave são guardados, mas não entram no ranking por criativo. Dias só com eventos pendentes, cancelados ou falhos ficam com contagens e valores NULL.
+- Limites: corpo de 64 KB e 120 requisições por minuto por operação em cada processo.
+- Respostas: 202 aceito (inclusive repetição), 400 contrato inválido, 401 credencial ou assinatura inválida, 413 corpo grande, 429 limite temporário. Repita falhas transitórias com o mesmo `event_id`.
 
-Limites: corpo 64 KB e 120 requisições/minuto por tenant **por processo**. Respostas: 202 aceito (inclusive repetição), 400 contrato inválido, 401 autenticação/assinatura inválida, 413 corpo grande, 429 limite temporário. Faça retry de falhas transitórias usando o mesmo event_id; nunca altere o significado de um ID já aceito. A deduplicação impede processamento duplicado do mesmo evento, mas não deduz que dois IDs diferentes representam a mesma venda.
+### CSV
 
-## UTMify e VK Metrics
+Importado em Integrações. Até 5 MB e 5000 linhas, uma linha por criativo e campanha no período. Não há nomes de coluna fixos: o usuário mapeia as colunas do arquivo para `creative_key` (obrigatória), `creative_name`, `campaign_key`, `adset_key` e as 14 métricas (`spend_cents`, `impressions`, `clicks`, `ctr`, `hook_rate`, `body_rate`, `leads`, `checkouts`, `approved_sales`, `revenue_cents`, `profit_cents`, `roas`, `refunds`, `chargebacks`), e informa período, separador decimal (vírgula ou ponto) e unidade monetária (reais ou centavos).
 
-O endpoint documentado é `POST https://query-api.utmify.com.br/public-api/v1/dashboards/{dashboardId}/summary`, com chave oficial e ID do dashboard. Ele retorna métricas consolidadas em centavos, sem granularidade documentada por utm_content/creative_key; não inventamos um endpoint ou distribuição por anúncio. A consulta exige plano elegível e acesso ao beta. Erros ficam visíveis na integração e retries usam backoff de no mínimo um minuto e respeitam Retry-After sem novas chamadas antes do prazo; o cron roda a cada seis horas. Consulte a [documentação oficial](https://docs.utmify.com.br/consulta-de-dados) para elegibilidade e limites atuais. VK Metrics tem interface e TODO e não faz chamadas até confirmação do usuário.
+- Números sem símbolo de moeda, `%` ou notação científica; valores em reais com no máximo duas casas. Só lucro pode ser negativo.
+- Hook Rate e Body Rate exigem a fórmula usada, que precisa ser a mesma nas importações seguintes.
+- Importar o mesmo período e fonte substitui o snapshot; janelas sobrepostas são recusadas. Se um criativo tem mais de uma campanha, todas as linhas dele precisam da campanha.
+- Na consulta, CSV exige o período exato importado; webhook soma os dias dentro da janela.
 
-## Coolify
+### UTMify
 
-1. Conecte o repositório privado/branch aprovada; build via Dockerfile, porta interna 3000, domínio HTTPS e healthcheck `/api/health`.
-2. Crie Postgres 17 com volume e hostname interno; não publique a porta do banco.
-3. Crie RustFS com a imagem fixada por digest no Compose, volumes `/data` e `/logs`, credenciais únicas e CORS restrito à origem do app. Exponha S3 por HTTPS; restrinja o console.
-4. Configure variáveis no app/worker como segredos de runtime, nunca build args. Use URLs internas para banco/S3 e o domínio público S3 para assinaturas.
-5. Execute `node dist/tools/src/db/migrate.js` uma vez antes de servir tráfego e `node dist/tools/scripts/init-storage.js` com RustFS disponível. Não rode migrations concorrentes a cada startup de réplica.
-6. Execute o worker da mesma imagem, comando `node dist/worker.js`, sem domínio/porta pública e com acesso à mesma rede. Permita jobs de até 30 minutos e desligamento gracioso; o proxy do app precisa permitir streaming e geração longa sem timeout curto.
-7. Valide cadastro, chat, uma geração pequena, áudio/vídeo, CSV, webhook assinado e sincronização com credenciais reais, além da persistência após reiniciar.
+Usa `POST https://query-api.utmify.com.br/public-api/v1/dashboards/{dashboardId}/summary` com a chave oficial, configurada em Integrações. A API devolve métricas consolidadas sem divisão por criativo, por isso o resumo nunca é distribuído entre anúncios. Quando a UTMify pede uma pausa (429), a próxima consulta espera o `Retry-After`. Consulte a [documentação oficial](https://docs.utmify.com.br/consulta-de-dados) para planos e limites.
 
-Não existe deploy automático ou alteração de produção neste PR. Faça backup de Postgres/RustFS e da chave de criptografia antes de atualizar.
+## Isolamento e privacidade
 
-## Isolamento e memória
+- O tenant vem sempre da sessão no servidor (ou do payload de job criado pelo servidor). Consultas, atualizações e exclusões usam `tenantWhere(table, tenantId, ...)`; inserts usam `tenantValues(tenantId, values)` (`src/lib/tenant-scope.ts`). Jobs validam no worker que o registro pertence ao tenant do job.
+- Chaves estrangeiras compostas `(tenant_id, id)` impedem vínculos entre operações. Não há RLS.
+- Vídeos, transcrições, copy, contexto e aprendizados entram nos prompts delimitados como dados não confiáveis.
+- Motivos de seleção de vídeos, entradas e saídas de ferramentas e raciocínio do modelo não chegam ao navegador.
+- Credenciais de integração ficam cifradas com AES-256-GCM e nunca vão para o cliente, o modelo ou os logs. Mensagens que parecem conter chave ou token são recusadas no navegador e no servidor antes de serem salvas (`src/lib/secrets.ts`).
+- `shared_patterns` guarda apenas combinações de enums com uma frase fixa, sem texto ou números de clientes.
+- ffmpeg e ffprobe rodam sem shell, só com protocolos `file`/`pipe`, demuxer definido pelo MIME, limites de duração e diretório temporário exclusivo.
 
-Identidade do tenant vem da sessão no servidor; APIs de sessão validam origem nas mutações. Helpers `tenantWhere`/`tenantValues` estão disponíveis, e serviços internos recebem o tenant resolvido pelo servidor e aplicam filtros explícitos em todas as queries. IDs de rota, jobs e vínculos passam por validação/propriedade. Vínculos compostos `(tenant_id,id)` impedem referências entre operações. Não há RLS nesta V1.
+## Deploy
 
-As chaves de criativos gerados são reservadas junto da leva, evitando colisões com importações e permitindo upload antes dos primeiros resultados. Mudanças de contexto/provas durante a geração recusam o salvamento. A geração de levas recebe o texto recente da conversa e as análises dos vídeos selecionados ou referenciados por asset_id, sempre filtrados pelo tenant. Os motivos de seleção permanecem privados. Cancelar a conversa também interrompe as chamadas de geração/revisão pendentes. O histórico de assistente/tools fornecido pelo front não entra no contexto. Conteúdo de clientes, transcrições, imagens, contexto e aprendizados é delimitado como dado não confiável. Nenhuma ferramenta recebe credenciais de integração; inputs/resultados de tools e reasoning são removidos do stream público. A extração ffmpeg/ffprobe usa argumentos sem shell, somente protocolos file/pipe, demuxers forçados pelo MIME para recusar playlists, limites de duração/timeout e diretórios temporários exclusivos.
+A imagem do `Dockerfile` executa `node server.js` (app, porta 3000, healthcheck `/api/health`) e `node dist/worker.js` (worker). Migrations e bucket são aplicados com `node dist/tools/src/db/migrate.js` e `node dist/tools/scripts/init-storage.js`. Passo a passo para Compose e Coolify, atualização de versões e verificação dos provedores: [docs/ativacao.md](docs/ativacao.md).
 
-`shared_patterns` recebe apenas estruturas/consciência de enums e frases fixas anônimas; aprendizado privado nunca é copiado para lá. Mesmo um padrão observado é tratado como hipótese na próxima operação. Dados permanecem enquanto a conta/operação existir; a V1 não implementa expiração automática. Exclusão administrativa solicitada deve abranger tenant (cascade no banco), prefixo S3 correspondente e backups conforme a política do operador. Jobs de assets removidos deixam de processar registros ausentes. Não há reset de senha/verificação de email: requer serviço de email e escopo adicional.
+## Limites conhecidos
 
-## Validação e limitações
+- Sem verificação de email, redefinição de senha por email, quotas de uso de IA ou limite de webhook compartilhado entre réplicas.
+- Dados permanecem enquanto a operação existir. Excluir uma operação exige remover o tenant (cascade no banco), o prefixo correspondente no bucket e os backups.
+- Uploads: vídeo até 250 MB, áudio até 25 MB, duração máxima de 15 minutos.
 
-```sh
-npm run lint
-npm run typecheck
-npm run test
-npm run build
-npm run db:generate
-npm audit --omit=dev
-```
+## Documentação
 
-Vitest cobre somente benchmark, CSV e HMAC/contrato do webhook, conforme o escopo solicitado. A revisão final verificou as 14 métricas no Postgres, precisão de centavos acima do limite seguro de JavaScript, ranking de reembolsos/chargebacks com menor valor primeiro, filtro de campanha nos resultados e evidência de vídeo no contexto da geração. Gravações WebM sem duração no cabeçalho foram verificadas com ffmpeg/ffprobe e usam uma leitura limitada dos timestamps dos pacotes. Smoke checks locais exercitaram duas contas, isolamento, migrations, upsert/ranking SQL, exportação real de DOCX com render das páginas, ingestão HMAC/idempotente com worker real, assinatura/upload/HEAD de S3, tratamento explícito de provedores não configurados, memória privada e privacidade do card de seleção. Interfaces foram verificadas no navegador, inclusive viewport móvel.
-
-Chamadas reais DeepSeek de texto, visão e geração de uma leva de um criativo passaram, incluindo revisão de qualidade e persistência. Respostas fora do schema ou ainda reprovadas após regeneração são recusadas sem salvar a leva. O teste usou uma operação fictícia temporária, removida ao terminar. Sem chave Groq e acesso UTMify, transcrição, análise completa de vídeo e consulta autenticada ao dashboard permanecem sem validação real. Seus caminhos estão implementados e falham explicitamente quando indisponíveis. A CI do GitHub está configurada, mas a execução anterior foi bloqueada pela cobrança/limite de gastos da conta.
-
-As auditorias completa e de produção não apresentam vulnerabilidades conhecidas. Os nove alertas de desenvolvimento de GHSA-vfj7-8cjw-p6xm foram corrigidos com um fork local de braces 3.0.3 que limita o aninhamento antes dos walkers recursivos; ainda não existe versão corrigida upstream. A origem, os limites e a manutenção estão em [Dependências e segurança](docs/dependencias-seguranca.md). `npm run check:security` valida a correção, a integridade do código instalado e a compatibilidade das ferramentas, e roda no CI junto de `npm audit`. O esbuild transitivo do loader Drizzle mantém o override validado, preservando a stack.
-
-Os IDs atuais devem ser confirmados na [documentação DeepSeek](https://api-docs.deepseek.com/guides/vision/); ela documenta `deepseek-flash` com entrada de imagem. Configure os IDs em DEEPSEEK_MODEL_TEXT/DEEPSEEK_MODEL_VISION; eles não ficam fixados no código. Credenciais devem entrar diretamente no `.env` ignorado ou nos segredos de runtime; substitua qualquer chave publicada em um chat.
+- [Documento mestre (regras de negócio)](docs/documento-mestre.md)
+- [Guia de ativação e deploy](docs/ativacao.md)
+- [Dependências e segurança](docs/dependencias-seguranca.md)
+- [Histórico](docs/historico.md)

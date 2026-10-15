@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { assets, videoAnalyses } from "@/db/schema";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
@@ -13,9 +13,11 @@ import type { Readable } from "node:stream";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { generateObject } from "ai";
-import { textModel, providerOptions } from "@/lib/ai/model";
+import { assertModelConfigured, textModel, providerOptions } from "@/lib/ai/model";
 import { analysisSchema } from "@/lib/ai/schemas";
 import { masterDocument, untrusted } from "@/lib/ai/system-prompt";
+import { DomainError } from "@/lib/errors";
+import { tenantValues, tenantWhere } from "@/lib/tenant-scope";
 import { transcribe } from "@/lib/transcribe";
 export const assetJobSchema = z
   .object({ tenantId: z.uuid(), assetId: z.uuid() })
@@ -33,13 +35,9 @@ const framesSchema = z.object({
 });
 export async function analyzeVideo(data: unknown) {
   const { tenantId, assetId } = assetJobSchema.parse(data);
-  const [asset] = await db
-    .select()
-    .from(assets)
-    .where(and(eq(assets.tenantId, tenantId), eq(assets.id, assetId)))
-    .limit(1);
+  const where = tenantWhere(assets, tenantId, eq(assets.id, assetId));
+  const [asset] = await db.select().from(assets).where(where).limit(1);
   if (!asset || !asset.uploadCompletedAt || asset.status === "done") return;
-  const where = and(eq(assets.tenantId, tenantId), eq(assets.id, assetId));
   await db
     .update(assets)
     .set({ status: "processing", errorMessage: null })
@@ -73,7 +71,8 @@ export async function analyzeVideo(data: unknown) {
       "audio/wav": "wav",
     };
     const demuxer = inputFormat[asset.mime];
-    if (!demuxer) throw new Error("Unsupported media container");
+    if (!demuxer)
+      throw new DomainError("invalid_input", "Formato de arquivo não suportado. Envie MP4, MOV, WebM ou um áudio comum.");
     const guardedInput = [
       "-f",
       demuxer,
@@ -104,7 +103,7 @@ export async function analyzeVideo(data: unknown) {
     );
     const probeData = z
       .object({
-        format: z.object({ duration: z.coerce.number().positive().max(900).optional() }),
+        format: z.object({ duration: z.coerce.number().positive().optional() }),
         streams: z
           .array(
             z.object({
@@ -133,7 +132,11 @@ export async function analyzeVideo(data: unknown) {
             pts + (Number.isFinite(length) && length > 0 ? length : 0));
       }
     }
-    const duration = z.number().positive().max(900).parse(measuredDuration);
+    if (!probeData.streams.some((stream) => stream.codec_type === "audio"))
+      throw new DomainError("invalid_input", "O arquivo não tem áudio. Envie uma versão com som.");
+    if (measuredDuration > 900)
+      throw new DomainError("invalid_input", "O arquivo passa de 15 minutos. Envie uma versão mais curta.");
+    const duration = z.number().positive().parse(measuredDuration);
     const audio = join(dir, "audio.mp3");
     await exec(
       "ffmpeg",
@@ -180,8 +183,8 @@ export async function analyzeVideo(data: unknown) {
         .where(where);
       return;
     }
-    textModel(true);
-    textModel();
+    assertModelConfigured(true);
+    assertModelConfigured();
     const interval = Math.max(2, duration / 40);
     await exec(
       "ffmpeg",
@@ -262,8 +265,7 @@ export async function analyzeVideo(data: unknown) {
     await db.transaction(async (tx) => {
       await tx
         .insert(videoAnalyses)
-        .values({
-          tenantId,
+        .values(tenantValues(tenantId, {
           assetId,
           creativeId: asset.creativeId,
           transcript: transcript.text,
@@ -277,7 +279,7 @@ export async function analyzeVideo(data: unknown) {
           cta: object.cta,
           visualNotes: object.visual_notes,
           uncertainties: object.uncertainties,
-        })
+        }))
         .onConflictDoUpdate({
           target: [videoAnalyses.tenantId, videoAnalyses.assetId],
           set: {
@@ -304,16 +306,21 @@ export async function analyzeVideo(data: unknown) {
         })
         .where(where);
     });
-  } catch {
+  } catch (error) {
+    const actionable = error instanceof DomainError && error.code === "invalid_input";
     await db
       .update(assets)
       .set({
         status: "error",
-        errorMessage:
-          "Não foi possível analisar. Confira o formato, a faixa de áudio e as configurações Groq/DeepSeek. O worker tenta novamente até três vezes.",
+        errorMessage: actionable
+          ? error.message
+          : asset.kind === "audio"
+            ? "Não foi possível transcrever o áudio. Tente novamente em alguns minutos."
+            : "Não foi possível analisar o vídeo. Tente novamente em alguns minutos.",
       })
       .where(where);
-    throw new Error("Asset analysis failed");
+    // Retrying cannot fix a file the user must replace.
+    if (!actionable) throw error;
   } finally {
     storage?.client.destroy();
     if (dir) await rm(dir, { recursive: true, force: true });

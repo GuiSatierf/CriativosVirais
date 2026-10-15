@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { assets, creatives } from "@/db/schema";
 import { handle, apiTenant, readJson, json, HttpError } from "@/lib/http";
 import { getStorage } from "@/lib/storage";
+import { tenantValues, tenantWhere } from "@/lib/tenant-scope";
 const schema = z
   .object({
     kind: z.enum(["video", "audio"]),
@@ -38,12 +39,7 @@ export function POST(request: Request) {
       const [creative] = await db
         .select({ id: creatives.id })
         .from(creatives)
-        .where(
-          and(
-            eq(creatives.tenantId, tenantId),
-            eq(creatives.creativeKey, input.creativeKey),
-          ),
-        );
+        .where(tenantWhere(creatives, tenantId, eq(creatives.creativeKey, input.creativeKey)));
       if (!creative) throw new HttpError(404, "Criativo não encontrado.");
       creativeId = creative.id;
     }
@@ -62,14 +58,15 @@ export function POST(request: Request) {
       );
       const [asset] = await db
         .insert(assets)
-        .values({
-          tenantId,
-          creativeId,
-          kind: input.kind,
-          s3Key,
-          mime: input.mime,
-          size: BigInt(input.size),
-        })
+        .values(
+          tenantValues(tenantId, {
+            creativeId,
+            kind: input.kind,
+            s3Key,
+            mime: input.mime,
+            size: BigInt(input.size),
+          }),
+        )
         .returning({ id: assets.id });
       return json({ assetId: asset.id, url });
     } finally {

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { DomainError } from "./errors";
+import { transcribeEnv } from "./env";
 export const transcriptSchema = z.object({
   text: z.string().max(100000),
   duration: z.number().nonnegative().optional(),
@@ -13,20 +15,23 @@ export const transcriptSchema = z.object({
     .max(1000)
     .default([]),
 });
+const unavailable =
+  "Não foi possível transcrever o áudio. Tente novamente em alguns minutos.";
 export async function transcribe(
   bytes: Uint8Array,
   name: string,
   mime: string,
 ) {
-  if (!process.env.GROQ_API_KEY || !process.env.GROQ_WHISPER_MODEL)
-    throw new Error(
-      "Configure GROQ_API_KEY e GROQ_WHISPER_MODEL para transcrever áudio.",
-    );
+  const env = transcribeEnv();
+  if (!env) throw new DomainError("unavailable", unavailable);
   if (bytes.length > 25_000_000)
-    throw new Error("Áudio excede 25 MB após extração.");
+    throw new DomainError(
+      "invalid_input",
+      "O áudio é longo demais para transcrever. Envie um arquivo mais curto.",
+    );
   const form = new FormData();
   form.set("file", new Blob([new Uint8Array(bytes)], { type: mime }), name);
-  form.set("model", process.env.GROQ_WHISPER_MODEL);
+  form.set("model", env.GROQ_WHISPER_MODEL);
   form.set("language", "pt");
   form.set("response_format", "verbose_json");
   form.set("timestamp_granularities[]", "segment");
@@ -34,14 +39,14 @@ export async function transcribe(
     "https://api.groq.com/openai/v1/audio/transcriptions",
     {
       method: "POST",
-      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+      headers: { Authorization: `Bearer ${env.GROQ_API_KEY}` },
       body: form,
       signal: AbortSignal.timeout(120_000),
     },
   );
-  if (!response.ok)
-    throw new Error(
-      "Falha na transcrição. Verifique a configuração Groq e os limites de uso.",
-    );
+  if (!response.ok) {
+    console.error(`Transcription request failed with status ${response.status}`);
+    throw new DomainError("unavailable", unavailable);
+  }
   return transcriptSchema.parse(await response.json());
 }

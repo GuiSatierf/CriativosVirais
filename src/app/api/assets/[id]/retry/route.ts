@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { assets } from "@/db/schema";
 import { handle, apiTenant, json, HttpError } from "@/lib/http";
 import { getJobs } from "@/jobs";
+import { tenantWhere } from "@/lib/tenant-scope";
 export function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -14,7 +15,7 @@ export function POST(
     const [asset] = await db
       .select()
       .from(assets)
-      .where(and(eq(assets.tenantId, tenantId), eq(assets.id, id)));
+      .where(tenantWhere(assets, tenantId, eq(assets.id, id)));
     if (!asset || !asset.uploadCompletedAt)
       throw new HttpError(404, "Arquivo não encontrado.");
     if (asset.status !== "error")
@@ -23,7 +24,7 @@ export function POST(
     await boss.send(
       "analyze-video",
       { tenantId, assetId: id },
-      { singletonKey: id, retryLimit: 3 },
+      { singletonKey: id },
     );
     return json({ queued: true }, 202);
   });

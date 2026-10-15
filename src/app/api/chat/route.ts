@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import {
   streamText,
@@ -9,11 +9,24 @@ import {
   type UIMessage,
 } from "ai";
 import { db } from "@/db";
-import { conversations, messages } from "@/db/schema";
+import { assets, conversations, messages } from "@/db/schema";
 import { handle, apiTenant, readJson, HttpError } from "@/lib/http";
-import { textModel, providerOptions, onModelError } from "@/lib/ai/model";
-import { buildSystemPrompt } from "@/lib/ai/system-prompt";
+import {
+  assertModelConfigured,
+  textModel,
+  providerOptions,
+  onModelError,
+} from "@/lib/ai/model";
+import {
+  attachmentsSchema,
+  buildSystemPrompt,
+  messageAttachments,
+  messageText,
+} from "@/lib/ai/system-prompt";
 import { chatTools } from "@/lib/ai/tools";
+import { logError } from "@/lib/log";
+import { tenantValues, tenantWhere } from "@/lib/tenant-scope";
+import { looksLikeSecret, secretWarning } from "@/lib/secrets";
 export const runtime = "nodejs";
 export const maxDuration = 600;
 const inputSchema = z.object({
@@ -24,6 +37,7 @@ const inputSchema = z.object({
         id: z.string().min(1).max(100),
         role: z.enum(["user", "assistant", "system"]),
         parts: z.array(z.record(z.string(), z.unknown())).max(100),
+        metadata: z.unknown().optional(),
       }),
     )
     .min(1)
@@ -32,9 +46,12 @@ const inputSchema = z.object({
 export function POST(request: Request) {
   return handle(async () => {
     const { tenantId } = await apiTenant(request);
-    textModel();
+    assertModelConfigured();
     const input = await readJson(request, inputSchema);
     const incoming = input.messages.at(-1)!;
+    const attachments = attachmentsSchema.optional().safeParse(incoming.metadata);
+    if (!attachments.success)
+      throw new HttpError(400, "Anexe até cinco vídeos por mensagem.");
     if (
       incoming.role !== "user" ||
       incoming.parts.some((p) => p.type !== "text")
@@ -49,6 +66,19 @@ export function POST(request: Request) {
       .min(1)
       .max(12000)
       .parse(incoming.parts.map((p) => z.string().parse(p.text)).join("\n"));
+    // Refused before storage so a pasted key never reaches the model or the history.
+    if (looksLikeSecret(text)) throw new HttpError(400, secretWarning);
+    const assetIds = [...new Set(attachments.data?.assetIds)];
+    if (assetIds.length) {
+      const owned = await db
+        .select({ id: assets.id })
+        .from(assets)
+        .where(
+          tenantWhere(assets, tenantId, inArray(assets.id, assetIds), eq(assets.kind, "video")),
+        );
+      if (owned.length !== assetIds.length)
+        throw new HttpError(400, "Não encontramos um dos vídeos anexados. Envie o vídeo novamente.");
+    }
     const turnSignal = AbortSignal.any([request.signal, AbortSignal.timeout(600_000)]);
     const turn = randomUUID();
     const [claimed] = await db
@@ -59,8 +89,9 @@ export function POST(request: Request) {
         processingUntil: new Date(Date.now() + 15 * 60_000),
       })
       .where(
-        and(
-          eq(conversations.tenantId, tenantId),
+        tenantWhere(
+          conversations,
+          tenantId,
           eq(conversations.id, input.conversationId),
           sql`(${conversations.processingUntil} IS NULL OR ${conversations.processingUntil}<now())`,
         ),
@@ -70,12 +101,7 @@ export function POST(request: Request) {
       const [exists] = await db
         .select({ id: conversations.id })
         .from(conversations)
-        .where(
-          and(
-            eq(conversations.tenantId, tenantId),
-            eq(conversations.id, input.conversationId),
-          ),
-        );
+        .where(tenantWhere(conversations, tenantId, eq(conversations.id, input.conversationId)));
       throw new HttpError(
         exists ? 409 : 404,
         exists
@@ -88,8 +114,9 @@ export function POST(request: Request) {
         .update(conversations)
         .set({ processingToken: null, processingUntil: null })
         .where(
-          and(
-            eq(conversations.tenantId, tenantId),
+          tenantWhere(
+            conversations,
+            tenantId,
             eq(conversations.id, input.conversationId),
             eq(conversations.processingToken, turn),
           ),
@@ -99,17 +126,19 @@ export function POST(request: Request) {
         id: randomUUID(),
         role: "user",
         parts: [{ type: "text", text }],
+        ...(assetIds.length ? { metadata: { assetIds } } : {}),
       };
       await db
         .insert(messages)
-        .values({
-          id: savedUser.id,
-          tenantId,
-          conversationId: input.conversationId,
-          role: "user",
-          content: savedUser,
-          clientMessageId: incoming.id,
-        })
+        .values(
+          tenantValues(tenantId, {
+            id: savedUser.id,
+            conversationId: input.conversationId,
+            role: "user" as const,
+            content: savedUser,
+            clientMessageId: incoming.id,
+          }),
+        )
         .onConflictDoNothing({
           target: [
             messages.tenantId,
@@ -120,36 +149,34 @@ export function POST(request: Request) {
       const stored = await db
         .select({ content: messages.content })
         .from(messages)
-        .where(
-          and(
-            eq(messages.tenantId, tenantId),
-            eq(messages.conversationId, input.conversationId),
-          ),
-        )
+        .where(tenantWhere(messages, tenantId, eq(messages.conversationId, input.conversationId)))
         .orderBy(desc(messages.createdAt), desc(messages.id))
         .limit(40);
       // History comes exclusively from this tenant's database. Client-supplied assistant/tool messages are ignored.
+      // Attachment ids reach the model only in this copy, never in the stored or displayed text.
       const modelMessages = stored
         .reverse()
-        .map((r) => {
-          const m = r.content as UIMessage;
+        .map(({ content }) => {
+          const assistant = (content as Partial<UIMessage>).role === "assistant";
+          const attached = assistant ? [] : messageAttachments(content);
           return {
-            role:
-              m.role === "assistant"
-                ? ("assistant" as const)
-                : ("user" as const),
-            content: m.parts
-              .filter((p) => p.type === "text")
-              .map((p) => (p.type === "text" ? p.text : ""))
-              .join("\n"),
+            role: assistant ? ("assistant" as const) : ("user" as const),
+            content: [
+              messageText(content),
+              attached.length ? `[Vídeos anexados nesta mensagem, asset_id: ${attached.join(", ")}]` : "",
+            ].filter(Boolean).join("\n"),
           };
         })
         .filter((m) => m.content);
-      const system = await buildSystemPrompt(tenantId, input.conversationId);
+      const system = await buildSystemPrompt(tenantId, input.conversationId, {
+        embedConversation: false,
+      });
       const stream = createUIMessageStream({
         generateId: randomUUID,
-        onError: () =>
-          "Não foi possível concluir a resposta. Confira a configuração ou tente novamente.",
+        onError: (error) => {
+          logError("chat", error);
+          return "Não foi possível concluir a resposta. Tente novamente em instantes.";
+        },
         execute: async ({ writer }) => {
           const result = streamText({
             model: textModel(),
@@ -186,13 +213,14 @@ export function POST(request: Request) {
         },
         onEnd: async ({ responseMessage }) => {
           try {
-            await db.insert(messages).values({
-              id: randomUUID(),
-              tenantId,
-              conversationId: input.conversationId,
-              role: "assistant",
-              content: responseMessage,
-            });
+            await db.insert(messages).values(
+              tenantValues(tenantId, {
+                id: randomUUID(),
+                conversationId: input.conversationId,
+                role: "assistant" as const,
+                content: responseMessage,
+              }),
+            );
           } finally {
             await release();
           }

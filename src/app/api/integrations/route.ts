@@ -1,10 +1,12 @@
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { integrations } from "@/db/schema";
 import { handle, apiTenant, readJson, json } from "@/lib/http";
 import { encrypt, newSecret, tokenHash } from "@/lib/crypto";
 import { utmifyCredentials } from "@/lib/connectors/utmify";
+import { authEnv } from "@/lib/env";
+import { tenantValues, tenantWhere } from "@/lib/tenant-scope";
 import { getJobs, jobTransaction } from "@/jobs";
 const schema = z.discriminatedUnion("provider", [
   utmifyCredentials.extend({ provider: z.literal("utmify") }),
@@ -22,7 +24,7 @@ export function GET(request: Request) {
           metadata: integrations.metadata,
         })
         .from(integrations)
-        .where(eq(integrations.tenantId, tenantId)),
+        .where(tenantWhere(integrations, tenantId)),
     );
   });
 }
@@ -33,14 +35,13 @@ export function POST(request: Request) {
     if (input.provider === "webhook") {
       const token = newSecret(),
         secret = newSecret();
-      const values = {
-        tenantId,
+      const values = tenantValues(tenantId, {
         provider: "webhook" as const,
         tokenHash: tokenHash(token),
         webhookSecretEncrypted: encrypt(secret),
         credentialsEncrypted: null,
         status: "connected",
-      };
+      });
       await db
         .insert(integrations)
         .values(values)
@@ -49,21 +50,19 @@ export function POST(request: Request) {
           set: values,
         });
       return json({
-        url: new URL("/api/ingest/events", process.env.BETTER_AUTH_URL).toString(),
+        url: new URL("/api/ingest/events", authEnv().BETTER_AUTH_URL).toString(),
         token,
         secret,
       });
     }
-    const values = {
-      tenantId,
-      provider: "utmify" as const,
-      credentialsEncrypted: encrypt(
-        JSON.stringify(utmifyCredentials.parse(input)),
-      ),
+    const { provider, ...credentials } = input;
+    const values = tenantValues(tenantId, {
+      provider,
+      credentialsEncrypted: encrypt(JSON.stringify(credentials)),
       status: "pending",
       metadata: null,
       lastSyncAt: null,
-    };
+    });
     const boss = await getJobs();
     await jobTransaction(async (tx, connection) => {
       const [row] = await tx
@@ -92,12 +91,7 @@ export function DELETE(request: Request) {
     );
     await db
       .delete(integrations)
-      .where(
-        and(
-          eq(integrations.tenantId, tenantId),
-          eq(integrations.provider, input.provider),
-        ),
-      );
+      .where(tenantWhere(integrations, tenantId, eq(integrations.provider, input.provider)));
     return json({ disconnected: true });
   });
 }

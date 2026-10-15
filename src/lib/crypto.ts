@@ -6,13 +6,9 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
+import { cryptoEnv } from "./env";
 function key() {
-  const value = process.env.ENCRYPTION_KEY;
-  if (!value || !/^[A-Za-z0-9+/]{43}=$/.test(value))
-    throw new Error("Configure ENCRYPTION_KEY with 32 base64 bytes");
-  const k = Buffer.from(value, "base64");
-  if (k.length !== 32) throw new Error("Invalid encryption key");
-  return k;
+  return Buffer.from(cryptoEnv().ENCRYPTION_KEY, "base64");
 }
 export function encrypt(value: string) {
   const iv = randomBytes(12);

@@ -1,0 +1,58 @@
+import { requireTenant } from "@/lib/tenant";
+import { avatarUrl } from "@/lib/avatar";
+import { PageHeader } from "@/components/page-header";
+import { ProfileName } from "@/components/profile-name";
+import { ProfilePhoto } from "@/components/profile-photo";
+import { ChangePassword, DeleteAccount } from "@/components/account-settings";
+
+export async function ProfileView() {
+  const { user } = await requireTenant();
+  return (
+    <div className="max-w-5xl space-y-5">
+      <PageHeader title="Perfil" description="Sua foto e seus dados de acesso." />
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <section
+          aria-labelledby="perfil-foto"
+          className="space-y-4 rounded-xl border bg-card p-4 sm:p-5"
+        >
+          <h2 id="perfil-foto" className="section-title">
+            Foto
+          </h2>
+          <ProfilePhoto name={user.name} image={avatarUrl(user.id, user.image)} />
+        </section>
+        <section
+          aria-labelledby="perfil-dados"
+          className="space-y-4 rounded-xl border bg-card p-4 sm:p-5"
+        >
+          <h2 id="perfil-dados" className="section-title">
+            Seus dados
+          </h2>
+          <ProfileName name={user.name} email={user.email} />
+        </section>
+        <section
+          aria-labelledby="perfil-senha"
+          className="space-y-4 rounded-xl border bg-card p-4 sm:p-5"
+        >
+          <h2 id="perfil-senha" className="section-title">
+            Senha
+          </h2>
+          <ChangePassword />
+        </section>
+        <section
+          aria-labelledby="perfil-excluir"
+          className="space-y-4 rounded-xl border border-destructive/30 bg-card p-4 sm:p-5"
+        >
+          <div className="space-y-1">
+            <h2 id="perfil-excluir" className="section-title">
+              Excluir conta
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Apaga sua conta e todos os dados dela de forma permanente.
+            </p>
+          </div>
+          <DeleteAccount />
+        </section>
+      </div>
+    </div>
+  );
+}

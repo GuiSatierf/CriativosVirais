@@ -22,6 +22,20 @@
       "when": 1791939391010,
       "tag": "0002_campaign-attribution",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792022400202,
+      "tag": "0003_client-context-indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792067943765,
+      "tag": "0004_archive-and-hide",
+      "breakpoints": true
     }
   ]
 }

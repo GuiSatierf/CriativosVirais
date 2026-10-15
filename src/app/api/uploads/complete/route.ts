@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 import { assets } from "@/db/schema";
 import { db } from "@/db";
 import { handle, apiTenant, readJson, json, HttpError } from "@/lib/http";
 import { getStorage } from "@/lib/storage";
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getJobs, jobTransaction } from "@/jobs";
+import { tenantWhere } from "@/lib/tenant-scope";
 export function POST(request: Request) {
   return handle(async () => {
     const { tenantId } = await apiTenant(request);
@@ -13,8 +14,10 @@ export function POST(request: Request) {
       request,
       z.object({ assetId: z.uuid() }).strict(),
     );
-    const where = and(eq(assets.tenantId, tenantId), eq(assets.id, assetId));
-    const [asset] = await db.select().from(assets).where(where);
+    const [asset] = await db
+      .select()
+      .from(assets)
+      .where(tenantWhere(assets, tenantId, eq(assets.id, assetId)));
     if (!asset) throw new HttpError(404, "Arquivo não encontrado.");
     if (asset.uploadCompletedAt) return json({ assetId, status: asset.status });
     const { client, bucket } = getStorage();
@@ -40,8 +43,10 @@ export function POST(request: Request) {
         .update(assets)
         .set({ uploadCompletedAt: new Date() })
         .where(
-          and(
-            where,
+          tenantWhere(
+            assets,
+            tenantId,
+            eq(assets.id, assetId),
             eq(assets.status, "uploaded"),
             isNull(assets.uploadCompletedAt),
           ),
@@ -51,7 +56,7 @@ export function POST(request: Request) {
         await boss.send(
           "analyze-video",
           { tenantId, assetId },
-          { db: connection, singletonKey: assetId, retryLimit: 3 },
+          { db: connection, singletonKey: assetId },
         );
     });
     return json({ assetId, status: "uploaded" }, 202);

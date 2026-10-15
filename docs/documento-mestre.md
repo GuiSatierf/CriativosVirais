@@ -224,11 +224,11 @@ O objetivo é entender o contexto sem obrigar o usuário a conhecer termos técn
 O usuário pode enviar:
 
 - texto;
-- áudio;
+- áudio (transcrito para texto e revisado pelo usuário antes do envio);
 - vídeo;
 - copy antiga;
 - link;
-- exportação de métricas;
+- exportação de métricas (importada na tela Integrações);
 - informação parcial.
 
 ### 4.2. Perguntar o mínimo possível
@@ -1408,6 +1408,8 @@ A V1 deve usar uma camada de adaptadores.
 
 ### 19.1. Modelo interno
 
+Na implementação, o período é `period_from`/`period_to` e os valores monetários são `spend_cents`, `revenue_cents` e `profit_cents` (centavos inteiros).
+
 ```text
 creative_key
 creative_name
@@ -1489,6 +1491,8 @@ A ferramenta pode fornecer um endpoint privado para eventos:
 ```text
 POST /api/ingest/events
 ```
+
+Cabeçalhos, campos aceitos, limites e respostas do contrato implementado estão no README (seção Webhook de vendas).
 
 Exemplo mínimo:
 
@@ -1833,6 +1837,8 @@ SharedAbstraction
 
 ### Dados mínimos de um criativo
 
+Na implementação, os campos seguem o modelo da seção 19.1 (`period_from`, `period_to`, métricas monetárias em `*_cents`) e `source` é `csv`, `webhook` ou `utmify`. O bloco `attribution` ainda não é armazenado.
+
 ```json
 {
   "creative_key": "AD-042",
@@ -1869,6 +1875,8 @@ SharedAbstraction
 ```
 
 ### Dados mínimos de um evento de venda
+
+No webhook implementado, `tenant_id` e `source` são definidos pelo servidor e não podem ser enviados; os valores chegam em `revenue` e `profit` (centavos), como na seção 19.5.
 
 ```json
 {
