@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { integrations } from "@/db/schema";
 import { db } from "@/db";
 import { handle, apiTenant, json, HttpError } from "@/lib/http";
-import { getJobs } from "@/jobs";
+import { getJobs, manualSyncOptions } from "@/jobs";
 import { tenantWhere } from "@/lib/tenant-scope";
 export function POST(request: Request) {
   return handle(async () => {
@@ -12,13 +12,18 @@ export function POST(request: Request) {
       .from(integrations)
       .where(tenantWhere(integrations, tenantId, eq(integrations.provider, "utmify")));
     if (!row) throw new HttpError(404, "Conecte a UTMify primeiro.");
-    await (
+    const jobId = await (
       await getJobs()
     ).send(
       "sync-metrics",
       { tenantId, integrationId: row.id },
-      { singletonKey: row.id },
+      manualSyncOptions(row.id),
     );
+    if (jobId === null)
+      throw new HttpError(
+        429,
+        "A sync was requested recently. Please wait up to five minutes before trying again.",
+      );
     return json({ queued: true }, 202);
   });
 }
