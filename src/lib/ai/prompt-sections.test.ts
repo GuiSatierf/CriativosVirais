@@ -31,6 +31,18 @@ describe("system prompt size", () => {
     expect(prompt.length).toBeLessThanOrEqual(master.length + 130_000);
   });
 
+  it("budgets the escaped representation and retains large client context", () => {
+    const html = "<>".repeat(3_000);
+    const data = { ...largest,
+      conversation: largest.conversation.map((entry) => ({ ...entry, text: html })),
+      evidence: largest.evidence.map((entry) => ({ ...entry, transcript: html })),
+      context: { produto: html, notas: Array.from({ length: 50 }, () => html) },
+    };
+    const prompt = assembleSystemPrompt(master, data);
+    expect(prompt.length).toBeLessThanOrEqual(master.length + 130_000);
+    expect(prompt).not.toContain('label="client_context">\nnull');
+  });
+
   it("leaves small data untouched", () => {
     const small = { ...largest, conversation: [{ role: "user", text: "Oi" }], evidence: [], context: { produto: "Curso" },
       recent: { recent: [], items: [] }, learned: [], patterns: [] };

@@ -39,10 +39,12 @@ const budget = {
   patterns: 4_000,
 };
 const longestText = 4_000;
-const shortestText = 125;
+const shortestText = 1;
 
 function serializedLength(value: unknown) {
-  return JSON.stringify(value ?? null, bigintReplacer).length;
+  return JSON.stringify(value ?? null, bigintReplacer)
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e").length;
 }
 
 function clipTexts(value: unknown, max: number): unknown {
