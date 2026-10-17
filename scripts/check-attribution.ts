@@ -39,9 +39,13 @@ async function main() {
     await pool.query("insert into creative_metrics(tenant_id,creative_id,period_from,period_to,source,approved_sales,revenue_cents) values ($1,$2,'2026-10-01','2026-10-01','csv',3,77),($1,$2,'2026-10-01','2026-10-01','webhook',2,1000)", [tenantId, legacyCreative.rows[0].id]);
     for (const [id, campaign, status, revenue] of [["a", "A", "approved", 100], ["b", "B", "approved", 900], ["r", "B", "refunded", 200], ["unknown", null, "pending", null]] as const)
       await pool.query("insert into sales_events(tenant_id,event_id,occurred_at,status,currency,revenue_cents,profit_cents,creative_key,utm_campaign,source,raw) values ($1,$2,'2026-10-01T15:00:00-03:00',$3,'BRL',$4,$4,'AD-1',$5,'webhook','{}')", [tenantId, id, status, revenue, campaign]);
+    // A day with only a pending sale has no observed counts: they must end up NULL, never 0.
+    await pool.query("insert into sales_events(tenant_id,event_id,occurred_at,status,currency,revenue_cents,profit_cents,creative_key,utm_campaign,source,raw) values ($1,'pending-only','2026-10-02T15:00:00-03:00','pending','BRL',300,300,'AD-1','A','webhook','{}')", [tenantId]);
     await migrate(db, { migrationsFolder: "drizzle" });
     // Reapplying must not duplicate or rewrite already migrated data.
     await migrate(db, { migrationsFolder: "drizzle" });
+    const pendingDay = await pool.query("select approved_sales, refunds, chargebacks, revenue_cents from creative_metrics where tenant_id=$1 and source='webhook' and period_from='2026-10-02'", [tenantId]);
+    assert.deepEqual(pendingDay.rows, [{ approved_sales: null, refunds: null, chargebacks: null, revenue_cents: null }]);
     const period = { from: "2026-10-01", to: "2026-10-01", source: "webhook" as const };
     const revenue = async (campaignKey?: string) => (await getBenchmark(tenantId!, { ...period, ...(campaignKey ? { campaignKey } : {}) })).top.revenue_cents?.[0]?.value;
     assert.equal(await revenue("A"), "100");
