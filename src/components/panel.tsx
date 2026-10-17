@@ -3,6 +3,11 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
+// Laptops (lg, 1024 to 1279 px) get up to 64rem, always leaving 4rem of the chat visible;
+// the 768 px tablet width squeezed two-column views such as a batch.
+export const panelWidth =
+  "data-[side=right]:w-full data-[side=right]:sm:max-w-3xl data-[side=right]:lg:max-w-[min(64rem,calc(100vw-4rem))] data-[side=right]:xl:max-w-6xl";
+
 /**
  * Overlay used by intercepted routes: the page opens over the conversation
  * and closing it goes back. A direct visit renders the full page instead.
@@ -31,7 +36,7 @@ export function Panel({
       <SheetContent
         side="right"
         initialFocus={body}
-        className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-3xl data-[side=right]:xl:max-w-6xl"
+        className={`gap-0 ${panelWidth}`}
       >
         <SheetTitle className="sr-only">{label}</SheetTitle>
         <div
