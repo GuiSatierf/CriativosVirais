@@ -35,3 +35,40 @@ jobs:
       - run: npm run test
       - run: npm run test:attribution
       - run: npm run build
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_USER: creatives
+          POSTGRES_PASSWORD: ci-only-e2e
+          POSTGRES_DB: creatives_e2e_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U creatives -d creatives_e2e_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    # CI-only values; the suite forces the scripted fake model and never calls an AI provider.
+    env:
+      DATABASE_URL: postgresql://creatives:ci-only-e2e@localhost:5432/creatives_e2e_test
+      BETTER_AUTH_SECRET: ci-only-e2e-secret-not-used-anywhere-else
+      BETTER_AUTH_URL: http://localhost:3100
+      ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run db:migrate
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

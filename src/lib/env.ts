@@ -22,6 +22,13 @@ const schemas = {
     DEEPSEEK_MODEL_TEXT: filled,
     DEEPSEEK_MODEL_VISION: filled.optional(),
   }),
+  aiProvider: z
+    .object({
+      AI_PROVIDER: z.enum(["deepseek", "fake"]).optional().or(z.literal("").transform(() => undefined)),
+      NODE_ENV: z.string().optional(),
+    })
+    // The fake model exists only for development and automated tests.
+    .refine((v) => v.AI_PROVIDER !== "fake" || v.NODE_ENV !== "production"),
   transcribe: z.object({
     GROQ_API_KEY: filled,
     GROQ_WHISPER_MODEL: filled,
@@ -56,4 +63,5 @@ export const authEnv = () => group("auth");
 export const storageEnv = () => group("storage");
 export const cryptoEnv = () => group("crypto");
 export const aiEnv = () => optionalGroup("ai");
+export const aiProviderEnv = () => group("aiProvider");
 export const transcribeEnv = () => optionalGroup("transcribe");
