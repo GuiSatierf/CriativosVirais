@@ -2,16 +2,19 @@
 
 ## V1
 
-Implementação das seis fases do plano:
+Implementação das seis fases do plano. Uma fase só conta como feita quando o fluxo dela passa no job `e2e` da CI (Playwright com `AI_PROVIDER=fake`). Ter o código não basta. Na coluna Validação:
+- **validado**: coberto pelo e2e;
+- **pendente**: ainda sem teste de ponta a ponta;
+- **fora do escopo agora**: depende da Groq, que não está em uso.
 
-| Fase | Entrega |
-| --- | --- |
-| 1. Setup | Next.js, shadcn/ui, PostgreSQL com Drizzle, Better Auth, tenants e Docker |
-| 2. Núcleo | Chat com histórico, contexto, geração e revisão de levas, exportação `.docx` |
-| 3. Mídia | Gravação e upload, RustFS, pg-boss, transcrição, extração de frames e análise estruturada |
-| 4. Métricas | Importação CSV, tabela de criativos, ranking das 14 métricas e pedido privado de vídeos |
-| 5. Integrações | Webhook HMAC idempotente, worker de eventos, UTMify e cron |
-| 6. Aprendizado | Resultados por leva, CTR e ROAS derivados, memória privada e padrões anônimos |
+| Fase | Entrega | Validação |
+| --- | --- | --- |
+| 1. Setup | Next.js, shadcn/ui, PostgreSQL com Drizzle, Better Auth, tenants e Docker | Validado: cadastro cria a conta e a operação (`e2e/support.ts`) |
+| 2. Núcleo | Chat com histórico, contexto, geração e revisão de levas, exportação `.docx` | Validado com a IA falsa: chat, oferta salva, leva e `.docx` (`e2e/chat-batch-export.spec.ts`). Pendente: rodada com a DeepSeek real |
+| 3. Mídia | Gravação e upload, RustFS, pg-boss, transcrição, extração de frames e análise estruturada | Fora do escopo agora |
+| 4. Métricas | Importação CSV, tabela de criativos, ranking das 14 métricas e pedido privado de vídeos | Validado: CSV, tabela e ranking (`e2e/csv-ranking.spec.ts`). Fora do escopo agora: pedido de vídeos |
+| 5. Integrações | Webhook HMAC idempotente, worker de eventos, UTMify e cron | Validado: webhook assinado e worker (`e2e/webhook-batch-results.spec.ts`). Pendente: UTMify e cron |
+| 6. Aprendizado | Resultados por leva, CTR e ROAS derivados, memória privada e padrões anônimos | Validado: resultados por leva vindos do webhook (`e2e/webhook-batch-results.spec.ts`). Pendente: memória privada, padrões anônimos e uso dos resultados na leva seguinte. Fora do escopo agora: o que usa análise de vídeo |
 
 ### Revisão da V1
 

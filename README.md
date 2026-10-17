@@ -78,10 +78,11 @@ Referências: [`.env.example`](.env.example) (local) e [`.env.production.example
 | `ENCRYPTION_KEY` | 32 bytes em base64 para AES-256-GCM das credenciais de integração. Trocar a chave torna as credenciais salvas ilegíveis |
 | `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL_TEXT` | Chat, geração e revisão de levas, análise estruturada |
 | `DEEPSEEK_MODEL_VISION` | Descrição dos frames; precisa aceitar imagens |
+| `AI_PROVIDER` | Opcional. `fake` troca o modelo de texto por um roteiro fixo (`src/lib/ai/fake-model.ts`), sem chamar a DeepSeek; só em desenvolvimento e testes, recusado com `NODE_ENV=production` |
 | `GROQ_API_KEY`, `GROQ_WHISPER_MODEL` | Transcrição de áudio e da trilha dos vídeos |
 | `TEST_DATABASE_URL` | Só para `test:attribution`; banco vazio cujo nome termina em `_test` |
 
-Sem DeepSeek ou Groq, chat e análise ficam indisponíveis com mensagem ao usuário; nada é simulado. CSV, webhook, métricas e exportação funcionam sem provedores de IA. Os IDs de modelo vêm só da configuração.
+Sem DeepSeek ou Groq, chat e análise ficam indisponíveis com mensagem ao usuário. Em produção nada é simulado; em desenvolvimento e testes, `AI_PROVIDER=fake` responde o chat e gera levas de exemplo sem custo. CSV, webhook, métricas e exportação funcionam sem provedores de IA. Os IDs de modelo vêm só da configuração.
 
 `npm run doctor` aponta configurações pendentes sem exibir valores (opções em [ativação](docs/ativacao.md#preparar-um-ambiente-novo)).
 
@@ -98,6 +99,7 @@ Sem DeepSeek ou Groq, chat e análise ficam indisponíveis com mensagem ao usuá
 | `setup:env`, `doctor` | Cria `.env` local; diagnostica configuração (`--connections`, `--strict-providers`, `--production`, `--file`) |
 | `lint`, `typecheck`, `test` | ESLint, TypeScript e Vitest (benchmark, CSV e HMAC do webhook) |
 | `test:attribution` | Migração e atribuição por campanha contra `TEST_DATABASE_URL` |
+| `seed:demo` | Cria uma operação demo (oferta, leva, CSV e vendas do webhook) só em banco cujo nome termina em `_test`; login `demo@criativosvirais.test`, senha em `DEMO_PASSWORD` ou o padrão do script |
 | `check:security` | Valida o fork local de `braces` ([detalhes](docs/dependencias-seguranca.md)) |
 
 O CI roda `check:security`, `npm audit --audit-level=low`, `lint`, `typecheck`, `test`, `test:attribution` e `build`.
