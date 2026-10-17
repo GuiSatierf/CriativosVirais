@@ -1,11 +1,25 @@
 import { eq, and } from "drizzle-orm";
+import type { z } from "zod";
 import { integrations, salesEvents } from "@/db/schema";
 import { db } from "@/db";
 import { handle, json, readBody, HttpError } from "@/lib/http";
-import { tenantValues } from "@/lib/tenant-scope";
+import { tenantValues, tenantWhere } from "@/lib/tenant-scope";
 import { verifyHmac, tokenHash, decrypt } from "@/lib/crypto";
-import { eventSchema, allowEvent } from "@/lib/connectors/webhook";
+import { eventSchema, allowEvent, isSameEvent } from "@/lib/connectors/webhook";
 import { getJobs, jobTransaction } from "@/jobs";
+type Transaction = Parameters<Parameters<typeof jobTransaction>[0]>[0];
+/** A known event_id is accepted again only as an exact retry; changed content must use a new id. */
+async function assertReplay(tx: Transaction, tenantId: string, input: z.infer<typeof eventSchema>) {
+  const [stored] = await tx
+    .select({ raw: salesEvents.raw })
+    .from(salesEvents)
+    .where(tenantWhere(salesEvents, tenantId, eq(salesEvents.eventId, input.event_id)));
+  if (stored && isSameEvent(stored.raw, input)) return;
+  throw new HttpError(
+    409,
+    "Este event_id já foi recebido com outro conteúdo. Envie a mudança, como um reembolso, com um novo event_id.",
+  );
+}
 export function POST(request: Request) {
   return handle(async () => {
     const token =
@@ -78,12 +92,15 @@ export function POST(request: Request) {
           target: [salesEvents.tenantId, salesEvents.eventId],
         })
         .returning({ id: salesEvents.id });
-      if (event)
-        await boss.send(
-          "ingest-event",
-          { tenantId, eventId: event.id },
-          { db: connection, singletonKey: event.id },
-        );
+      if (!event) {
+        await assertReplay(tx, tenantId, input);
+        return;
+      }
+      await boss.send(
+        "ingest-event",
+        { tenantId, eventId: event.id },
+        { db: connection, singletonKey: event.id },
+      );
     });
     return json({ accepted: true }, 202);
   });
