@@ -2,6 +2,17 @@ import { z } from "zod";
 import { toast } from "sonner";
 
 const fallbackError = "Não foi possível concluir. Tente novamente.";
+const offlineError = "Sem conexão com o servidor. Confira a internet e tente de novo.";
+
+// Network failures ("Failed to fetch") and schema errors (JSON) are technical and in
+// English; the screen only gets plain pt-BR messages.
+async function send(url: string, init: RequestInit) {
+  try {
+    return await fetch(url, init);
+  } catch {
+    throw new Error(offlineError);
+  }
+}
 
 export async function api<T>(
   url: string,
@@ -9,7 +20,7 @@ export async function api<T>(
   body?: unknown,
   method = body === undefined ? "GET" : "POST",
 ) {
-  const response = await fetch(url, {
+  const response = await send(url, {
     method,
     headers: body !== undefined ? { "Content-Type": "application/json" } : {},
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -20,7 +31,9 @@ export async function api<T>(
       data && typeof data === "object" && "error" in data ? data.error : null;
     throw new Error(typeof error === "string" ? error : fallbackError);
   }
-  return schema.parse(data);
+  const parsed = schema.safeParse(data);
+  if (!parsed.success) throw new Error(fallbackError);
+  return parsed.data;
 }
 export const savedSchema = z.object({
   saved: z.boolean().optional(),
