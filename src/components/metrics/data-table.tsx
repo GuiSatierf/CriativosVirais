@@ -201,25 +201,12 @@ export function DataTable<T>({
   );
 }
 
-/**
- * Metrics of one mobile card. Only metrics with a value are listed; a row
- * without any shows a single quiet line instead of a grid of dashes.
- */
-export function CardMetrics({
-  items,
-}: {
-  items: { label: string; value: React.ReactNode | null }[];
-}) {
-  const present = items.filter((item) => item.value !== null);
-  if (present.length === 0)
-    return (
-      <p className="text-sm text-muted-foreground">
-        Sem resultados neste período
-      </p>
-    );
+type CardMetric = { label: string; value: React.ReactNode | null };
+
+function MetricGrid({ items }: { items: CardMetric[] }) {
   return (
     <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-      {present.map((item) => (
+      {items.map((item) => (
         <div key={item.label} className="min-w-0">
           <dt className="truncate text-xs text-muted-foreground">
             {item.label}
@@ -230,5 +217,50 @@ export function CardMetrics({
         </div>
       ))}
     </dl>
+  );
+}
+
+/**
+ * Metrics of one mobile card. Only metrics with a value are listed; a row
+ * without any shows a single quiet line instead of a grid of dashes. The
+ * table's column picker is desktop-only, so the other metrics (`more`) open
+ * here behind "Ver mais".
+ */
+export function CardMetrics({
+  items,
+  more = [],
+}: {
+  items: CardMetric[];
+  more?: CardMetric[];
+}) {
+  const [open, setOpen] = useState(false);
+  const present = items.filter((item) => item.value !== null);
+  const extra = more.filter((item) => item.value !== null);
+  const shown = open ? [...present, ...extra] : present;
+  return (
+    <div>
+      {shown.length > 0 ? (
+        <MetricGrid items={shown} />
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Sem resultados neste período
+        </p>
+      )}
+      {extra.length > 0 && (
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+          className={cn(
+            buttonVariants({ variant: "link", size: "sm" }),
+            "-ml-3 mt-1 text-muted-foreground",
+          )}
+        >
+          {open
+            ? "Ver menos"
+            : `Ver mais ${extra.length} ${extra.length === 1 ? "métrica" : "métricas"}`}
+        </button>
+      )}
+    </div>
   );
 }

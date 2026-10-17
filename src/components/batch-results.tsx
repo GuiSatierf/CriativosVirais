@@ -51,9 +51,16 @@ const metricColumn = (name: MetricName): DataColumn<Item> => ({
     item.metrics?.[name] !== null && item.metrics?.[name] !== undefined,
   render: (item) => <MetricValue name={name} value={item.metrics?.[name]} />,
 });
-const optionalColumns = metricNames
-  .filter((name) => !mainMetrics.includes(name))
-  .map(metricColumn);
+const extraMetrics = metricNames.filter((name) => !mainMetrics.includes(name));
+const optionalColumns = extraMetrics.map(metricColumn);
+
+function cardMetric(name: MetricName, item: Item) {
+  const value = item.metrics?.[name];
+  return {
+    label: metricText[name].label,
+    value: value === null || value === undefined ? null : formatMetric(name, value),
+  };
+}
 
 /** Code chip plus the script idea, as shown in the table and the cards. */
 function ScriptName({
@@ -191,16 +198,8 @@ export function BatchResults({
               <div className="space-y-3">
                 <ScriptName item={item} name={names[item.creativeKey]} />
                 <CardMetrics
-                  items={mainMetrics.map((name) => {
-                    const value = item.metrics?.[name];
-                    return {
-                      label: metricText[name].label,
-                      value:
-                        value === null || value === undefined
-                          ? null
-                          : formatMetric(name, value),
-                    };
-                  })}
+                  items={mainMetrics.map((name) => cardMetric(name, item))}
+                  more={extraMetrics.map((name) => cardMetric(name, item))}
                 />
               </div>
             )}
