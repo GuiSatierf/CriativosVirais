@@ -7,6 +7,7 @@ import { conversations, messages } from "@/db/schema";
 import { requireTenant, tenantWhere } from "@/lib/tenant";
 import { Chat } from "@/components/chat";
 import { getHome } from "@/lib/home";
+import { isModelConfigured } from "@/lib/ai/model";
 export default async function Page({
   params,
 }: {
@@ -42,9 +43,7 @@ export default async function Page({
       conversationId={conversation.id}
       title={conversation.title}
       initialMessages={stored.map((r) => r.content as UIMessage)}
-      configured={Boolean(
-        process.env.DEEPSEEK_API_KEY && process.env.DEEPSEEK_MODEL_TEXT,
-      )}
+      configured={isModelConfigured()}
       firstName={user.name.trim().split(/\s+/)[0] || undefined}
     />
   );
