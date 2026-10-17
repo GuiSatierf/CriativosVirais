@@ -1,0 +1,2 @@
+# Keep vendored packages byte-identical to their published tarballs on every OS.
+vendor/** -text
