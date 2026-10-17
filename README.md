@@ -99,6 +99,7 @@ Sem DeepSeek ou Groq, chat e análise ficam indisponíveis com mensagem ao usuá
 | `setup:env`, `doctor` | Cria `.env` local; diagnostica configuração (`--connections`, `--strict-providers`, `--production`, `--file`) |
 | `lint`, `typecheck`, `test` | ESLint, TypeScript e Vitest (benchmark, CSV e HMAC do webhook) |
 | `test:attribution` | Migração e atribuição por campanha contra `TEST_DATABASE_URL` |
+| `seed:demo` | Cria uma operação demo (oferta, leva, CSV e vendas do webhook) só em banco cujo nome termina em `_test`; login `demo@criativosvirais.test`, senha em `DEMO_PASSWORD` ou o padrão do script |
 | `check:security` | Valida o fork local de `braces` ([detalhes](docs/dependencias-seguranca.md)) |
 
 O CI roda `check:security`, `npm audit --audit-level=low`, `lint`, `typecheck`, `test`, `test:attribution` e `build`.

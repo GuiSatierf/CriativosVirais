@@ -18,7 +18,8 @@
     "setup:env": "node scripts/setup-env.mjs",
     "doctor": "tsx scripts/doctor.ts",
     "check:security": "node scripts/check-braces.mjs",
-    "test:attribution": "tsx --conditions=react-server scripts/check-attribution.ts"
+    "test:attribution": "tsx --conditions=react-server scripts/check-attribution.ts",
+    "seed:demo": "tsx --conditions=react-server scripts/seed-demo.ts"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^3.0.64",
