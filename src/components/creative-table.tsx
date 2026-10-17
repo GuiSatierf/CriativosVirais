@@ -95,6 +95,16 @@ const mainMetrics: MetricName[] = [
   "ctr",
 ];
 
+const extraMetrics = metricNames.filter((n) => !mainMetrics.includes(n));
+
+function cardMetric(name: MetricName, row: CreativeRow) {
+  const value = row[name];
+  return {
+    label: metricText[name].label,
+    value: value === null || value === undefined ? null : formatMetric(name, value),
+  };
+}
+
 const optionalColumns: DataColumn<CreativeRow>[] = [
   {
     id: "period",
@@ -116,7 +126,7 @@ const optionalColumns: DataColumn<CreativeRow>[] = [
         <span className="text-muted-foreground">Não informada</span>
       ),
   },
-  ...metricNames.filter((n) => !mainMetrics.includes(n)).map(metricColumn),
+  ...extraMetrics.map(metricColumn),
 ];
 
 function plural(n: number) {
@@ -339,13 +349,8 @@ export function CreativeTable({
                     <VideoStatus status={row.video_status} />
                   </div>
                   <CardMetrics
-                    items={mainMetrics.map((name) => ({
-                      label: metricText[name].label,
-                      value:
-                        row[name] === null || row[name] === undefined
-                          ? null
-                          : formatMetric(name, row[name]),
-                    }))}
+                    items={mainMetrics.map((name) => cardMetric(name, row))}
+                    more={extraMetrics.map((name) => cardMetric(name, row))}
                   />
                   {rowActions(row, "-ml-2 justify-start")}
                 </div>
