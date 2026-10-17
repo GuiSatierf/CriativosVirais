@@ -1,10 +1,27 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { dbEnv } from "../lib/env";
+import { logError } from "../lib/log";
 import * as schema from "./schema";
 
+/**
+ * Bounded pool: a dropped idle connection (database restart, network blip) is logged
+ * instead of crashing the process, and connections and statements cannot hang forever.
+ * Migrations pass statementTimeoutMs 0 because a long data migration is expected.
+ */
+export function createPool(connectionString: string, { statementTimeoutMs = 60_000 } = {}) {
+  const pool = new Pool({
+    connectionString,
+    max: 10,
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 30_000,
+    ...(statementTimeoutMs ? { statement_timeout: statementTimeoutMs } : {}),
+  });
+  pool.on("error", (error) => logError("db-pool", error));
+  return pool;
+}
 function connect() {
-  const pool = new Pool({ connectionString: dbEnv().DATABASE_URL, max: 10 });
+  const pool = createPool(dbEnv().DATABASE_URL);
   return { pool, db: drizzle(pool, { schema }) };
 }
 type Connection = ReturnType<typeof connect>;
