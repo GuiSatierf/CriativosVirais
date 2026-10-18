@@ -184,7 +184,7 @@ export function POST(request: Request) {
             onError: onModelError,
             system,
             messages: modelMessages,
-            tools: chatTools(tenantId, input.conversationId, writer, turnSignal),
+            tools: chatTools(tenantId, input.conversationId, writer),
             stopWhen: stepCountIs(8),
             maxOutputTokens: 6000,
             abortSignal: turnSignal,

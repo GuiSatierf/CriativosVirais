@@ -3,6 +3,7 @@ import { startWorkerJobs } from "./jobs";
 import { analyzeVideo } from "./jobs/analyze-video";
 import { ingestEvent } from "./jobs/ingest-event";
 import { syncMetrics } from "./jobs/sync-metrics";
+import { runBatchGeneration } from "./jobs/generate-batch";
 import { pool } from "./db";
 import { logError } from "./lib/log";
 async function main() {
@@ -10,6 +11,7 @@ async function main() {
   const handlers: Record<string, (data: unknown) => Promise<void>> = {
     "analyze-video": analyzeVideo,
     "ingest-event": ingestEvent,
+    "generate-batch": runBatchGeneration,
     "sync-metrics": (data) =>
       syncMetrics(data, (job) =>
         boss.send("sync-metrics", job, { singletonKey: job.integrationId }),
