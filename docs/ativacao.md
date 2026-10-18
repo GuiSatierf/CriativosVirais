@@ -78,7 +78,9 @@ Use `.env.production.example` como referência dos campos de runtime; ele não c
 
 ## Backup diário e restauração
 
-O worker faz uma cópia por dia às 03:00 (horário de São Paulo) para um bucket compatível com S3 **fora deste servidor**, por exemplo Cloudflare R2 ou Backblaze B2. Se o worker estava parado nesse horário, a cópia roda quando ele volta. Cada cópia leva:
+**Opcional e desligado por padrão.** Enquanto `BACKUP_S3_BUCKET` estiver vazio, nada é agendado e o `/api/health/system` não cobra backup. Instalações cujo servidor já tem backup externo podem deixar assim. Ligue apenas se não houver outra cópia fora do servidor.
+
+Quando ligado, o worker faz uma cópia por dia às 03:00 (horário de São Paulo) para um bucket compatível com S3 **fora deste servidor**, por exemplo Cloudflare R2 ou Backblaze B2. Se o worker estava parado nesse horário, a cópia roda quando ele volta. Cada cópia leva:
 
 - o banco inteiro (`pg_dump`, formato custom) em `database/AAAA-MM-DD.dump.enc`;
 - os arquivos novos ou alterados do RustFS em `files/<chave original>`. Arquivo apagado no app vai para `deleted/AAAA-MM-DD/` e é removido depois de 30 dias.
