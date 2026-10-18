@@ -8,7 +8,11 @@ async function main() {
   const boss = await getJobs();
   try {
     const id = await boss.send("backup", {});
-    console.info(id ? "Backup queued. Follow it in the worker log." : "A backup is already queued or running.");
+    console.info(
+      id
+        ? "Backup queued. Follow it in the worker log."
+        : "A backup is already queued, running or waiting to retry (failed runs retry within 15 minutes).",
+    );
   } finally {
     await boss.stop({ graceful: false });
   }

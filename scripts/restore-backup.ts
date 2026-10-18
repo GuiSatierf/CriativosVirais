@@ -17,6 +17,8 @@ import { getStorage } from "../src/lib/storage";
  */
 const args = process.argv.slice(2);
 const chosenDay = args.find((arg) => arg.startsWith("--day="))?.slice("--day=".length);
+/** Set once data starts arriving; earlier refusals leave the target untouched. */
+let restoreStarted = false;
 
 async function readBody(source: Bucket, objectKey: string) {
   const object = await source.client.send(new GetObjectCommand({ Bucket: source.bucket, Key: objectKey }));
@@ -68,6 +70,7 @@ async function main() {
   if (!configured) throw new Error("Configure BACKUP_S3_* and BACKUP_ENCRYPTION_KEY with the backup's values.");
   try {
     await assertEmptyDatabase();
+    restoreStarted = true;
     await restoreDatabase(configured.target, configured.key);
     await restoreFiles(configured.target, configured.key);
   } finally {
@@ -77,6 +80,7 @@ async function main() {
 }
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : "Restore failed.");
-  console.error("Nothing was rolled back: drop the target database, recreate it empty and run again.");
+  if (restoreStarted)
+    console.error("Nothing was rolled back: drop the target database, recreate it empty and run again.");
   process.exitCode = 1;
 });

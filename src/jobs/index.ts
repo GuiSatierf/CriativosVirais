@@ -11,11 +11,12 @@ export const queueOptions: QueueOptions = {
   retryBackoff: true,
   expireInSeconds: 1800,
 };
-// A first backup copies every stored video; later ones only what is new. One retry, an hour later.
+// A first backup copies every stored video; later ones only what is new. One retry after 15
+// minutes: the queue holds one backup at a time, so a longer wait would also block a manual run.
 const backupQueueOptions: QueueOptions = {
   ...queueOptions,
   retryLimit: 1,
-  retryDelay: 3600,
+  retryDelay: 900,
   retryBackoff: false,
   expireInSeconds: 3 * 3600,
 };
