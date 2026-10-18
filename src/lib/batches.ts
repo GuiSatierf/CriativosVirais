@@ -2,7 +2,8 @@ import { eq, sql } from "drizzle-orm";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { db } from "@/db";
-import { batches, batchItems, clientContexts, creatives } from "@/db/schema";
+import { batches, batchGenerations, batchItems, clientContexts, creatives } from "@/db/schema";
+import { getJobs, jobTransaction } from "@/jobs";
 import { batchSchema, batchItemSchema } from "./ai/schemas";
 import { textModel, providerOptions } from "./ai/model";
 import { buildSystemPrompt, untrusted } from "./ai/system-prompt";
@@ -10,6 +11,27 @@ import { spDayBr } from "./dates";
 import { bigintReplacer } from "./json";
 import { tenantValues, tenantWhere } from "./tenant-scope";
 const maxRound = 2147483647;
+const missingContext =
+  "Confirme produto, público, transformação, ticket, funil e próximo passo antes de gerar.";
+type ClientContext = typeof clientContexts.$inferSelect;
+function contextReady(context: ClientContext | undefined): context is ClientContext {
+  return Boolean(
+    context?.produto &&
+      context.publico &&
+      context.transformacao &&
+      context.tipoFunil &&
+      context.proximoPassoFunil &&
+      context.ticketCents !== null,
+  );
+}
+async function loadContext(tenantId: string) {
+  const [context] = await db
+    .select()
+    .from(clientContexts)
+    .where(tenantWhere(clientContexts, tenantId))
+    .limit(1);
+  return context;
+}
 function titlePart(text: string, max = 80) {
   const line = text.replace(/\s+/g, " ").trim();
   return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line;
@@ -58,22 +80,8 @@ export async function generateBatch(
   instructions: string,
   signal?: AbortSignal,
 ) {
-  const [context] = await db
-    .select()
-    .from(clientContexts)
-    .where(tenantWhere(clientContexts, tenantId))
-    .limit(1);
-  if (
-    !context?.produto ||
-    !context.publico ||
-    !context.transformacao ||
-    !context.tipoFunil ||
-    !context.proximoPassoFunil ||
-    context.ticketCents === null
-  )
-    throw new Error(
-      "Confirme produto, público, transformação, ticket, funil e próximo passo antes de gerar.",
-    );
+  const context = await loadContext(tenantId);
+  if (!contextReady(context)) throw new Error(missingContext);
   const system = await buildSystemPrompt(tenantId, conversationId);
   const { object } = await generateObject({
     model: textModel(),
@@ -190,4 +198,36 @@ export async function getBatch(tenantId: string, id: string) {
     .where(tenantWhere(batchItems, tenantId, eq(batchItems.batchId, id)))
     .orderBy(batchItems.position);
   return { ...batch, items };
+}
+
+/**
+ * Records a batch request and queues it for the worker, so the chat answers at once instead of
+ * holding the request through generation and review (which can outlast its 600 s limit).
+ */
+export async function startBatchGeneration(
+  tenantId: string,
+  conversationId: string,
+  quantity: number,
+  instructions: string,
+) {
+  const context = await loadContext(tenantId);
+  if (!contextReady(context)) throw new Error(missingContext);
+  const [{ lastRound }] = await db
+    .select({ lastRound: sql<number>`coalesce(max(${batches.roundNumber}),0)::int` })
+    .from(batches)
+    .where(tenantWhere(batches, tenantId));
+  const title = `Leva ${String(lastRound + 1).padStart(2, "0")} · ${titlePart(context.produtoNome || context.produto!)}`;
+  const boss = await getJobs();
+  return jobTransaction(async (tx, connection) => {
+    const [generation] = await tx
+      .insert(batchGenerations)
+      .values(tenantValues(tenantId, { conversationId, quantity, instructions, title }))
+      .returning({ id: batchGenerations.id, title: batchGenerations.title });
+    await boss.send(
+      "generate-batch",
+      { tenantId, generationId: generation.id },
+      { db: connection, singletonKey: generation.id },
+    );
+    return generation;
+  });
 }
