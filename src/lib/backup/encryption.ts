@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes, type DecipherGCM } from "node:crypto";
 import { Transform } from "node:stream";
 
 // Layout of every backup object: magic, random IV, AES-256-GCM ciphertext, authentication tag.
@@ -34,7 +34,7 @@ export function encryptStream(key: Buffer) {
  */
 export function decryptStream(key: Buffer) {
   let header = Buffer.alloc(0);
-  let decipher: ReturnType<typeof createDecipheriv> | undefined;
+  let decipher: DecipherGCM | undefined;
   let tail = Buffer.alloc(0);
   return new Transform({
     transform(chunk: Buffer, _encoding, done) {

@@ -4,12 +4,20 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "@/db/schema";
 import { dbEnv } from "@/lib/env";
 import { logError } from "@/lib/log";
-export const queues = ["analyze-video", "ingest-event", "sync-metrics"] as const;
+export const queues = ["analyze-video", "ingest-event", "sync-metrics", "backup"] as const;
 export const queueOptions: QueueOptions = {
   retryLimit: 3,
   retryDelay: 60,
   retryBackoff: true,
   expireInSeconds: 1800,
+};
+// A first backup copies every stored video; later ones only what is new. One retry, an hour later.
+const backupQueueOptions: QueueOptions = {
+  ...queueOptions,
+  retryLimit: 1,
+  retryDelay: 3600,
+  retryBackoff: false,
+  expireInSeconds: 3 * 3600,
 };
 function createBoss(sendOnly: boolean) {
   const boss = new PgBoss({
@@ -24,11 +32,12 @@ export async function startWorkerJobs() {
   const boss = createBoss(false);
   await boss.start();
   for (const name of queues) {
+    const options = name === "backup" ? backupQueueOptions : queueOptions;
     await boss.createQueue(name, {
-      ...queueOptions,
+      ...options,
       policy: name === "sync-metrics" ? "standard" : "exclusive",
     });
-    await boss.updateQueue(name, queueOptions);
+    await boss.updateQueue(name, options);
   }
   return boss;
 }

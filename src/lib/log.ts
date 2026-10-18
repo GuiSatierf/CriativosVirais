@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ConfigError, DomainError, HttpError, RetryLaterError } from "./errors";
+import { BackupError, ConfigError, DomainError, HttpError, RetryLaterError } from "./errors";
 
 // Raw messages from drivers and providers can echo SQL values, prompts or client
 // text, so only our own fixed messages are logged verbatim.
@@ -7,6 +7,7 @@ export function logError(context: string, error: unknown) {
   const e = error instanceof Error ? error : undefined;
   const code = (error as { code?: unknown; statusCode?: unknown } | undefined) ?? {};
   const own =
+    error instanceof BackupError ||
     error instanceof ConfigError ||
     error instanceof DomainError ||
     error instanceof HttpError ||
