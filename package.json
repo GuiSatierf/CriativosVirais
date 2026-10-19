@@ -60,8 +60,6 @@
     "braces": "file:vendor/criativosvirais-braces-3.0.3-patch.1.tgz",
     "drizzle-kit": "^0.31.11",
     "esbuild": "^0.28.2",
-    "eslint": "^9.39.5",
-    "eslint-config-next": "^16.4.0",
     "oxlint": "^1.88.0",
     "oxlint-tsgolint": "^7.0.2004",
     "shadcn": "^4.21.4",
