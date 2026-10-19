@@ -22,9 +22,15 @@ test("typing skips the message list and streamed replies still update", async ({
       __REACT_DEVTOOLS_GLOBAL_HOOK__: unknown;
     };
     state.chatRenderCounts = { chat: 0, list: 0, messages: {} };
+    const renderers = new Map<number, unknown>();
     state.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+      renderers,
       supportsFiber: true,
-      inject: () => 1,
+      inject: (renderer: unknown) => {
+        const id = renderers.size + 1;
+        renderers.set(id, renderer);
+        return id;
+      },
       onCommitFiberUnmount: () => {},
       onCommitFiberRoot: (_renderer: number, root: { current: Fiber }) => {
         function visit(fiber: Fiber | null) {
