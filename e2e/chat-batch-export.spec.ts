@@ -22,7 +22,7 @@ test("signup, chat, batch and .docx export", async ({ page }) => {
     await page.setViewportSize({ width: viewport, height: 900 });
     // The app reserves a stable scrollbar gutter on the root element. A full
     // width dialog fills the layout viewport, which can be narrower than 100vw.
-    const layoutWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    const layoutWidth = await page.evaluate(() => document.documentElement.getBoundingClientRect().width);
     await expect.poll(async () => Math.round((await panel.boundingBox())?.width ?? 0), {
       message: `Panel width at a ${viewport}px viewport`,
     }).toBe(Math.min(layoutWidth, expectedWidth));
