@@ -15,6 +15,7 @@ test("typing skips the message list and streamed replies still update", async ({
       memoizedProps?: { message?: { id: string } };
       child: Fiber | null;
       sibling: Fiber | null;
+      alternate?: Fiber | null;
     };
     const state = window as typeof window & {
       chatRenderCounts: RenderCounts;
@@ -30,7 +31,8 @@ test("typing skips the message list and streamed replies still update", async ({
           for (let current = fiber; current; current = current.sibling) {
             // React's PerformedWork flag distinguishes rendering from a memo bailout.
             if (current.flags & 1) {
-              const name = current.type?.name;
+              // Bundlers may append a numeric suffix to named memo callbacks.
+              const name = current.type?.name?.replace(/\d+$/, "");
               const counts = state.chatRenderCounts;
               if (name === "Chat") counts.chat++;
               if (name === "MessageList") counts.list++;
@@ -39,7 +41,9 @@ test("typing skips the message list and streamed replies still update", async ({
                 if (id) counts.messages[id] = (counts.messages[id] ?? 0) + 1;
               }
             }
-            visit(current.child);
+            // A bailed-out parent reuses its entire child tree, including old
+            // flags. Those descendants did not render in this commit.
+            if (current.child !== current.alternate?.child) visit(current.child);
           }
         }
         visit(root.current);
