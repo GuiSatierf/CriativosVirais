@@ -65,11 +65,11 @@ assert.deepEqual(braces("{a,a}", { expand: true, nodupes: true }), ["a"]);
 // Exercise the fast-glob and ts-morph consumers shipped with shadcn.
 const shadcnRequire = createRequire(require.resolve("shadcn"));
 const glob = shadcnRequire("fast-glob");
-assert.ok(glob.sync("src/**/*.{ts,tsx}").length > 0);
+assert.ok((await glob("src/**/*.{ts,tsx}")).length > 0);
 const globRequire = createRequire(shadcnRequire.resolve("fast-glob"));
-const match = globRequire("micromatch");
+const micromatch = globRequire("micromatch");
 assert.equal(createRequire(globRequire.resolve("micromatch"))("braces/package.json").name, metadata.name);
-assert.ok(match.isMatch("src/page.tsx", "src/**/*.{ts,tsx}"));
+assert.ok(micromatch.isMatch("src/page.tsx", "src/**/*.{ts,tsx}"));
 const { Project } = shadcnRequire("ts-morph");
 const project = new Project({ skipAddingFilesFromTsConfig: true });
 assert.ok(project.addSourceFilesAtPaths("src/**/*.{ts,tsx}").length > 0);
