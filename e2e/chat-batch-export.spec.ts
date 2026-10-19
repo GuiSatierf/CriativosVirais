@@ -20,12 +20,15 @@ test("signup, chat, batch and .docx export", async ({ page }) => {
     [1100, 1024], [1279, 1024], [1280, 1152], [1440, 1152],
   ]) {
     await page.setViewportSize({ width: viewport, height: 900 });
+    // The app reserves a stable scrollbar gutter on the root element. A full
+    // width dialog fills the layout viewport, which can be narrower than 100vw.
+    const layoutWidth = await page.evaluate(() => document.documentElement.clientWidth);
     await expect.poll(async () => Math.round((await panel.boundingBox())?.width ?? 0), {
       message: `Panel width at a ${viewport}px viewport`,
-    }).toBe(expectedWidth);
+    }).toBe(Math.min(layoutWidth, expectedWidth));
     const box = await panel.boundingBox();
     expect(box!.x).toBeGreaterThanOrEqual(0);
-    expect(Math.round(box!.x + box!.width)).toBe(viewport);
+    expect(Math.round(box!.x + box!.width)).toBe(layoutWidth);
   }
 
   const downloadPromise = page.waitForEvent("download");
