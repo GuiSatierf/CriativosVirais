@@ -26,12 +26,22 @@ export function evaluateHealth(readings: HealthReadings) {
   return { ok: problems.length === 0, problems };
 }
 
+/** Named so the log says which failure it was; only the name of foreign errors is logged. */
+class HealthQueryTimeoutError extends Error {
+  name = "HealthQueryTimeoutError";
+}
+
 async function readSeconds(sql: string): Promise<number | null> {
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error("Health query timed out")), queryTimeoutMs),
-  );
-  const result = await Promise.race([pool.query<{ seconds: number | null }>(sql), timeout]);
-  return result.rows[0]?.seconds ?? null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new HealthQueryTimeoutError()), queryTimeoutMs);
+  });
+  try {
+    const result = await Promise.race([pool.query<{ seconds: number | null }>(sql), timeout]);
+    return result.rows[0]?.seconds ?? null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function readOrNull(context: string, sql: string) {
@@ -51,13 +61,15 @@ export async function readHealth(): Promise<HealthReadings> {
     logError("health-database", error);
     return { database: false, workerLastSeenSeconds: null, oldestWaitingJobSeconds: null };
   }
-  const workerLastSeenSeconds = await readOrNull(
-    "health-worker",
-    "select extract(epoch from now() - cron_on)::int as seconds from pgboss.version",
-  );
-  const oldestWaitingJobSeconds = await readOrNull(
-    "health-queue",
-    "select extract(epoch from now() - min(start_after))::int as seconds from pgboss.job where state = 'created' and start_after <= now()",
-  );
+  const [workerLastSeenSeconds, oldestWaitingJobSeconds] = await Promise.all([
+    readOrNull(
+      "health-worker",
+      "select extract(epoch from now() - cron_on)::int as seconds from pgboss.version",
+    ),
+    readOrNull(
+      "health-queue",
+      "select extract(epoch from now() - min(start_after))::int as seconds from pgboss.job where state = 'created' and start_after <= now()",
+    ),
+  ]);
   return { database: true, workerLastSeenSeconds, oldestWaitingJobSeconds };
 }
