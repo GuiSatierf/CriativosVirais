@@ -5,11 +5,14 @@ import { logError } from "./log";
 // The worker is the only process with pg-boss scheduling on, and the scheduler stamps
 // pgboss.version.cron_on about every 30 seconds, so a stale stamp means the worker stopped.
 const workerSilentAfterSeconds = 180;
-// A job that could have started and is still waiting means the queue is not being drained.
+// A job that could have started (new or due for a retry) and is still waiting means the queue is not being drained.
 const queueStalledAfterSeconds = 600;
 // The backup runs daily at 03:00; past 26 hours the last run failed or never started.
 const backupStaleAfterSeconds = 26 * 3600;
 const queryTimeoutMs = 5_000;
+// The route is public: a burst of requests shares one reading instead of piling queries that
+// can hold pooled connections well past the 5 s answer while the database is slow.
+const readingReuseMs = 10_000;
 
 export type HealthReadings = {
   database: boolean;
@@ -33,12 +36,22 @@ export function evaluateHealth(readings: HealthReadings) {
   return { ok: problems.length === 0, problems };
 }
 
+/** Named so the log says which failure it was; only the name of foreign errors is logged. */
+class HealthQueryTimeoutError extends Error {
+  name = "HealthQueryTimeoutError";
+}
+
 async function readSeconds(sql: string): Promise<number | null> {
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error("Health query timed out")), queryTimeoutMs),
-  );
-  const result = await Promise.race([pool.query<{ seconds: number | null }>(sql), timeout]);
-  return result.rows[0]?.seconds ?? null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new HealthQueryTimeoutError()), queryTimeoutMs);
+  });
+  try {
+    const result = await Promise.race([pool.query<{ seconds: number | null }>(sql), timeout]);
+    return result.rows[0]?.seconds ?? null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function readOrNull(context: string, sql: string) {
@@ -58,20 +71,18 @@ export async function readHealth(): Promise<HealthReadings> {
     logError("health-database", error);
     return { database: false, workerLastSeenSeconds: null, oldestWaitingJobSeconds: null };
   }
-  const workerLastSeenSeconds = await readOrNull(
-    "health-worker",
-    "select extract(epoch from now() - cron_on)::int as seconds from pgboss.version",
-  );
-  const oldestWaitingJobSeconds = await readOrNull(
-    "health-queue",
-    "select extract(epoch from now() - min(start_after))::int as seconds from pgboss.job where state = 'created' and start_after <= now()",
-  );
-  return {
-    database: true,
-    workerLastSeenSeconds,
-    oldestWaitingJobSeconds,
-    lastBackupSeconds: await readLastBackup(),
-  };
+  const [workerLastSeenSeconds, oldestWaitingJobSeconds, lastBackupSeconds] = await Promise.all([
+    readOrNull(
+      "health-worker",
+      "select extract(epoch from now() - cron_on)::int as seconds from pgboss.version",
+    ),
+    readOrNull(
+      "health-queue",
+      "select extract(epoch from now() - min(start_after))::int as seconds from pgboss.job where state in ('created', 'retry') and start_after <= now()",
+    ),
+    readLastBackup(),
+  ]);
+  return { database: true, workerLastSeenSeconds, oldestWaitingJobSeconds, lastBackupSeconds };
 }
 
 /** Age of the last completed backup job; an invalid backup configuration counts as no backup. */
@@ -87,3 +98,16 @@ async function readLastBackup() {
     "select extract(epoch from now() - max(completed_on))::int as seconds from pgboss.job where name = 'backup' and state = 'completed'",
   );
 }
+
+/** Calls `load` at most once per window; callers inside the window share its promise. */
+export function reuseFor<T>(windowMs: number, load: () => Promise<T>, now: () => number = Date.now) {
+  let last: { at: number; value: Promise<T> } | undefined;
+  return () => {
+    const at = now();
+    if (last !== undefined && at - last.at < windowMs) return last.value;
+    last = { at, value: load() };
+    return last.value;
+  };
+}
+
+export const readSharedHealth = reuseFor(readingReuseMs, readHealth);

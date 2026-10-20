@@ -157,7 +157,7 @@ Content-Type: application/json
 - Datas com fuso horário, no máximo cinco minutos no futuro. Se `creative_key` e `utm_content` vierem juntos, devem coincidir; sem `creative_key`, `utm_content` é a chave.
 - Eventos sem chave são guardados, mas não entram no ranking por criativo. Dias só com eventos pendentes, cancelados ou falhos ficam com contagens e valores NULL.
 - Limites: corpo de 64 KB e 120 requisições por minuto por operação em cada processo.
-- Respostas: 202 aceito (inclusive repetição), 400 contrato inválido, 401 credencial ou assinatura inválida, 413 corpo grande, 429 limite temporário. Repita falhas transitórias com o mesmo `event_id`.
+- Respostas: 202 aceito (inclusive repetição idêntica), 400 contrato inválido, 401 credencial ou assinatura inválida, 409 `event_id` já recebido com outro conteúdo, 413 corpo grande, 429 limite temporário. Repita falhas transitórias com o mesmo `event_id` e o mesmo corpo; uma mudança (como um reembolso) precisa de um `event_id` novo.
 
 ### CSV
 
