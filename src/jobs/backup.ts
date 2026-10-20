@@ -2,7 +2,7 @@ import { CopyObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { Readable, Transform } from "node:stream";
 import { listObjects, deleteObjects, uploadEncrypted, backupTarget, type Bucket } from "@/lib/backup/objects";
 import { startPostgresTool } from "@/lib/backup/postgres";
-import { deletedFileDaysToPurge, dumpDaysToDelete } from "@/lib/backup/retention";
+import { copiesOfRemovedFiles, deletedFileDaysToPurge, dumpDaysToDelete } from "@/lib/backup/retention";
 import { spDay } from "@/lib/dates";
 import { BackupError } from "@/lib/errors";
 import { getStorage } from "@/lib/storage";
@@ -58,7 +58,8 @@ async function setAsideRemoved(target: Bucket, keys: readonly string[], day: str
     await target.client.send(
       new CopyObjectCommand({
         Bucket: target.bucket,
-        CopySource: encodeURI(`${target.bucket}/${backedUp}`),
+        // Each segment encoded: encodeURI would leave "?", "#" and "+" to cut or alter the source.
+        CopySource: `${target.bucket}/${backedUp.split("/").map(encodeURIComponent).join("/")}`,
         Key: `${deletedPrefix}${day}/${original}`,
       }),
     );
@@ -77,7 +78,7 @@ async function mirrorFiles(source: Bucket, target: Bucket, key: Buffer, day: str
     await copyFile(source, target, key, objectKey);
     copied += 1;
   }
-  const removed = [...copies.keys()].filter((copy) => !originals.has(copy.slice(filesPrefix.length)));
+  const removed = copiesOfRemovedFiles(new Set(originals.keys()), [...copies.keys()], filesPrefix);
   await setAsideRemoved(target, removed, day);
   return { copied, removed: removed.length };
 }

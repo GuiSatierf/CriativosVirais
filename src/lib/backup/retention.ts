@@ -1,3 +1,5 @@
+import { BackupError } from "@/lib/errors";
+
 const dailyCopies = 7;
 const weeklyCopies = 4;
 /** Files removed from the app stay this long in the backup, so a mistaken deletion can be undone. */
@@ -24,4 +26,18 @@ export function deletedFileDaysToPurge(days: readonly string[], today: string) {
   return [...new Set(days)].filter(
     (day) => dayPattern.test(day) && Date.parse(`${day}T00:00:00Z`) < limit,
   );
+}
+
+/**
+ * Backed-up copies (`prefix` + original key) whose original is gone. An empty source with copies
+ * present means storage points at the wrong bucket, not that every file was deleted: refuse.
+ */
+export function copiesOfRemovedFiles(
+  originals: ReadonlySet<string>,
+  copies: readonly string[],
+  prefix: string,
+) {
+  if (originals.size === 0 && copies.length > 0)
+    throw new BackupError("Storage lists no files while the backup has copies; refusing to set them aside");
+  return copies.filter((copy) => !originals.has(copy.slice(prefix.length)));
 }

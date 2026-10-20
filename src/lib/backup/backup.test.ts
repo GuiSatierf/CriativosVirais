@@ -3,7 +3,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
 import { decryptStream, encryptStream } from "./encryption";
-import { deletedFileDaysToPurge, dumpDaysToDelete } from "./retention";
+import { copiesOfRemovedFiles, deletedFileDaysToPurge, dumpDaysToDelete } from "./retention";
 
 const key = randomBytes(32);
 
@@ -56,5 +56,18 @@ describe("backup retention", () => {
     expect(deletedFileDaysToPurge(["2026-09-17", "2026-09-18", "2026-10-18"], "2026-10-18")).toEqual([
       "2026-09-17",
     ]);
+  });
+});
+
+describe("files removed from the app", () => {
+  it("sets aside only copies whose original is gone", () => {
+    const removed = copiesOfRemovedFiles(new Set(["t/a.mp4"]), ["files/t/a.mp4", "files/t/b.mp4"], "files/");
+
+    expect(removed).toEqual(["files/t/b.mp4"]);
+  });
+
+  it("refuses when storage lists nothing but the backup has copies (wrong or new bucket)", () => {
+    expect(() => copiesOfRemovedFiles(new Set(), ["files/t/a.mp4"], "files/")).toThrow("Storage lists no files");
+    expect(copiesOfRemovedFiles(new Set(), [], "files/")).toEqual([]);
   });
 });
