@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import type { UIMessage } from "ai";
@@ -232,7 +232,8 @@ function PanelCard({
   );
 }
 
-function UserMessage({ message }: { message: ChatMessage }) {
+// Memoized: a message re-renders only when it changes, not on every keystroke or streamed chunk.
+const UserMessage = memo(function UserMessage({ message }: { message: ChatMessage }) {
   const videos = videoCount(message);
   const text = messageText(message).replace(legacyAssetPattern, "").trim();
   return (
@@ -253,9 +254,9 @@ function UserMessage({ message }: { message: ChatMessage }) {
       </div>
     </div>
   );
-}
+});
 
-function AssistantMessage({
+const AssistantMessage = memo(function AssistantMessage({
   message,
   streaming,
   last,
@@ -339,9 +340,9 @@ function AssistantMessage({
       )}
     </AssistantRow>
   );
-}
+});
 
-export function MessageList({
+export const MessageList = memo(function MessageList({
   messages,
   streaming,
 }: {
@@ -365,4 +366,4 @@ export function MessageList({
       })}
     </section>
   );
-}
+});
