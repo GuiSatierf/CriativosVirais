@@ -10,6 +10,18 @@ import { getStorage } from "@/lib/storage";
 const databasePrefix = "database/";
 const filesPrefix = "files/";
 const deletedPrefix = "deleted/";
+// Keys carry the day as YYYY-MM-DD right after their prefix.
+const dayLength = "YYYY-MM-DD".length;
+
+async function dumpFailure(exited: Promise<number | null>) {
+  try {
+    const code = await exited;
+    if (code === 0) return null;
+    return new BackupError(`pg_dump exited with code ${code}`);
+  } catch {
+    return new BackupError("pg_dump could not start");
+  }
+}
 
 /** Passes data through and, at the end, fails unless the dump tool exited cleanly. */
 function exitCheck(exited: Promise<number | null>) {
@@ -18,10 +30,9 @@ function exitCheck(exited: Promise<number | null>) {
       done(null, chunk);
     },
     flush(done) {
-      exited.then(
-        (code) => done(code === 0 ? null : new BackupError(`pg_dump exited with code ${code}`)),
-        () => done(new BackupError("pg_dump could not start")),
-      );
+      // The stream API wants a callback; the exit code arrives asynchronously.
+      const finish = async () => done(await dumpFailure(exited));
+      void finish();
     },
   });
 }
@@ -30,14 +41,14 @@ async function dumpDatabase(target: Bucket, key: Buffer, day: string) {
   const { child, exited } = startPostgresTool("pg_dump", ["--format=custom", "--no-owner", "--no-privileges"]);
   if (!child.stdout) throw new BackupError("pg_dump has no output stream");
   const objectKey = `${databasePrefix}${day}.dump.enc`;
-  await uploadEncrypted(target, objectKey, child.stdout, key, exitCheck(exited));
+  await uploadEncrypted(target, { objectKey, input: child.stdout, key, check: exitCheck(exited) });
   return objectKey;
 }
 
 async function copyFile(source: Bucket, target: Bucket, key: Buffer, objectKey: string) {
   const object = await source.client.send(new GetObjectCommand({ Bucket: source.bucket, Key: objectKey }));
   if (!(object.Body instanceof Readable)) throw new BackupError("Storage returned no file body");
-  await uploadEncrypted(target, `${filesPrefix}${objectKey}`, object.Body, key);
+  await uploadEncrypted(target, { objectKey: `${filesPrefix}${objectKey}`, input: object.Body, key });
 }
 
 /** Moves backed-up files whose original is gone into deleted/<day>/, kept for a grace period. */
@@ -73,12 +84,12 @@ async function mirrorFiles(source: Bucket, target: Bucket, key: Buffer, day: str
 
 async function applyRetention(target: Bucket, day: string) {
   const dumps = [...(await listObjects(target, databasePrefix)).keys()];
-  const dumpDay = (objectKey: string) => objectKey.slice(databasePrefix.length, databasePrefix.length + 10);
+  const dumpDay = (objectKey: string) => objectKey.slice(databasePrefix.length, databasePrefix.length + dayLength);
   const expiredDays = new Set(dumpDaysToDelete(dumps.map(dumpDay)));
   await deleteObjects(target, dumps.filter((objectKey) => expiredDays.has(dumpDay(objectKey))));
 
   const setAside = [...(await listObjects(target, deletedPrefix)).keys()];
-  const setAsideDay = (objectKey: string) => objectKey.slice(deletedPrefix.length, deletedPrefix.length + 10);
+  const setAsideDay = (objectKey: string) => objectKey.slice(deletedPrefix.length, deletedPrefix.length + dayLength);
   const purgeDays = new Set(deletedFileDaysToPurge(setAside.map(setAsideDay), day));
   await deleteObjects(target, setAside.filter((objectKey) => purgeDays.has(setAsideDay(objectKey))));
 }

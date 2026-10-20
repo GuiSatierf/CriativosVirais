@@ -11,6 +11,8 @@ import { BackupError } from "@/lib/errors";
 import { encryptStream } from "./encryption";
 
 export type Bucket = { client: S3Client; bucket: string };
+// S3 accepts at most this many keys in one DeleteObjects request.
+const deleteBatchSize = 1000;
 
 /** The off-site bucket and the key that seals what goes into it; null when backups are off. */
 export function backupTarget() {
@@ -48,16 +50,16 @@ export async function listObjects({ client, bucket }: Bucket, prefix: string) {
 
 /** Deletes keys in batches; storage reports refusals in Errors instead of throwing. */
 export async function deleteObjects({ client, bucket }: Bucket, keys: readonly string[]) {
-  for (let start = 0; start < keys.length; start += 1000) {
-    const batch = keys.slice(start, start + 1000);
+  for (let start = 0; start < keys.length; start += deleteBatchSize) {
+    const batch = keys.slice(start, start + deleteBatchSize);
     const result = await client.send(
       new DeleteObjectsCommand({
         Bucket: bucket,
         Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
       }),
     );
-    if (result.Errors?.length)
-      throw new BackupError(`Backup storage refused to delete ${result.Errors.length} objects`);
+    const refused = result.Errors?.length ?? 0;
+    if (refused > 0) throw new BackupError(`Backup storage refused to delete ${refused} objects`);
   }
 }
 
@@ -68,10 +70,7 @@ export async function deleteObjects({ client, bucket }: Bucket, keys: readonly s
  */
 export async function uploadEncrypted(
   { client, bucket }: Bucket,
-  objectKey: string,
-  input: Readable,
-  key: Buffer,
-  check?: Transform,
+  { objectKey, input, key, check }: { objectKey: string; input: Readable; key: Buffer; check?: Transform },
 ) {
   const body = new PassThrough();
   const upload = new Upload({ client, params: { Bucket: bucket, Key: objectKey, Body: body } });
