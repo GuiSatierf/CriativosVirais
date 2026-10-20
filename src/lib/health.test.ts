@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateHealth } from "./health";
+import { evaluateHealth, reuseFor } from "./health";
 
 const healthy = { database: true, workerLastSeenSeconds: 20, oldestWaitingJobSeconds: null };
 
@@ -14,5 +14,21 @@ describe("system health", () => {
     expect(evaluateHealth({ ...healthy, workerLastSeenSeconds: null }).problems).toEqual(["worker"]);
     expect(evaluateHealth({ ...healthy, workerLastSeenSeconds: 600 }).problems).toEqual(["worker"]);
     expect(evaluateHealth({ ...healthy, oldestWaitingJobSeconds: 1_200 }).problems).toEqual(["queue"]);
+  });
+});
+
+describe("shared health reading", () => {
+  it("runs the database checks once for a burst of requests and again after the window", async () => {
+    let clock = 0;
+    let loads = 0;
+    const read = reuseFor(10_000, async () => ++loads, () => clock);
+
+    await Promise.all([read(), read(), read()]);
+    clock = 9_999;
+    await read();
+    clock = 10_000;
+    await read();
+
+    expect(loads).toBe(2);
   });
 });

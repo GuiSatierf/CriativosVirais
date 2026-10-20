@@ -7,6 +7,9 @@ const workerSilentAfterSeconds = 180;
 // A job that could have started and is still waiting means the queue is not being drained.
 const queueStalledAfterSeconds = 600;
 const queryTimeoutMs = 5_000;
+// The route is public: a burst of requests shares one reading instead of piling queries that
+// can hold pooled connections well past the 5 s answer while the database is slow.
+const readingReuseMs = 10_000;
 
 export type HealthReadings = {
   database: boolean;
@@ -73,3 +76,16 @@ export async function readHealth(): Promise<HealthReadings> {
   ]);
   return { database: true, workerLastSeenSeconds, oldestWaitingJobSeconds };
 }
+
+/** Calls `load` at most once per window; callers inside the window share its promise. */
+export function reuseFor<T>(windowMs: number, load: () => Promise<T>, now: () => number = Date.now) {
+  let last: { at: number; value: Promise<T> } | undefined;
+  return () => {
+    const at = now();
+    if (last !== undefined && at - last.at < windowMs) return last.value;
+    last = { at, value: load() };
+    return last.value;
+  };
+}
+
+export const readSharedHealth = reuseFor(readingReuseMs, readHealth);

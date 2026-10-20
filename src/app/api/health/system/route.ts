@@ -1,4 +1,4 @@
-import { evaluateHealth, readHealth } from "@/lib/health";
+import { evaluateHealth, readSharedHealth } from "@/lib/health";
 
 /**
  * Full health for an external uptime monitor: database, worker heartbeat and queue backlog.
@@ -6,7 +6,7 @@ import { evaluateHealth, readHealth } from "@/lib/health";
  * using /api/health, which only confirms the process responds.
  */
 export async function GET() {
-  const { ok, problems } = evaluateHealth(await readHealth());
+  const { ok, problems } = evaluateHealth(await readSharedHealth());
   return Response.json(
     { status: ok ? "ok" : "degraded", problems },
     { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } },
