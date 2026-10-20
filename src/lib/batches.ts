@@ -8,6 +8,7 @@ import { batchSchema, batchItemSchema } from "./ai/schemas";
 import { textModel, providerOptions } from "./ai/model";
 import { buildSystemPrompt, untrusted } from "./ai/system-prompt";
 import { spDayBr } from "./dates";
+import { DomainError } from "./errors";
 import { bigintReplacer } from "./json";
 import { tenantValues, tenantWhere } from "./tenant-scope";
 const maxRound = 2147483647;
@@ -81,7 +82,7 @@ export async function generateBatch(
   signal?: AbortSignal,
 ) {
   const context = await loadContext(tenantId);
-  if (!contextReady(context)) throw new Error(missingContext);
+  if (!contextReady(context)) throw new DomainError("invalid_input", missingContext);
   const system = await buildSystemPrompt(tenantId, conversationId);
   const { object } = await generateObject({
     model: textModel(),
@@ -211,7 +212,7 @@ export async function startBatchGeneration(
   instructions: string,
 ) {
   const context = await loadContext(tenantId);
-  if (!contextReady(context)) throw new Error(missingContext);
+  if (!contextReady(context)) throw new DomainError("invalid_input", missingContext);
   const [{ lastRound }] = await db
     .select({ lastRound: sql<number>`coalesce(max(${batches.roundNumber}),0)::int` })
     .from(batches)
