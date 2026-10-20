@@ -177,24 +177,34 @@ const generationStatusSchema = z.object({
   status: z.enum(["queued", "running", "done", "failed"]),
   title: z.string(),
   batchId: z.uuid().nullable(),
+  error: z.string().nullable(),
 });
 type GenerationStatus = z.infer<typeof generationStatusSchema>;
 const generationPollMs = 3_000;
+// Same tolerance as the upload card: a lasting error (the generation was deleted) ends the polling.
+const maxGenerationPollFailures = 3;
 
 /** Follows a batch the worker is generating until it is done or failed. */
-function useGenerationStatus(id: string) {
+function useGenerationStatus(id: string, title: string) {
   const [state, setState] = useState<GenerationStatus | null>(null);
   useEffect(() => {
     let stopped = false;
+    let failures = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     async function poll() {
       try {
         const next = await api(`/api/batch-generations/${id}`, generationStatusSchema);
         if (stopped) return;
+        failures = 0;
         setState(next);
         if (next.status === "done" || next.status === "failed") return;
       } catch {
         // A network blip is retried on the next poll; the card keeps showing "Gerando".
+        failures += 1;
+        if (failures >= maxGenerationPollFailures) {
+          if (!stopped) setState({ status: "failed", title, batchId: null, error: null });
+          return;
+        }
       }
       if (!stopped) timer = setTimeout(poll, generationPollMs);
     }
@@ -203,7 +213,7 @@ function useGenerationStatus(id: string) {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [id]);
+  }, [id, title]);
   return state;
 }
 
@@ -231,7 +241,7 @@ function BatchStatusCard({
 }
 
 function GenerationCard({ id, title }: { id: string; title: string }) {
-  const state = useGenerationStatus(id);
+  const state = useGenerationStatus(id, title);
   if (state?.status === "done" && state.batchId)
     return <BatchCard id={state.batchId} title={state.title} />;
   if (state?.status === "failed")
@@ -239,7 +249,7 @@ function GenerationCard({ id, title }: { id: string; title: string }) {
       <BatchStatusCard
         icon={<CircleAlert className="size-4 text-destructive" aria-hidden />}
         title={state.title}
-        note="Não foi possível gerar. Peça de novo."
+        note={state.error ?? "Não foi possível gerar. Peça de novo."}
       />
     );
   return (
