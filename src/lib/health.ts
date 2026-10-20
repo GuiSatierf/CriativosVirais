@@ -4,7 +4,7 @@ import { logError } from "./log";
 // The worker is the only process with pg-boss scheduling on, and the scheduler stamps
 // pgboss.version.cron_on about every 30 seconds, so a stale stamp means the worker stopped.
 const workerSilentAfterSeconds = 180;
-// A job that could have started and is still waiting means the queue is not being drained.
+// A job that could have started (new or due for a retry) and is still waiting means the queue is not being drained.
 const queueStalledAfterSeconds = 600;
 const queryTimeoutMs = 5_000;
 // The route is public: a burst of requests shares one reading instead of piling queries that
@@ -71,7 +71,7 @@ export async function readHealth(): Promise<HealthReadings> {
     ),
     readOrNull(
       "health-queue",
-      "select extract(epoch from now() - min(start_after))::int as seconds from pgboss.job where state = 'created' and start_after <= now()",
+      "select extract(epoch from now() - min(start_after))::int as seconds from pgboss.job where state in ('created', 'retry') and start_after <= now()",
     ),
   ]);
   return { database: true, workerLastSeenSeconds, oldestWaitingJobSeconds };
