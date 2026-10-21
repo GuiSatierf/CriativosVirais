@@ -217,6 +217,10 @@ export function Chat({
       const others = current.filter((videoId) => videoId !== id);
       return failed ? [...others, id] : others;
     });
+    if (!failed) return;
+
+    // The prompt filled in for the upload would now be sent without its video.
+    setInput((current) => (current.trim() === videoPrompt ? "" : current));
   }
 
   function attachVideo(id: string, name?: string) {

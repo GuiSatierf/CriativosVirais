@@ -27,6 +27,8 @@ test("a failed video analysis does not block sending messages", async ({ page })
     .first()
     .setInputFiles({ name: "anuncio.webm", mimeType: "video/webm", buffer: Buffer.from("webm") });
   await expect(page.getByText("Não foi possível analisar o vídeo.")).toBeVisible();
+  // The prompt filled in for the upload would be sent without the video.
+  await expect(page.getByPlaceholder("Escreva para o Estrategista…")).toHaveValue("");
 
   await page.getByPlaceholder("Escreva para o Estrategista…").fill("Quero te contar sobre a minha oferta.");
   await expect(page.getByRole("button", { name: "Enviar mensagem" })).toBeEnabled();
