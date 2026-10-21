@@ -13,10 +13,11 @@ export function canSendEmail() {
 }
 
 export async function sendEmail(email: Email) {
-  const resend = emailEnv();
-  if (resend) return sendWithResend(resend, email);
+  // The outbox wins over Resend: a developer's .env may hold a real key, and tests must never send.
   const outbox = emailOutboxEnv();
   if (outbox) return writeToOutbox(outbox.EMAIL_OUTBOX_DIR, email);
+  const resend = emailEnv();
+  if (resend) return sendWithResend(resend, email);
   throw new ConfigError("email");
 }
 
