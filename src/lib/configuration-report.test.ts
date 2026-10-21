@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { assertModelConfigured } from "./ai/model";
+import { assertModelConfigured, isModelConfigured } from "./ai/model";
 import { missingOptionalConfiguration } from "./env";
 
 describe("missing AI configuration", () => {
@@ -27,5 +27,24 @@ describe("missing AI configuration", () => {
 
   it("tells the user the assistant is not configured instead of temporarily unavailable", () => {
     expect(() => assertModelConfigured()).toThrow("O Estrategista ainda não foi configurado nesta instalação.");
+  });
+});
+
+describe("text model without a vision model", () => {
+  // docker-compose.coolify.yml passes an unset DEEPSEEK_MODEL_VISION as an empty string.
+  beforeAll(() => {
+    vi.stubEnv("AI_PROVIDER", "");
+    vi.stubEnv("DEEPSEEK_API_KEY", "test-key");
+    vi.stubEnv("DEEPSEEK_MODEL_TEXT", "deepseek-chat");
+    vi.stubEnv("DEEPSEEK_MODEL_VISION", "");
+  });
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("keeps the chat available and refuses only vision requests", () => {
+    expect(isModelConfigured()).toBe(true);
+    expect(() => assertModelConfigured()).not.toThrow();
+    expect(() => assertModelConfigured(true)).toThrow("O Estrategista ainda não foi configurado nesta instalação.");
   });
 });

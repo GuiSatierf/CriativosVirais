@@ -21,3 +21,18 @@ export async function defaultMetricsPeriod(tenantId: string) {
     source: "csv" as const,
   };
 }
+
+/** How many recent imports Resultados offers when the chosen period has none. */
+const offeredImports = 3;
+
+/** Latest CSV import periods, newest first, offered when a chosen period has no import. */
+export async function csvImportPeriods(
+  tenantId: string,
+): Promise<{ from: string; to: string }[]> {
+  return db
+    .selectDistinct({ from: creativeMetrics.periodFrom, to: creativeMetrics.periodTo })
+    .from(creativeMetrics)
+    .where(tenantWhere(creativeMetrics, tenantId, eq(creativeMetrics.source, "csv")))
+    .orderBy(desc(creativeMetrics.periodTo), desc(creativeMetrics.periodFrom))
+    .limit(offeredImports);
+}

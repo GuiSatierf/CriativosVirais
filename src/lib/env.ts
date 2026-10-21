@@ -20,7 +20,8 @@ const schemas = {
   ai: z.object({
     DEEPSEEK_API_KEY: filled,
     DEEPSEEK_MODEL_TEXT: filled,
-    DEEPSEEK_MODEL_VISION: filled.optional(),
+    // Compose files pass unset variables as "", which means the vision model is not configured.
+    DEEPSEEK_MODEL_VISION: filled.optional().or(z.literal("").transform(() => undefined)),
   }),
   aiProvider: z
     .object({
