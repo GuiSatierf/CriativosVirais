@@ -2,6 +2,7 @@ import "dotenv/config";
 import { sql } from "drizzle-orm";
 import { db, pool } from "../src/db";
 import { accessGrants, adminAuditLog, session, twoFactor, user } from "../src/db/schema";
+import { issueEnrollmentCode } from "../src/lib/admin-enrollment";
 
 /**
  * Operator commands on the server, the only way to create the first admins:
@@ -44,8 +45,14 @@ async function setRole(email: string, role: "admin" | "user") {
   if (updated.length === 0) throw new Error(`Nenhuma conta com ${email}. Libere o acesso e crie a conta antes.`);
   await audit(role === "admin" ? "admin.granted" : "admin.removed", email);
   if (role === "user") return console.info(`${email} não é mais admin.`);
-  // Until two-factor is on, the password alone opens enrollment: whoever has it could enroll first.
-  console.info(`${email} agora é admin. Peça para a pessoa entrar em /admin AGORA e ativar as duas etapas.`);
+  await printEnrollmentCode(updated[0].id, `${email} agora é admin.`);
+}
+
+/** The code goes to the new admin by a private channel; enrolling two-factor asks for it. */
+async function printEnrollmentCode(userId: string, intro: string) {
+  const code = await issueEnrollmentCode(userId);
+  console.info(`${intro} Código de ativação (vale 24 horas, passe só para a pessoa): ${code}`);
+  console.info("A pessoa entra, abre /admin e ativa as duas etapas com a senha e este código.");
 }
 
 async function resetTwoFactor(email: string) {
@@ -56,7 +63,7 @@ async function resetTwoFactor(email: string) {
   // Signed out everywhere, so the next sign-in goes straight to a new enrollment.
   await db.delete(session).where(sql`${session.userId} = ${account.id}`);
   await audit("two_factor.reset", email);
-  console.info(`Duas etapas zeradas para ${email}. A pessoa entra com a senha e ativa de novo em /admin, na hora.`);
+  await printEnrollmentCode(account.id, `Duas etapas zeradas para ${email}.`);
 }
 
 async function main() {

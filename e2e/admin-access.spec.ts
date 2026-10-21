@@ -35,6 +35,9 @@ test("only granted emails sign up, /admin is hidden from clients, and a blocked 
   expect(listed.status()).toBe(403);
   const granted = await page.request.post("/api/admin/access", { data: { email: "x@exemplo.test" }, headers: { Origin: baseURL! } });
   expect(granted.status()).toBe(403);
+  // Enrolling an admin's two-factor needs the operator's one-time code, not just the password.
+  const enroll = await page.request.post("/api/auth/two-factor/enable", { data: { password: testPassword, method: "totp" }, headers: { Origin: baseURL! } });
+  expect(enroll.status()).toBe(403);
   // The plugin's own admin endpoints are not reachable from the browser either.
   const direct = await page.request.post("/api/auth/admin/ban-user", { data: { userId: "x" }, headers: { Origin: baseURL! } });
   expect(direct.status()).toBe(404);

@@ -17,3 +17,7 @@ export async function hasAccessGrant(email: string) {
     .limit(1);
   return grant !== undefined;
 }
+
+export async function removeAccessGrant(email: string) {
+  await db.delete(accessGrants).where(eq(accessGrants.email, normalizeEmail(email)));
+}

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Copy, LoaderCircle } from "@/components/icons";
@@ -11,7 +11,11 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { authClient } from "@/lib/auth-client";
 import { QrCode } from "./qr-code";
 
-type Step = { name: "password" } | { name: "scan"; totpURI: string; backupCodes: string[] } | { name: "codes"; backupCodes: string[] };
+// Same header the server checks (src/lib/admin-enrollment.ts); kept literal so no server code ships.
+const enrollmentHeader = "x-admin-enrollment-code";
+
+// backupCodes is null when enrollment resumed after a reload; new codes are generated at the end.
+type Step = { name: "password" } | { name: "scan"; totpURI: string; backupCodes: string[] | null } | { name: "codes"; backupCodes: string[] };
 
 const appCode = /^\d{6}$/;
 
@@ -28,16 +32,31 @@ export function TwoFactorSetup() {
   const [step, setStep] = useState<Step>({ name: "password" });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Kept only in memory for this flow: resuming needs them again to issue the recovery codes.
+  const password = useRef("");
+
+  function refusal(code: string | undefined) {
+    if (code === "INVALID_ENROLLMENT_CODE") return "Código de ativação inválido ou vencido. Peça um novo a quem administra o servidor.";
+    return "Senha incorreta.";
+  }
 
   async function begin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const password = String(new FormData(event.currentTarget).get("password") ?? "");
-    if (password.length === 0) return setError("Digite sua senha.");
+    const form = new FormData(event.currentTarget);
+    password.current = String(form.get("password") ?? "");
+    const enrollmentCode = String(form.get("enrollment") ?? "").trim();
+    if (password.current.length === 0) return setError("Digite sua senha.");
+    if (enrollmentCode.length === 0) return setError("Digite o código de ativação que você recebeu.");
     setPending(true);
     setError(null);
+    const fetchOptions = { headers: { [enrollmentHeader]: enrollmentCode } };
     try {
-      const result = await authClient.twoFactor.enable({ password, method: "totp" });
-      if (result.error || result.data == null) return setError("Senha incorreta.");
+      // A reload during setup resumes the key already created instead of replacing the one scanned.
+      const pendingKey = await authClient.twoFactor.getTotpUri({ password: password.current, fetchOptions });
+      if (pendingKey.data != null) return setStep({ name: "scan", totpURI: pendingKey.data.totpURI, backupCodes: null });
+      if (pendingKey.error?.code !== "TOTP_NOT_ENABLED") return setError(refusal(pendingKey.error?.code));
+      const result = await authClient.twoFactor.enable({ password: password.current, method: "totp", fetchOptions });
+      if (result.error || result.data == null) return setError(refusal(result.error?.code));
       if (result.data.method !== "totp") return setError("Não foi possível iniciar a verificação. Tente novamente.");
       setStep({ name: "scan", totpURI: result.data.totpURI, backupCodes: result.data.backupCodes });
     } catch {
@@ -57,7 +76,10 @@ export function TwoFactorSetup() {
     try {
       const result = await authClient.twoFactor.verifyTotp({ code });
       if (result.error) return setError("Código incorreto ou vencido. Use o número que está no app agora.");
-      setStep({ name: "codes", backupCodes: step.backupCodes });
+      if (step.backupCodes != null) return setStep({ name: "codes", backupCodes: step.backupCodes });
+      const fresh = await authClient.twoFactor.generateBackupCodes({ password: password.current });
+      if (fresh.error || fresh.data == null) return setError("Verificação ativada, mas não foi possível gerar os códigos de recuperação. Recarregue a página.");
+      setStep({ name: "codes", backupCodes: fresh.data.backupCodes });
     } catch {
       setError("Não foi possível conectar. Verifique sua internet e tente novamente.");
     } finally {
@@ -90,6 +112,11 @@ export function TwoFactorSetup() {
           <div className="space-y-2">
             <Label htmlFor="admin-password">Confirme sua senha</Label>
             <PasswordInput id="admin-password" name="password" autoComplete="current-password" autoFocus disabled={pending} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="admin-enrollment">Código de ativação</Label>
+            <Input id="admin-enrollment" name="enrollment" autoComplete="off" spellCheck={false} placeholder="XXXX-XXXX-XXXX" disabled={pending} aria-describedby="admin-enrollment-hint" />
+            <p id="admin-enrollment-hint" className="text-xs text-muted-foreground">Quem tornou você admin recebeu este código no servidor e passou só para você.</p>
           </div>
           {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
           <Button type="submit" className="w-full" disabled={pending}>{spinner}Continuar</Button>

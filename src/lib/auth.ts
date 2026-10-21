@@ -1,6 +1,6 @@
 import "server-only";
 import { betterAuth } from "better-auth";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { admin } from "better-auth/plugins/admin";
 import { twoFactor as twoFactorPlugin } from "better-auth/plugins/two-factor";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
@@ -9,7 +9,8 @@ import { user, session, account, verification, rateLimit, twoFactor } from "@/db
 import { authEnv } from "./env";
 import { provisionTenant } from "./provision-tenant";
 import { deleteAccountData } from "./account-deletion";
-import { hasAccessGrant } from "./access";
+import { hasAccessGrant, removeAccessGrant } from "./access";
+import { enrollmentHeader, isValidEnrollmentCode } from "./admin-enrollment";
 
 const noAccessMessage =
   "Este e-mail ainda não tem acesso. Use o e-mail da compra na Hotmart. Se já comprou, fale com o suporte.";
@@ -24,7 +25,22 @@ const accessRules = createAuthMiddleware(async (ctx) => {
   // Admin actions go through /api/admin, which checks two-factor and writes the audit log.
   if (ctx.path.startsWith("/admin/") && ctx.request)
     throw new APIError("NOT_FOUND", { message: "Não encontrado." });
+  if (twoFactorEnrollment.has(ctx.path)) await requireEnrollmentCode(ctx);
 });
+
+// An admin without two-factor enrolls (or resumes enrolling) only with the operator's one-time code.
+const twoFactorEnrollment = new Set(["/two-factor/enable", "/two-factor/get-totp-uri"]);
+async function requireEnrollmentCode(ctx: Parameters<typeof getSessionFromCtx>[0]) {
+  const session = await getSessionFromCtx(ctx);
+  if (session == null) return;
+  const { id, role, twoFactorEnabled } = session.user as { id: string; role?: string | null; twoFactorEnabled?: boolean | null };
+  if (role !== "admin" || twoFactorEnabled === true) return;
+  if (await isValidEnrollmentCode(id, ctx.headers?.get(enrollmentHeader) ?? null)) return;
+  throw new APIError("FORBIDDEN", {
+    message: "Código de ativação inválido ou vencido. Peça um novo a quem administra o servidor.",
+    code: "INVALID_ENROLLMENT_CODE",
+  });
+}
 function createAuth() {
   const env = authEnv();
   return betterAuth({
@@ -46,6 +62,8 @@ function createAuth() {
         enabled: true,
         beforeDelete: async (user) => {
           await deleteAccountData(user.id);
+          // A deleted account needs a new grant (a new purchase) to sign up again.
+          await removeAccessGrant(user.email);
         },
       },
     },
