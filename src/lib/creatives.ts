@@ -35,9 +35,12 @@ export async function getCreatives(tenantId: string, input: unknown) {
       metricWindow(p),
     )}
     WHERE ${and(tenantWhere(c, tenantId), campaignFilter(p))}
-    -- Best sellers first ("what worked"); creatives without data go last.
-    ORDER BY m.approved_sales DESC NULLS LAST, m.revenue_cents DESC NULLS LAST,
-      c.creative_key, m.period_from, m.campaign_key LIMIT ${limit + 1}
+    -- Best sellers first ("what worked"), ranked by each creative's total so its
+    -- campaign rows stay together; creatives without data go last.
+    ORDER BY sum(m.approved_sales) OVER (PARTITION BY c.id) DESC NULLS LAST,
+      sum(m.revenue_cents) OVER (PARTITION BY c.id) DESC NULLS LAST,
+      c.creative_key, m.approved_sales DESC NULLS LAST, m.period_from, m.campaign_key
+    LIMIT ${limit + 1}
   `);
   return {
     rows: result.rows.slice(0, limit),
