@@ -127,6 +127,8 @@ export function Chat({
   const [panelOpen, setPanelOpen] = useState(false);
   const [attached, setAttached] = useState<Attachment[]>([]);
   const [processing, setProcessing] = useState<Attachment[]>([]);
+  // Videos whose analysis failed stay listed for a retry but no longer hold the composer.
+  const [failedVideos, setFailedVideos] = useState<string[]>([]);
   const [audioUploading, setAudioUploading] = useState(false);
   const [audioAsset, setAudioAsset] = useState<string>();
   const [atBottom, setAtBottom] = useState(true);
@@ -147,12 +149,15 @@ export function Chat({
   const empty = messages.length === 0;
   const lastMessage = messages.at(-1);
   const videoSlots = maxAttachedVideos - attached.length - processing.length;
+  const analysing = processing.filter(
+    (video) => !failedVideos.includes(video.id),
+  );
   const canSend =
     !unavailable &&
     Boolean(input.trim()) &&
     !voice.recording &&
     !audioUploading &&
-    processing.length === 0;
+    analysing.length === 0;
 
   // Follows the reply only while the reader is already at the bottom.
   useEffect(() => {
@@ -205,6 +210,13 @@ export function Chat({
     );
     setInput((current) => (current.trim() ? current : videoPrompt));
     focusComposer();
+  }
+
+  function markVideoFailed(id: string, failed: boolean) {
+    setFailedVideos((current) => {
+      const others = current.filter((videoId) => videoId !== id);
+      return failed ? [...others, id] : others;
+    });
   }
 
   function attachVideo(id: string, name?: string) {
@@ -388,17 +400,19 @@ export function Chat({
             <AttachmentChip
               key={video.id}
               name={video.name ?? "Vídeo"}
-              onRemove={() =>
+              onRemove={() => {
                 setProcessing((current) =>
                   current.filter((item) => item.id !== video.id),
-                )
-              }
+                );
+                markVideoFailed(video.id, false);
+              }}
             >
               <UploadArea
                 kind="video"
                 compact
                 initialAssetId={video.id}
                 onVideoReady={(id) => attachVideo(id, video.name)}
+                onFailedChange={(failed) => markVideoFailed(video.id, failed)}
               />
             </AttachmentChip>
           ))}
@@ -571,7 +585,7 @@ export function Chat({
         ) : (
           <Hint
             label={
-              processing.length
+              analysing.length
                 ? "Aguarde a análise do vídeo"
                 : "Enviar mensagem"
             }
