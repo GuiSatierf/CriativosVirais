@@ -1,5 +1,6 @@
 import "server-only";
 import { betterAuth } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { db } from "@/db";
 import { user, session, account, verification, rateLimit } from "@/db/schema";
@@ -45,6 +46,16 @@ function createAuth() {
           },
         },
       },
+    },
+    hooks: {
+      // Better Auth deletes a fresh session's account without a password; this app always
+      // demands it, so a session left open on another device cannot erase the account.
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/delete-user") return;
+        const password: unknown = ctx.body?.password;
+        if (typeof password === "string" && password.length > 0) return;
+        throw new APIError("BAD_REQUEST", { message: "Digite sua senha para excluir a conta." });
+      }),
     },
     // Persist limits in Postgres so app replicas do not reset their counters independently.
     rateLimit: { enabled: true, storage: "database" },
