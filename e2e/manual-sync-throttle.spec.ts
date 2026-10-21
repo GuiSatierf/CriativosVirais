@@ -54,9 +54,9 @@ test("a throttled manual sync shows an error without starting the polling state"
     const blocked = await responsePromise;
     expect(blocked.status()).toBe(429);
     expect(await blocked.json()).toEqual({
-      error: "A sync was requested recently. Please wait up to five minutes before trying again.",
+      error: "Você pediu uma sincronização há pouco. Aguarde até 5 minutos para pedir de novo.",
     });
-    await expect(page.getByText("A sync was requested recently. Please wait up to five minutes before trying again.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Você pediu uma sincronização há pouco. Aguarde até 5 minutos para pedir de novo.", { exact: true })).toBeVisible();
     await expect(sync).toBeEnabled();
     await expect(page.getByRole("button", { name: "Sincronizando…" })).toHaveCount(0);
     await expect(page.getByText("Sincronização iniciada.", { exact: true })).toHaveCount(0);
