@@ -7,7 +7,7 @@ import {
 import type { MetricsFilters } from "@/components/metrics/metrics-filter";
 import { periodSchema } from "@/lib/connectors/types";
 import { getCreatives } from "@/lib/creatives";
-import { defaultMetricsPeriod } from "@/lib/default-period";
+import { csvImportPeriods, defaultMetricsPeriod } from "@/lib/default-period";
 import { hasWebhookSource } from "@/lib/metric-sources";
 import { requireTenant } from "@/lib/tenant";
 
@@ -18,9 +18,10 @@ export async function CreativesView({
 }) {
   const { tenantId } = await requireTenant();
   const params = await searchParams;
-  const [fallback, showSource]: [MetricsFilters, boolean] = await Promise.all([
+  const [fallback, showSource, csvPeriods] = await Promise.all([
     defaultMetricsPeriod(tenantId),
     hasWebhookSource(tenantId),
+    csvImportPeriods(tenantId),
   ]);
   const requested = periodSchema.safeParse({
     from: params.from ?? fallback.from,
@@ -53,6 +54,7 @@ export async function CreativesView({
         initialFilters={filters}
         initialData={initialData}
         showSource={showSource}
+        csvPeriods={csvPeriods}
       />
     </div>
   );
