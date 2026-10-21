@@ -173,13 +173,6 @@ export function CreativeTable({
     setFilterVersion((version) => version + 1);
   }
 
-  const outsideImports =
-    filters.source === "csv" &&
-    csvPeriods.length > 0 &&
-    !csvPeriods.some(
-      (period) => period.from === filters.from && period.to === filters.to,
-    );
-
   const openUpload = (key: string) => setUpload({ key, open: true });
   const uploadButton = (row: CreativeRow, className?: string) => (
     <Button
@@ -258,6 +251,17 @@ export function CreativeTable({
     </Button>
   );
   const keys = new Set(rows.map((row) => row.creative_key)).size;
+  // Only the latest imports are offered, so an older imported period is
+  // recognised by its results rather than by the offered list.
+  const outsideImports =
+    filters.source === "csv" &&
+    csvPeriods.length > 0 &&
+    !loading &&
+    !error &&
+    !allRows.some((row) => row.period_from) &&
+    !csvPeriods.some(
+      (period) => period.from === filters.from && period.to === filters.to,
+    );
 
   return (
     <div className="space-y-6">
