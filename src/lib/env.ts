@@ -65,3 +65,18 @@ export const cryptoEnv = () => group("crypto");
 export const aiEnv = () => optionalGroup("ai");
 export const aiProviderEnv = () => group("aiProvider");
 export const transcribeEnv = () => optionalGroup("transcribe");
+
+const optionalProviders = {
+  ai: { feature: "chat and batch generation", variables: ["DEEPSEEK_API_KEY", "DEEPSEEK_MODEL_TEXT"] },
+  transcribe: { feature: "audio and video transcription", variables: ["GROQ_API_KEY", "GROQ_WHISPER_MODEL"] },
+} as const;
+
+/** Optional providers that are not configured, by variable name only; values are never read out. */
+export function missingOptionalConfiguration() {
+  // The scripted fake model replaces DeepSeek in development and tests.
+  const fakeModel = optionalGroup("aiProvider")?.AI_PROVIDER === "fake";
+  return (Object.keys(optionalProviders) as (keyof typeof optionalProviders)[])
+    .filter((name) => !(name === "ai" && fakeModel))
+    .filter((name) => !optionalGroup(name))
+    .map((name) => optionalProviders[name]);
+}

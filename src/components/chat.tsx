@@ -551,7 +551,7 @@ export function Chat({
             </Hint>
             {unavailable && (
               <p className="min-w-0 px-1 text-xs leading-snug text-pretty text-muted-foreground">
-                O Estrategista está indisponível no momento.
+                O Estrategista ainda não foi configurado nesta instalação.
               </p>
             )}
           </>

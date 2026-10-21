@@ -74,6 +74,7 @@ Use `.env.production.example` como referência dos campos de runtime; ele não c
 5. Execute `node dist/tools/scripts/doctor.js --production --connections --strict-providers` dentro do worker. Corrija os FAILs antes de ativar todos os fluxos. Se quiser usar somente CSV/webhook inicialmente, omita `--strict-providers`.
 6. Faça os testes da tabela acima. No navegador, confirme que o endpoint público S3 permite PUT a partir do domínio final. Confira os logs do worker e acompanhe um asset até `done`; o diagnóstico não verifica heartbeat do worker nem a rede do navegador.
 7. Reinicie os serviços e confirme persistência, login e um resultado já salvo. Faça backup de Postgres, objetos RustFS e ENCRYPTION_KEY antes de atualizar.
+8. Configure um monitor externo de disponibilidade (UptimeRobot, Better Stack, Uptime Kuma ou similar) para consultar `https://<domínio>/api/health/system` a cada 5 minutos e avisar por e-mail ou mensagem quando a resposta não for 200. Ela responde 503 com `problems` indicando o que falhou: `database` (Postgres não responde), `worker` (worker sem sinal há mais de 3 minutos) ou `queue` (job pronto esperando há mais de 10 minutos). Não use esse endereço como healthcheck do container: o app continua de pé quando o worker cai, e reiniciá-lo não resolve.
 
 ## Atualizar uma instalação existente
 
