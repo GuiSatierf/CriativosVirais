@@ -4,13 +4,14 @@ import { signUp } from "./support";
 
 // A video whose analysis failed must not keep the composer locked: the person can
 // still send a message without discovering that the attachment has to be removed.
-// Storage and analysis are simulated so the test needs neither the bucket nor ffmpeg.
+// Storage and analysis are simulated so the test needs neither the bucket nor ffmpeg. The
+// simulated upload URL sits on the app's own origin, which the CSP connect-src allows.
 test("a failed video analysis does not block sending messages", async ({ page }) => {
   const assetId = randomUUID();
   await page.route("**/api/uploads/presign", (route) =>
-    route.fulfill({ json: { url: "http://storage.test/upload", assetId } }),
+    route.fulfill({ json: { url: new URL("/e2e-simulated-upload", route.request().url()).href, assetId } }),
   );
-  await page.route("http://storage.test/**", (route) => route.fulfill({ status: 200 }));
+  await page.route("**/e2e-simulated-upload", (route) => route.fulfill({ status: 200 }));
   await page.route("**/api/uploads/complete", (route) =>
     route.fulfill({ status: 202, json: { assetId, status: "uploaded" } }),
   );
