@@ -7,6 +7,8 @@ const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl || !new URL(databaseUrl).pathname.endsWith("_test"))
   throw new Error("E2E tests need DATABASE_URL pointing to a database whose name ends in _test.");
 process.env.AI_PROVIDER = "fake";
+// Reset emails land in a local folder that the specs read; nothing is sent.
+process.env.EMAIL_OUTBOX_DIR = "test-results/outbox";
 
 const port = 3100;
 const baseURL = `http://localhost:${port}`;

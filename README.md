@@ -80,6 +80,8 @@ Referências: [`.env.example`](.env.example) (local) e [`.env.production.example
 | `DEEPSEEK_MODEL_VISION` | Descrição dos frames; precisa aceitar imagens |
 | `AI_PROVIDER` | Opcional. `fake` troca o modelo de texto por um roteiro fixo (`src/lib/ai/fake-model.ts`), sem chamar a DeepSeek; só em desenvolvimento e testes, recusado com `NODE_ENV=production` |
 | `GROQ_API_KEY`, `GROQ_WHISPER_MODEL` | Transcrição de áudio e da trilha dos vídeos |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Recuperação de senha por e-mail (Resend). `EMAIL_FROM` usa um domínio verificado no Resend, por exemplo `Criativos Virais <nao-responda@mail.exemplo.com.br>`. Sem elas, a tela de recuperação mostra o contato do suporte |
+| `EMAIL_OUTBOX_DIR` | Opcional. Grava os e-mails como arquivos JSON nessa pasta em vez de enviar; só em desenvolvimento e testes, recusado com `NODE_ENV=production` |
 | `TEST_DATABASE_URL` | Só para `test:attribution`; banco vazio cujo nome termina em `_test` |
 
 Sem DeepSeek ou Groq, chat e análise ficam indisponíveis com mensagem ao usuário. Em produção nada é simulado; em desenvolvimento e testes, `AI_PROVIDER=fake` responde o chat e gera levas de exemplo sem custo. CSV, webhook, métricas e exportação funcionam sem provedores de IA. Os IDs de modelo vêm só da configuração.

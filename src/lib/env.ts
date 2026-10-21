@@ -33,6 +33,17 @@ const schemas = {
     GROQ_API_KEY: filled,
     GROQ_WHISPER_MODEL: filled,
   }),
+  email: z.object({
+    RESEND_API_KEY: filled,
+    EMAIL_FROM: filled,
+  }),
+  emailOutbox: z
+    .object({
+      EMAIL_OUTBOX_DIR: filled,
+      NODE_ENV: z.string().optional(),
+    })
+    // The file outbox exists only for development and automated tests.
+    .refine((v) => v.NODE_ENV !== "production"),
   crypto: z.object({
     ENCRYPTION_KEY: z
       .string()
@@ -65,18 +76,24 @@ export const cryptoEnv = () => group("crypto");
 export const aiEnv = () => optionalGroup("ai");
 export const aiProviderEnv = () => group("aiProvider");
 export const transcribeEnv = () => optionalGroup("transcribe");
+export const emailEnv = () => optionalGroup("email");
+export const emailOutboxEnv = () => optionalGroup("emailOutbox");
 
 const optionalProviders = {
   ai: { feature: "chat and batch generation", variables: ["DEEPSEEK_API_KEY", "DEEPSEEK_MODEL_TEXT"] },
   transcribe: { feature: "audio and video transcription", variables: ["GROQ_API_KEY", "GROQ_WHISPER_MODEL"] },
+  email: { feature: "password reset by email", variables: ["RESEND_API_KEY", "EMAIL_FROM"] },
 } as const;
 
 /** Optional providers that are not configured, by variable name only; values are never read out. */
 export function missingOptionalConfiguration() {
   // The scripted fake model replaces DeepSeek in development and tests.
   const fakeModel = optionalGroup("aiProvider")?.AI_PROVIDER === "fake";
+  // The file outbox replaces Resend in development and tests.
+  const outbox = optionalGroup("emailOutbox") !== null;
   return (Object.keys(optionalProviders) as (keyof typeof optionalProviders)[])
     .filter((name) => !(name === "ai" && fakeModel))
+    .filter((name) => !(name === "email" && outbox))
     .filter((name) => !optionalGroup(name))
     .map((name) => optionalProviders[name]);
 }
