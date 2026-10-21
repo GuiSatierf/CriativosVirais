@@ -1,13 +1,31 @@
 import { randomUUID } from "node:crypto";
 import { expect, type Page } from "@playwright/test";
+import { Client } from "pg";
 
-const testPassword = "e2e-senha-de-teste";
+export const testPassword = "e2e-senha-de-teste";
+
+/** Runs one statement on the _test database the suite uses (fixtures the UI cannot create). */
+export async function testDatabase<T extends Record<string, unknown>>(text: string, values: unknown[] = []) {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    return (await client.query<T>(text, values)).rows;
+  } finally {
+    await client.end();
+  }
+}
+
+/** Sign-up only accepts granted emails: grants one, like an admin or a purchase would. */
+export async function grantAccess(email: string) {
+  await testDatabase("insert into access_grants (email) values ($1) on conflict do nothing", [email.toLowerCase()]);
+}
 
 /** Creates a fresh account (and operation) and waits for its first conversation. */
-export async function signUp(page: Page) {
+export async function signUp(page: Page, email = `e2e-${randomUUID()}@exemplo.test`) {
+  await grantAccess(email);
   await page.goto("/signup");
   await page.getByLabel("Nome").fill("Conta E2E");
-  await page.getByLabel("E-mail").fill(`e2e-${randomUUID()}@exemplo.test`);
+  await page.getByLabel("E-mail").fill(email);
   await page.getByRole("textbox", { name: "Senha" }).fill(testPassword);
   await page.getByRole("button", { name: "Criar conta" }).click();
   await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);

@@ -43,6 +43,13 @@
       "when": 1792205894784,
       "tag": "0005_webhook-null-counts",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792549778487,
+      "tag": "0006_admin-access",
+      "breakpoints": true
     }
   ]
 }
