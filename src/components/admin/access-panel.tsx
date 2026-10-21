@@ -23,6 +23,7 @@ export type AccessRow = {
   grantedBy: string | null;
   userId: string | null;
   banReason: string | null;
+  isAdmin: boolean;
   status: "waiting" | "active" | "blocked";
 };
 type Filter = "all" | AccessRow["status"];
@@ -59,6 +60,7 @@ function StatusPill({ row }: { row: AccessRow }) {
         <span aria-hidden className="size-1.5 rounded-full bg-current" />
         {statusLabel[row.status]}
       </Badge>
+      {row.isAdmin && <Badge variant="secondary" className="ml-1.5">Admin</Badge>}
       {row.status === "blocked" && row.banReason != null && (
         <span className="block text-xs text-muted-foreground">Motivo: {row.banReason}</span>
       )}
@@ -96,7 +98,8 @@ export function AccessPanel({ access, actorId }: { access: AccessRow[]; actorId:
       return <Button variant="ghost" size="sm" onClick={() => setRemoving(row)}>Remover</Button>;
     if (row.status === "blocked")
       return <Button variant="ghost" size="sm" onClick={() => unblock(row)}>Desbloquear</Button>;
-    if (row.userId === actorId) return null;
+    // Admins are not blocked from the panel (removing an admin is a server command).
+    if (row.userId === actorId || row.isAdmin) return null;
     return (
       <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setBlocking(row)}>
         Bloquear

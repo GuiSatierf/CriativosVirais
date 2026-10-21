@@ -4,6 +4,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { accessGrants, adminAuditLog, user } from "@/db/schema";
 import { normalizeEmail } from "./access";
+import { accessStatus, blockRefusal } from "./admin-rules";
 import { getAuth } from "./auth";
 import { authEnv } from "./env";
 import { HttpError } from "./errors";
@@ -47,15 +48,6 @@ async function audit(actor: AdminActor, action: string, targetEmail: string, det
   });
 }
 
-export type AccessStatus = "waiting" | "active" | "blocked";
-
-/** Status shown in the list: no account yet, account in use, or account blocked. */
-export function accessStatus(account: { userId: string | null; banned: boolean | null }): AccessStatus {
-  if (account.userId == null) return "waiting";
-  if (account.banned === true) return "blocked";
-  return "active";
-}
-
 const granter = alias(user, "granter");
 
 export async function listAccess() {
@@ -70,12 +62,17 @@ export async function listAccess() {
       userId: user.id,
       banned: user.banned,
       banReason: user.banReason,
+      role: user.role,
     })
     .from(accessGrants)
     .leftJoin(user, sql`lower(${user.email}) = ${accessGrants.email}`)
     .leftJoin(granter, eq(granter.id, accessGrants.grantedBy))
     .orderBy(desc(accessGrants.createdAt));
-  return rows.map(({ banned, ...row }) => ({ ...row, status: accessStatus({ userId: row.userId, banned }) }));
+  return rows.map(({ banned, role, ...row }) => ({
+    ...row,
+    isAdmin: role === "admin",
+    status: accessStatus({ userId: row.userId, banned }),
+  }));
 }
 
 export async function grantAccess(actor: AdminActor, email: string, note: string | null) {
@@ -102,22 +99,23 @@ export async function removeAccess(actor: AdminActor, grantId: string) {
   await audit(actor, "access.removed", grant.email);
 }
 
-async function accountEmail(userId: string) {
-  const [account] = await db.select({ email: user.email }).from(user).where(eq(user.id, userId));
+async function findAccount(userId: string) {
+  const [account] = await db.select({ id: user.id, email: user.email, role: user.role }).from(user).where(eq(user.id, userId));
   if (account == null) throw new HttpError(404, "Conta não encontrada.");
-  return account.email;
+  return account;
 }
 
 /** Blocks sign-in and ends every session; the reason is what the client sees when trying to enter. */
 export async function blockAccount(actor: AdminActor, requestHeaders: Headers, userId: string, reason: string) {
-  if (userId === actor.id) throw new HttpError(400, "Você não pode bloquear a própria conta.");
-  const email = await accountEmail(userId);
+  const account = await findAccount(userId);
+  const refusal = blockRefusal(actor.id, account);
+  if (refusal != null) throw new HttpError(400, refusal);
   await getAuth().api.banUser({ body: { userId, banReason: reason }, headers: requestHeaders });
-  await audit(actor, "account.blocked", email, { reason });
+  await audit(actor, "account.blocked", account.email, { reason });
 }
 
 export async function unblockAccount(actor: AdminActor, requestHeaders: Headers, userId: string) {
-  const email = await accountEmail(userId);
+  const account = await findAccount(userId);
   await getAuth().api.unbanUser({ body: { userId }, headers: requestHeaders });
-  await audit(actor, "account.unblocked", email);
+  await audit(actor, "account.unblocked", account.email);
 }
