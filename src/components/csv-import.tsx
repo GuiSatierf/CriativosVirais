@@ -62,8 +62,9 @@ const formulaMetrics = ["hook_rate", "body_rate"] as const;
  * unused header that matches. Specific rules come before generic ones so that
  * "Conjunto de anúncios" is not taken as the creative code.
  */
+const utmContentHeader = /utm_?content/;
 const guessRules: [Field, RegExp][] = [
-  ["creative_key", /utm_?content/],
+  ["creative_key", utmContentHeader],
   ["campaign_key", /campanha|campaign/],
   ["adset_key", /conjunto|adset|ad set|grupo de anuncio/],
   [
@@ -87,8 +88,9 @@ const guessRules: [Field, RegExp][] = [
   ["chargebacks", /chargeback|estorno/],
 ];
 
-/** Batch codes (L01-C01) at the start of a value: the column the ads were named with. */
-const batchCodePattern = /^L\d{2,}-C\d{2,}\b/i;
+/** Batch codes (L01-C01): a value that is exactly a code beats one that only starts with it. */
+const exactBatchCode = /^L\d{2,}-C\d{2,}$/i;
+const prefixedBatchCode = /^L\d{2,}-C\d{2,}\b/i;
 const sampleSize = 50;
 /** Share of filled values that must look like codes for a column to count as the code. */
 const batchCodeShare = 0.5;
@@ -99,15 +101,15 @@ function normalize(header: string) {
   return header.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }
 
-/** A column where most filled values start with a batch code. */
-function holdsBatchCodes(column: string, rows: CsvRow[]) {
+/** A column where most filled values match the batch code pattern. */
+function holdsBatchCodes(column: string, rows: CsvRow[], pattern: RegExp) {
   const values = rows
     .slice(0, sampleSize)
     .map((row) => row[column]?.trim() ?? "")
     .filter((value) => value.length > 0);
   if (values.length === 0) return false;
 
-  const codes = values.filter((value) => batchCodePattern.test(value)).length;
+  const codes = values.filter((value) => pattern.test(value)).length;
   return codes >= values.length * batchCodeShare;
 }
 
@@ -124,10 +126,16 @@ function guessMapping(columns: string[], rows: CsvRow[]) {
       field,
       columns.find((c) => !used.has(c) && normalize(c) === field),
     );
+  // utm_content is the tracking field the codes are meant for, so it wins over ad names.
   take(
     "creative_key",
-    columns.find((c) => !used.has(c) && holdsBatchCodes(c, rows)),
+    columns.find((c) => !used.has(c) && utmContentHeader.test(normalize(c))),
   );
+  for (const pattern of [exactBatchCode, prefixedBatchCode])
+    take(
+      "creative_key",
+      columns.find((c) => !used.has(c) && holdsBatchCodes(c, rows, pattern)),
+    );
   for (const [field, rule] of guessRules)
     take(
       field,
@@ -305,7 +313,7 @@ export function CsvImport({
           const trigger = document.getElementById("csv-creative_key");
           trigger?.setAttribute("aria-invalid", "true");
           trigger?.focus();
-          toast.error("Escolha a coluna com o código do criativo.");
+          toast.error("Escolha a coluna do código do criativo.");
           return;
         }
         const invalid = e.currentTarget.querySelector<HTMLElement>(":invalid");
