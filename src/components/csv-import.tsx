@@ -87,11 +87,26 @@ const guessRules: [Field, RegExp][] = [
   ["chargebacks", /chargeback|estorno/],
 ];
 
+/** Batch codes (L01-C01) at the start of a value: the column the ads were named with. */
+const batchCodePattern = /^L\d{2,}-C\d{2,}\b/i;
+const sampleSize = 50;
+
 function normalize(header: string) {
   return header.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }
 
-function guessMapping(columns: string[]) {
+/** A column where most filled values start with a batch code. */
+function holdsBatchCodes(column: string, rows: Record<string, string>[]) {
+  const values = rows
+    .slice(0, sampleSize)
+    .map((row) => row[column]?.trim())
+    .filter(Boolean);
+  if (values.length === 0) return false;
+  const codes = values.filter((value) => batchCodePattern.test(value)).length;
+  return codes * 2 >= values.length;
+}
+
+function guessMapping(columns: string[], rows: Record<string, string>[]) {
   const mapping: Partial<Record<Field, string>> = {};
   const used = new Set<string>();
   const take = (field: Field, column: string | undefined) => {
@@ -104,12 +119,20 @@ function guessMapping(columns: string[]) {
       field,
       columns.find((c) => !used.has(c) && normalize(c) === field),
     );
+  take(
+    "creative_key",
+    columns.find((c) => !used.has(c) && holdsBatchCodes(c, rows)),
+  );
   for (const [field, rule] of guessRules)
     take(
       field,
       columns.find((c) => !used.has(c) && rule.test(normalize(c))),
     );
-  return mapping as Record<string, string>;
+  // Ads Manager exports have no code column: the ad name is what identifies each ad.
+  if (mapping.creative_key || !mapping.creative_name)
+    return mapping as Record<string, string>;
+  const { creative_name: adName, ...rest } = mapping;
+  return { ...rest, creative_key: adName } as Record<string, string>;
 }
 
 function Segmented<T extends string>({
@@ -207,7 +230,7 @@ export function CsvImport({
     }
     setCsv(text);
     setHeaders(columns);
-    setMapping(guessMapping(columns));
+    setMapping(guessMapping(columns, parsed.data as Record<string, string>[]));
   }
 
   const [loadedInitial, setLoadedInitial] = useState<File>();
@@ -503,11 +526,16 @@ export function CsvImport({
           </Step>
         </Steps>
       </div>
-      <div className="sticky bottom-0 flex justify-end border-t bg-background px-6 py-4">
+      <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t bg-background px-6 py-4">
+        {ready && !mapping.creative_key && (
+          <p className="text-sm text-muted-foreground">
+            Escolha a coluna do código do criativo.
+          </p>
+        )}
         <Button
           type="submit"
           className="w-full sm:w-auto"
-          disabled={pending || !ready || !mapping.creative_key}
+          disabled={pending || !ready}
         >
           {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
           {pending ? "Importando…" : "Importar"}
