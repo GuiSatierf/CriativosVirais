@@ -50,7 +50,12 @@ async function main() {
     const revenue = async (campaignKey?: string) => (await getBenchmark(tenantId!, { ...period, ...(campaignKey ? { campaignKey } : {}) })).top.revenue_cents?.[0]?.value;
     assert.equal(await revenue("A"), "100");
     assert.equal(await revenue("B"), "700");
-    assert.equal(await revenue(), undefined); // Pending unknown money remains NULL in totals.
+    // A day or campaign with only pending events is not observed: it is left out of the totals
+    // instead of turning them NULL (one pending Pix used to hide a whole month of sales).
+    assert.equal(await revenue(), "800");
+    const twoDays = await getBenchmark(tenantId!, { from: "2026-10-01", to: "2026-10-02", source: "webhook", campaignKey: "A" });
+    assert.equal(twoDays.top.revenue_cents?.[0]?.value, "100");
+    assert.equal(twoDays.top.approved_sales?.[0]?.value, "1");
     const legacyCsv = await db.select().from(creativeMetrics).where(eq(creativeMetrics.source, "csv"));
     assert.equal(legacyCsv[0].campaignKey, "");
     assert.equal(legacyCsv[0].revenueCents, 77n);
