@@ -64,7 +64,6 @@ const formulaMetrics = ["hook_rate", "body_rate"] as const;
  */
 const utmContentHeader = /utm_?content/;
 const guessRules: [Field, RegExp][] = [
-  ["creative_key", utmContentHeader],
   ["campaign_key", /campanha|campaign/],
   ["adset_key", /conjunto|adset|ad set|grupo de anuncio/],
   [
