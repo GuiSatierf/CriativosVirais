@@ -7,7 +7,8 @@ import { user, session, account, verification, rateLimit } from "@/db/schema";
 import { authEnv } from "./env";
 import { provisionTenant } from "./provision-tenant";
 import { deleteAccountData } from "./account-deletion";
-import { resetLinkLifetimeSeconds, sendPasswordResetEmail } from "./password-reset-email";
+import { sendPasswordResetEmail } from "./password-reset-email";
+import { maxPasswordLength, minPasswordLength, resetLinkLifetimeSeconds } from "./password-rules";
 function createAuth() {
   const env = authEnv();
   return betterAuth({
@@ -21,13 +22,15 @@ function createAuth() {
     }),
     emailAndPassword: {
       enabled: true,
-      minPasswordLength: 12,
-      maxPasswordLength: 128,
+      minPasswordLength,
+      maxPasswordLength,
       resetPasswordTokenExpiresIn: resetLinkLifetimeSeconds,
       // Whoever had the old password loses every open session once it changes.
       revokeSessionsOnPasswordReset: true,
+      // Not awaited: waiting for Resend would make real accounts answer slower than unknown
+      // emails and reveal which ones exist. The sender logs its own failures.
       sendResetPassword: async ({ user, url }) => {
-        await sendPasswordResetEmail(user, url);
+        void sendPasswordResetEmail(user, url);
       },
     },
     user: {

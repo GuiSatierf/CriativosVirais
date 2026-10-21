@@ -2,19 +2,19 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { z } from "zod";
 import { ArrowLeft, KeyRound, LoaderCircle } from "@/components/icons";
 import { connectionFailed, tooManyAttempts } from "@/components/password-reset-request";
 import { authClient } from "@/lib/auth-client";
+import {
+  maxPasswordLength,
+  minPasswordLength,
+  newPasswordSchema,
+  resetLinkLifetimeLabel,
+} from "@/lib/password-rules";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-
-const passwordSchema = z
-  .string()
-  .min(12, { error: "A senha precisa ter pelo menos 12 caracteres." })
-  .max(128, { error: "Use no máximo 128 caracteres." });
 
 /** Shown for a link that expired, was already used or is malformed. */
 export function ExpiredResetLink() {
@@ -23,8 +23,8 @@ export function ExpiredResetLink() {
       <header className="space-y-1.5">
         <h1 className="page-title">Link vencido</h1>
         <p className="text-sm text-muted-foreground">
-          Este link para criar uma senha nova venceu ou já foi usado. Cada link vale por 1 hora e
-          funciona uma vez só.
+          Este link para criar uma senha nova venceu ou já foi usado. Cada link vale por{" "}
+          {resetLinkLifetimeLabel} e funciona uma vez só.
         </p>
       </header>
       <Link href="/recuperar-senha" className={buttonVariants({ className: "w-full" })}>
@@ -51,7 +51,7 @@ export function NewPasswordForm({ token }: { token: string }) {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const input = event.currentTarget.elements.namedItem("password");
-    const parsed = passwordSchema.safeParse(new FormData(event.currentTarget).get("password"));
+    const parsed = newPasswordSchema.safeParse(new FormData(event.currentTarget).get("password"));
     setFormError(null);
     if (!parsed.success) {
       setFieldError(parsed.error.issues[0]?.message ?? "Informe a nova senha.");
@@ -101,7 +101,7 @@ export function NewPasswordForm({ token }: { token: string }) {
             id="password"
             name="password"
             required
-            maxLength={128}
+            maxLength={maxPasswordLength}
             autoComplete="new-password"
             enterKeyHint="done"
             disabled={pending}
@@ -111,7 +111,7 @@ export function NewPasswordForm({ token }: { token: string }) {
             aria-invalid={fieldError ? true : undefined}
           />
           <p id="password-hint" className="text-xs text-muted-foreground">
-            Pelo menos 12 caracteres.
+            Pelo menos {minPasswordLength} caracteres.
           </p>
           {fieldError && (
             <p id="password-error" className="text-sm text-destructive">

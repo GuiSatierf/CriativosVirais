@@ -39,6 +39,7 @@ test("a forgotten password is replaced through the emailed link, once", async ({
 
   await page.goto("/login");
   await page.getByRole("link", { name: "Esqueceu a senha?" }).click();
+  await expect(page.getByRole("heading", { name: "Recuperar senha" })).toBeVisible();
   await page.getByLabel("E-mail").fill(email);
   await page.getByRole("button", { name: "Enviar link" }).click();
   await expect(page.getByRole("heading", { name: "Confira seu e-mail" })).toBeVisible();

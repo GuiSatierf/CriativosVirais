@@ -4,6 +4,7 @@ import Link from "next/link";
 import { z } from "zod";
 import { ArrowLeft, ArrowRight, LoaderCircle } from "@/components/icons";
 import { authClient } from "@/lib/auth-client";
+import { resetLinkLifetimeLabel } from "@/lib/password-rules";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +34,7 @@ function SentNotice({ email, onRetry }: { email: string; onRetry: () => void }) 
         <h1 className="page-title">Confira seu e-mail</h1>
         <p className="text-sm text-muted-foreground">
           Se existe uma conta com <span className="font-medium text-foreground">{email}</span>, enviamos
-          um link para criar uma senha nova. Ele vale por 1 hora.
+          um link para criar uma senha nova. Ele vale por {resetLinkLifetimeLabel}.
         </p>
       </header>
       <p className="rounded-xl border bg-card p-4 text-sm">

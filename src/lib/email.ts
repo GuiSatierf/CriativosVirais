@@ -7,6 +7,13 @@ import { ConfigError } from "./errors";
 
 export type Email = { to: string; subject: string; text: string; html: string };
 
+// RFC 2606 / 6761 names never receive mail; a real send there only bounces and hurts the sender's reputation.
+const reservedDomain = /\.(test|example|invalid|localhost)$/i;
+
+class ReservedAddressError extends Error {
+  name = "ReservedAddressError";
+}
+
 /** Resend in production; a file outbox in development and tests, so no real message leaves the machine. */
 export function canSendEmail() {
   return emailEnv() !== null || emailOutboxEnv() !== null;
@@ -17,8 +24,11 @@ export async function sendEmail(email: Email) {
   const outbox = emailOutboxEnv();
   if (outbox) return writeToOutbox(outbox.EMAIL_OUTBOX_DIR, email);
   const resend = emailEnv();
-  if (resend) return sendWithResend(resend, email);
-  throw new ConfigError("email");
+  if (resend == null) throw new ConfigError("email");
+
+  if (reservedDomain.test(email.to.split("@").at(-1) ?? "")) throw new ReservedAddressError();
+
+  return sendWithResend(resend, email);
 }
 
 async function sendWithResend(

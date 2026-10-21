@@ -1,8 +1,7 @@
 import "server-only";
 import { sendEmail } from "./email";
 import { logError } from "./log";
-
-export const resetLinkLifetimeSeconds = 60 * 60;
+import { resetLinkLifetimeLabel } from "./password-rules";
 
 function escapeHtml(value: string) {
   return value
@@ -22,7 +21,7 @@ export function passwordResetEmail(user: { email: string; name: string }, url: s
   const greeting = name ? `Olá, ${name}.` : "Olá.";
   const lines = [
     "Recebemos um pedido para redefinir a senha da sua conta no Criativos Virais.",
-    "Para criar uma senha nova, abra o link abaixo. Ele vale por 1 hora e só pode ser usado uma vez.",
+    `Para criar uma senha nova, abra o link abaixo. Ele vale por ${resetLinkLifetimeLabel} e só pode ser usado uma vez.`,
   ];
   const ignore = "Se você não fez esse pedido, ignore este e-mail. Sua senha continua a mesma.";
   return {
