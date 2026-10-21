@@ -14,13 +14,17 @@ type MetricColumns = Record<MetricColumn, SQLWrapper>;
 export const c = alias(creatives, "c");
 export const m = alias(creativeMetrics, "m");
 
-/** Source and window match: CSV needs the exact imported period; webhook days fall inside it. */
+/**
+ * Source and window match: CSV needs the exact imported period; webhook days fall inside it.
+ * A webhook day with only pending, cancelled or failed events has no observed counts (all NULL):
+ * it is left out, so it neither counts as 0 nor turns the whole window's totals into NULL.
+ */
 export function metricWindow(p: Period, cols: MetricColumns = m) {
   return and(
     sql`${cols.source}=${p.source}`,
     p.source === "csv"
       ? sql`${cols.periodFrom}=${p.from}::date AND ${cols.periodTo}=${p.to}::date`
-      : sql`${cols.periodFrom}>=${p.from}::date AND ${cols.periodTo}<=${p.to}::date`,
+      : sql`${cols.periodFrom}>=${p.from}::date AND ${cols.periodTo}<=${p.to}::date AND ${cols.approvedSales} IS NOT NULL`,
   )!;
 }
 export function campaignFilter(p: Period, cols: MetricColumns = m): SQL | undefined {
