@@ -35,7 +35,9 @@ export async function getCreatives(tenantId: string, input: unknown) {
       metricWindow(p),
     )}
     WHERE ${and(tenantWhere(c, tenantId), campaignFilter(p))}
-    ORDER BY c.creative_key, m.period_from, m.campaign_key LIMIT ${limit + 1}
+    -- Best sellers first ("what worked"); creatives without data go last.
+    ORDER BY m.approved_sales DESC NULLS LAST, m.revenue_cents DESC NULLS LAST,
+      c.creative_key, m.period_from, m.campaign_key LIMIT ${limit + 1}
   `);
   return {
     rows: result.rows.slice(0, limit),
