@@ -90,23 +90,28 @@ const guessRules: [Field, RegExp][] = [
 /** Batch codes (L01-C01) at the start of a value: the column the ads were named with. */
 const batchCodePattern = /^L\d{2,}-C\d{2,}\b/i;
 const sampleSize = 50;
+/** Share of filled values that must look like codes for a column to count as the code. */
+const batchCodeShare = 0.5;
+
+type CsvRow = Record<string, string | undefined>;
 
 function normalize(header: string) {
   return header.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }
 
 /** A column where most filled values start with a batch code. */
-function holdsBatchCodes(column: string, rows: Record<string, string>[]) {
+function holdsBatchCodes(column: string, rows: CsvRow[]) {
   const values = rows
     .slice(0, sampleSize)
-    .map((row) => row[column]?.trim())
-    .filter(Boolean);
+    .map((row) => row[column]?.trim() ?? "")
+    .filter((value) => value.length > 0);
   if (values.length === 0) return false;
+
   const codes = values.filter((value) => batchCodePattern.test(value)).length;
-  return codes * 2 >= values.length;
+  return codes >= values.length * batchCodeShare;
 }
 
-function guessMapping(columns: string[], rows: Record<string, string>[]) {
+function guessMapping(columns: string[], rows: CsvRow[]) {
   const mapping: Partial<Record<Field, string>> = {};
   const used = new Set<string>();
   const take = (field: Field, column: string | undefined) => {
@@ -129,8 +134,9 @@ function guessMapping(columns: string[], rows: Record<string, string>[]) {
       columns.find((c) => !used.has(c) && rule.test(normalize(c))),
     );
   // Ads Manager exports have no code column: the ad name is what identifies each ad.
-  if (mapping.creative_key || !mapping.creative_name)
+  if (mapping.creative_key != null || mapping.creative_name == null)
     return mapping as Record<string, string>;
+
   const { creative_name: adName, ...rest } = mapping;
   return { ...rest, creative_key: adName } as Record<string, string>;
 }
@@ -230,7 +236,7 @@ export function CsvImport({
     }
     setCsv(text);
     setHeaders(columns);
-    setMapping(guessMapping(columns, parsed.data as Record<string, string>[]));
+    setMapping(guessMapping(columns, parsed.data as CsvRow[]));
   }
 
   const [loadedInitial, setLoadedInitial] = useState<File>();
