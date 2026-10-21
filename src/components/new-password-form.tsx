@@ -62,10 +62,21 @@ export function NewPasswordForm({ token }: { token: string }) {
     setPending(true);
     try {
       const result = await authClient.resetPassword({ newPassword: parsed.data, token });
-      if (result.error?.code === "INVALID_TOKEN") return setExpired(true);
-      if (result.error?.status === 429) return setFormError(tooManyAttempts);
-      if (result.error) return setFormError("Não foi possível salvar a senha agora. Tente novamente.");
-      router.replace("/login?senha=alterada");
+      if (result.error == null) {
+        router.replace("/login?senha=alterada");
+        return;
+      }
+
+      if (result.error.code === "INVALID_TOKEN") {
+        setExpired(true);
+        return;
+      }
+
+      setFormError(
+        result.error.status === 429
+          ? tooManyAttempts
+          : "Não foi possível salvar a senha agora. Tente novamente.",
+      );
     } catch {
       setFormError(connectionFailed);
     } finally {

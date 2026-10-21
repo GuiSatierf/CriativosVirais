@@ -75,9 +75,16 @@ export function PasswordResetRequest() {
         email: parsed.data,
         redirectTo: "/nova-senha",
       });
-      if (result.error?.status === 429) return setFormError(tooManyAttempts);
-      if (result.error) return setFormError("Não foi possível enviar o link agora. Tente novamente.");
-      setSentTo(parsed.data);
+      if (result.error == null) {
+        setSentTo(parsed.data);
+        return;
+      }
+
+      setFormError(
+        result.error.status === 429
+          ? tooManyAttempts
+          : "Não foi possível enviar o link agora. Tente novamente.",
+      );
     } catch {
       setFormError(connectionFailed);
     } finally {
