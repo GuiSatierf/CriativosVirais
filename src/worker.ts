@@ -5,6 +5,7 @@ import { ingestEvent } from "./jobs/ingest-event";
 import { syncMetrics } from "./jobs/sync-metrics";
 import { pool } from "./db";
 import { logError } from "./lib/log";
+import { logMissingConfiguration } from "./lib/configuration-report";
 async function main() {
   const boss = await startWorkerJobs();
   const handlers: Record<string, (data: unknown) => Promise<void>> = {
@@ -29,6 +30,7 @@ async function main() {
   console.info(
     "Worker ready: video analysis, sales ingestion and six-hour metrics sync.",
   );
+  logMissingConfiguration("worker");
   let stopping = false;
   async function stop() {
     if (stopping) return;
