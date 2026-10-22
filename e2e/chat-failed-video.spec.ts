@@ -15,11 +15,16 @@ test("a failed video analysis does not block sending messages", async ({ page })
   await page.route("**/api/uploads/complete", (route) =>
     route.fulfill({ status: 202, json: { assetId, status: "uploaded" } }),
   );
+  let status = "error";
   await page.route(`**/api/assets/${assetId}`, (route) =>
     route.fulfill({
-      json: { id: assetId, status: "error", kind: "video", error: "Não foi possível analisar o vídeo.", transcription: null },
+      json: { id: assetId, status, kind: "video", error: "Não foi possível analisar o vídeo.", transcription: null },
     }),
   );
+  await page.route(`**/api/assets/${assetId}/retry`, (route) => {
+    status = "processing";
+    return route.fulfill({ json: { queued: true } });
+  });
 
   await signUp(page);
   await page.getByRole("button", { name: "Anexar vídeo ou áudio" }).click();
@@ -31,6 +36,19 @@ test("a failed video analysis does not block sending messages", async ({ page })
   // The prompt filled in for the upload would be sent without the video.
   await expect(page.getByPlaceholder("Escreva para o Estrategista…")).toHaveValue("");
 
-  await page.getByPlaceholder("Escreva para o Estrategista…").fill("Quero te contar sobre a minha oferta.");
+  const composer = page.getByPlaceholder("Escreva para o Estrategista…");
+  await composer.fill("Quero te contar sobre a minha oferta.");
+  await expect(page.getByRole("button", { name: "Enviar mensagem" })).toBeEnabled();
+
+  // A retry puts the video back on its way: the composer waits for it again.
+  await composer.fill("");
+  await page.getByRole("button", { name: "Tentar novamente" }).click();
+  await expect(composer).toHaveValue("Analise o vídeo que enviei.");
+  await expect(page.getByRole("button", { name: "Enviar mensagem" })).toBeDisabled();
+
+  // Discarding the video leaves nothing to wait for.
+  status = "error";
+  await page.getByRole("button", { name: "Descartar" }).click();
+  await expect(page.getByRole("list", { name: "Vídeos anexados" })).toBeHidden();
   await expect(page.getByRole("button", { name: "Enviar mensagem" })).toBeEnabled();
 });
