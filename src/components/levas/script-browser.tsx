@@ -126,7 +126,7 @@ function ScriptDetail({
               />
             </span>
             <span className="text-xs text-muted-foreground">
-              Vai no campo utm_content do anúncio
+              Use como nome do anúncio e no utm_content do link
             </span>
           </div>
         </div>

@@ -19,7 +19,7 @@ import {
 } from "./schemas";
 import { analysisColumns } from "./analysis-columns";
 import { getBenchmark } from "../benchmark";
-import { generateBatch } from "../batches";
+import { startBatchGeneration } from "../batches";
 import { getBatchResults } from "../results";
 import { periodSchema } from "../connectors/types";
 import { updateContext } from "../context";
@@ -29,7 +29,6 @@ export function chatTools(
   tenantId: string,
   conversationId: string,
   writer: UIMessageStreamWriter,
-  signal?: AbortSignal,
 ) {
   return {
     updateClientContext: tool({
@@ -126,21 +125,20 @@ export function chatTools(
     }),
     generateBatch: tool({
       description:
-        "Gere e revise uma leva pronta para gravar, salve e retorne o link. Requer contexto suficiente.",
+        "Inicie a geração e a revisão de uma leva pronta para gravar. Ela roda em segundo plano e aparece no cartão da conversa quando ficar pronta. Requer contexto suficiente.",
       inputSchema: z.object({
         quantidade: z.number().int().min(1).max(12),
         instrucoes: z.string().max(6000),
       }),
       execute: async ({ quantidade, instrucoes }) => {
-        const batch = await generateBatch(
+        const generation = await startBatchGeneration(
           tenantId,
           conversationId,
           quantidade,
           instrucoes,
-          signal,
         );
-        writer.write({ type: "data-batch", data: batch });
-        return { ...batch, url: `/levas/${batch.id}` };
+        writer.write({ type: "data-generation", data: generation });
+        return { status: "queued", title: generation.title };
       },
     }),
     getBatchResults: tool({
