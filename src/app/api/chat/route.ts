@@ -6,6 +6,7 @@ import {
   stepCountIs,
   createUIMessageStream,
   createUIMessageStreamResponse,
+  toUIMessageStream,
   type UIMessage,
 } from "ai";
 import { db } from "@/db";
@@ -178,13 +179,14 @@ export function POST(request: Request) {
           return "Não foi possível concluir a resposta. Tente novamente em instantes.";
         },
         execute: async ({ writer }) => {
+          const tools = chatTools(tenantId, input.conversationId, writer);
           const result = streamText({
             model: textModel(),
             providerOptions,
             onError: onModelError,
-            system,
+            instructions: system,
             messages: modelMessages,
-            tools: chatTools(tenantId, input.conversationId, writer),
+            tools,
             stopWhen: stepCountIs(8),
             maxOutputTokens: 6000,
             abortSignal: turnSignal,
@@ -194,8 +196,7 @@ export function POST(request: Request) {
           });
           // Internal tool inputs/results and reasoning never cross the browser boundary; public cards are written separately.
           writer.merge(
-            result
-              .toUIMessageStream({ sendReasoning: false, sendSources: false })
+            toUIMessageStream({ stream: result.stream, tools, sendReasoning: false, sendSources: false })
               .pipeThrough(
                 new TransformStream({
                   transform(chunk, controller) {
