@@ -91,13 +91,19 @@ export function formatDateTime(iso: string) {
 /** Overview tile for one integration: name, status, meta and actions. */
 export function IntegrationCard({
   title,
+  tag,
   description,
+  brings,
   badge,
   meta,
   children,
 }: {
   title: string;
+  /** Next to the title: whether this source is required or optional. */
+  tag?: React.ReactNode;
   description: string;
+  /** What the source brings (and what it does not). */
+  brings?: string;
   badge?: React.ReactNode;
   meta?: React.ReactNode;
   children: React.ReactNode;
@@ -105,10 +111,14 @@ export function IntegrationCard({
   return (
     <article className="flex min-w-0 flex-col rounded-xl border bg-card p-5">
       <div className="flex min-h-6 items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          {tag}
+        </div>
         {badge}
       </div>
       <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      {brings && <p className="mt-1 text-xs text-muted-foreground">{brings}</p>}
       {meta && <p className="mt-2 text-xs text-muted-foreground">{meta}</p>}
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
         {children}
