@@ -6,6 +6,7 @@ import { syncMetrics } from "./jobs/sync-metrics";
 import { runBatchGeneration } from "./jobs/generate-batch";
 import { pool } from "./db";
 import { logError } from "./lib/log";
+import { logMissingConfiguration } from "./lib/configuration-report";
 async function main() {
   const boss = await startWorkerJobs();
   const handlers: Record<string, (data: unknown) => Promise<void>> = {
@@ -31,6 +32,7 @@ async function main() {
   console.info(
     "Worker ready: video analysis, sales ingestion and six-hour metrics sync.",
   );
+  logMissingConfiguration("worker");
   let stopping = false;
   async function stop() {
     if (stopping) return;
