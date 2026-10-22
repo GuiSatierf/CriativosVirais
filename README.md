@@ -184,7 +184,7 @@ Usa `POST https://query-api.utmify.com.br/public-api/v1/dashboards/{dashboardId}
 
 ## Deploy
 
-A imagem do `Dockerfile` executa `node server.js` (app, porta 3000, healthcheck `/api/health`) e `node dist/worker.js` (worker). Migrations e bucket são aplicados com `node dist/tools/src/db/migrate.js` e `node dist/tools/scripts/init-storage.js`. Passo a passo para Compose e Coolify, atualização de versões e verificação dos provedores: [docs/ativacao.md](docs/ativacao.md).
+A imagem do `Dockerfile` executa `node server.js` (app, porta 3000, healthcheck `/api/health`; o monitor externo consulta `/api/health/system`, que confere banco, worker e fila) e `node dist/worker.js` (worker). Migrations e bucket são aplicados com `node dist/tools/src/db/migrate.js` e `node dist/tools/scripts/init-storage.js`. Passo a passo para Compose e Coolify, atualização de versões e verificação dos provedores: [docs/ativacao.md](docs/ativacao.md).
 
 ## Limites conhecidos
 

@@ -22,7 +22,7 @@ export function POST(request: Request) {
     if (jobId === null)
       throw new HttpError(
         429,
-        "A sync was requested recently. Please wait up to five minutes before trying again.",
+        "Você pediu uma sincronização há pouco. Aguarde até 5 minutos para pedir de novo.",
       );
     return json({ queued: true }, 202);
   });
