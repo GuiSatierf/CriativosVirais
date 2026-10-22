@@ -217,10 +217,27 @@ export function Chat({
       const others = current.filter((videoId) => videoId !== id);
       return failed ? [...others, id] : others;
     });
-    if (!failed) return;
+    if (!failed) {
+      // A retry puts the video back on its way, so its prompt comes back too.
+      setInput((current) => (current.trim() ? current : videoPrompt));
+      return;
+    }
+
+    // Another video still on its way keeps the prompt filled in for it.
+    const otherVideos =
+      attached.length > 0 ||
+      processing.some(
+        (video) => video.id !== id && !failedVideos.includes(video.id),
+      );
+    if (otherVideos) return;
 
     // The prompt filled in for the upload would now be sent without its video.
     setInput((current) => (current.trim() === videoPrompt ? "" : current));
+  }
+
+  function discardVideo(id: string) {
+    setProcessing((current) => current.filter((video) => video.id !== id));
+    setFailedVideos((current) => current.filter((videoId) => videoId !== id));
   }
 
   function attachVideo(id: string, name?: string) {
@@ -404,12 +421,7 @@ export function Chat({
             <AttachmentChip
               key={video.id}
               name={video.name ?? "Vídeo"}
-              onRemove={() => {
-                setProcessing((current) =>
-                  current.filter((item) => item.id !== video.id),
-                );
-                markVideoFailed(video.id, false);
-              }}
+              onRemove={() => discardVideo(video.id)}
             >
               <UploadArea
                 kind="video"
@@ -417,6 +429,7 @@ export function Chat({
                 initialAssetId={video.id}
                 onVideoReady={(id) => attachVideo(id, video.name)}
                 onFailedChange={(failed) => markVideoFailed(video.id, failed)}
+                onDismiss={() => discardVideo(video.id)}
               />
             </AttachmentChip>
           ))}
