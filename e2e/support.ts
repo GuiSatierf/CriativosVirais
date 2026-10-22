@@ -1,10 +1,31 @@
 import { randomUUID } from "node:crypto";
 import { expect, type Page } from "@playwright/test";
+import { Pool } from "pg";
 
 const testPassword = "e2e-senha-de-teste";
 
+/**
+ * The suite shares the real sign-up limiter (3 per 10 s for one address), so every sign-up
+ * waits until the previous one has left its window instead of failing with 429.
+ */
+export async function waitForSignUpSlot() {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    await expect.poll(async () => {
+      const { rows: [limit] } = await pool.query<{ ready: boolean }>(
+        `SELECT NOT EXISTS (SELECT 1 FROM rate_limit WHERE key LIKE '%/sign-up/email%'
+         AND last_request > extract(epoch FROM clock_timestamp()) * 1000 - 11_000) AS ready`,
+      );
+      return limit.ready;
+    }, { timeout: 15_000, intervals: [1000] }).toBe(true);
+  } finally {
+    await pool.end();
+  }
+}
+
 /** Creates a fresh account (and operation) and waits for its first conversation. */
 export async function signUp(page: Page) {
+  await waitForSignUpSlot();
   await page.goto("/signup");
   await page.getByLabel("Nome").fill("Conta E2E");
   await page.getByLabel("E-mail").fill(`e2e-${randomUUID()}@exemplo.test`);
