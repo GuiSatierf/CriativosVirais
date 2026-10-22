@@ -5,14 +5,6 @@ import { signUp } from "./support";
 test("a throttled manual sync shows an error without starting the polling state", async ({ page, baseURL }) => {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    // Respect the real authentication limiter when this extends the existing signup suite.
-    await expect.poll(async () => {
-      const { rows: [limit] } = await pool.query<{ ready: boolean }>(
-        `SELECT NOT EXISTS (SELECT 1 FROM rate_limit WHERE key LIKE '%/sign-up/email%'
-         AND last_request > extract(epoch FROM clock_timestamp()) * 1000 - 11_000) AS ready`,
-      );
-      return limit.ready;
-    }, { timeout: 15_000, intervals: [1000] }).toBe(true);
     await signUp(page);
     const session = await (await page.request.get("/api/auth/get-session")).json();
     // A credential-free fixture prevents the worker from calling the real provider.
