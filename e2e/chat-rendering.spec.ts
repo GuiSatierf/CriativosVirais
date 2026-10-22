@@ -66,14 +66,6 @@ test("typing skips the message list and streamed replies still update", async ({
       : `Question ${index}` }],
   }));
   try {
-    // The suite shares the real signup limiter; wait for its previous slot.
-    await expect.poll(async () => {
-      const { rows: [limit] } = await pool.query<{ ready: boolean }>(
-        `SELECT NOT EXISTS (SELECT 1 FROM rate_limit WHERE key LIKE '%/sign-up/email%'
-         AND last_request > extract(epoch FROM clock_timestamp()) * 1000 - 11_000) AS ready`,
-      );
-      return limit.ready;
-    }, { timeout: 15_000, intervals: [1000] }).toBe(true);
     await signUp(page);
     const conversationId = page.url().split("/").at(-1)!;
     const session = await (await page.request.get("/api/auth/get-session")).json();
