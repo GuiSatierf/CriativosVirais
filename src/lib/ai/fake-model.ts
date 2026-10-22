@@ -110,7 +110,7 @@ function replyAfterTool(message: PromptMessage) {
   if (result.toolName === "generateBatch")
     return failed
       ? `${label} Não consegui gerar a leva. Confira a sua oferta e peça de novo.`
-      : `${label} Sua leva está pronta. Abra o cartão para revisar e exportar.`;
+      : `${label} Comecei a gerar a leva. Ela aparece no cartão acima quando ficar pronta.`;
   if (result.toolName === "updateClientContext")
     return failed
       ? `${label} Não consegui salvar a sua oferta. Tente de novo.`
