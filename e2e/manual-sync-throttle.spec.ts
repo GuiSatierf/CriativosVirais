@@ -5,14 +5,6 @@ import { signUp } from "./support";
 test("a throttled manual sync shows an error without starting the polling state", async ({ page, baseURL }) => {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    // Respect the real authentication limiter when this extends the existing signup suite.
-    await expect.poll(async () => {
-      const { rows: [limit] } = await pool.query<{ ready: boolean }>(
-        `SELECT NOT EXISTS (SELECT 1 FROM rate_limit WHERE key LIKE '%/sign-up/email%'
-         AND last_request > extract(epoch FROM clock_timestamp()) * 1000 - 11_000) AS ready`,
-      );
-      return limit.ready;
-    }, { timeout: 15_000, intervals: [1000] }).toBe(true);
     await signUp(page);
     const session = await (await page.request.get("/api/auth/get-session")).json();
     // A credential-free fixture prevents the worker from calling the real provider.
@@ -54,9 +46,9 @@ test("a throttled manual sync shows an error without starting the polling state"
     const blocked = await responsePromise;
     expect(blocked.status()).toBe(429);
     expect(await blocked.json()).toEqual({
-      error: "A sync was requested recently. Please wait up to five minutes before trying again.",
+      error: "Você pediu uma sincronização há pouco. Aguarde até 5 minutos para pedir de novo.",
     });
-    await expect(page.getByText("A sync was requested recently. Please wait up to five minutes before trying again.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Você pediu uma sincronização há pouco. Aguarde até 5 minutos para pedir de novo.", { exact: true })).toBeVisible();
     await expect(sync).toBeEnabled();
     await expect(page.getByRole("button", { name: "Sincronizando…" })).toHaveCount(0);
     await expect(page.getByText("Sincronização iniciada.", { exact: true })).toHaveCount(0);
