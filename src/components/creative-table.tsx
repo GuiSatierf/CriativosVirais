@@ -51,6 +51,31 @@ const noVideo = { label: "Sem vídeo", dot: "bg-muted-foreground/40" };
 
 type ImportPeriod = { from: string; to: string };
 
+/** How many best sellers get the "1º em vendas" badge. */
+const rankedSellers = 3;
+
+/** Rank (1 to 3) of the creatives with the most approved sales among the listed rows. */
+function topSellerRanks(rows: CreativeRow[]) {
+  const totals = new Map<string, bigint>();
+  for (const row of rows) {
+    if (row.approved_sales == null) continue;
+    const current = totals.get(row.creative_key) ?? 0n;
+    totals.set(row.creative_key, current + BigInt(row.approved_sales));
+  }
+
+  const ranked = [...totals]
+    .filter(([, sales]) => sales > 0n)
+    .sort(([, a], [, b]) => Number(b - a))
+    .slice(0, rankedSellers);
+  return new Map(ranked.map(([key], index) => [key, index + 1]));
+}
+
+function SalesRank({ rank }: { rank: number | undefined }) {
+  if (rank == null) return null;
+
+  return <Badge>{rank}º em vendas</Badge>;
+}
+
 function VideoStatus({ status }: { status: string | null }) {
   const config = (status && videoStatuses[status]) || noVideo;
   return (
@@ -199,6 +224,10 @@ export function CreativeTable({
     </div>
   );
 
+  const salesRank = topSellerRanks(
+    (data?.rows ?? []).filter((row) => showHidden || !row.hidden),
+  );
+
   const columns: DataColumn<CreativeRow>[] = [
     {
       id: "creative_key",
@@ -209,6 +238,7 @@ export function CreativeTable({
           <div className="flex max-w-64 min-w-40 flex-col gap-1">
             <span className="flex items-center gap-1.5">
               <KeyChip>{row.creative_key}</KeyChip>
+              <SalesRank rank={salesRank.get(row.creative_key)} />
               {row.hidden && <Badge variant="outline">Oculto</Badge>}
             </span>
             {row.name && (
@@ -382,8 +412,9 @@ export function CreativeTable({
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 flex-col gap-1">
-                      <span className="flex items-center gap-1.5">
+                      <span className="flex flex-wrap items-center gap-1.5">
                         <KeyChip>{row.creative_key}</KeyChip>
+                        <SalesRank rank={salesRank.get(row.creative_key)} />
                         {row.hidden && <Badge variant="outline">Oculto</Badge>}
                       </span>
                       {row.name && (
