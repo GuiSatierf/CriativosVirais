@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { waitForSignUpSlot } from "./support";
 
 // playwright.config.ts points the app's email outbox here, so no message is really sent.
 const outbox = "test-results/outbox";
@@ -27,6 +28,7 @@ async function signIn(page: Page, email: string, password: string) {
 
 test("a forgotten password is replaced through the emailed link, once", async ({ page, browser }) => {
   const email = `e2e-${randomUUID()}@exemplo.test`;
+  await waitForSignUpSlot();
   await page.goto("/signup");
   await page.getByLabel("Nome").fill("Conta E2E");
   await page.getByLabel("E-mail").fill(email);
