@@ -159,7 +159,7 @@ export function BatchResults({
         <EmptyState
           icon={FileSpreadsheet}
           title="Ainda sem resultados nesta leva"
-          description="Use o código de cada roteiro no campo utm_content do anúncio e importe a planilha do mesmo período."
+          description="Use o código de cada roteiro como nome do anúncio e no utm_content do link. Depois importe a planilha do mesmo período."
           action={
             <Link className={buttonVariants()} href="/integracoes">
               <FileUp aria-hidden />
