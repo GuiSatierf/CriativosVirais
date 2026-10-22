@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, gt } from "drizzle-orm";
 import { db } from "@/db";
 import { batchGenerations } from "@/db/schema";
 import { generateBatch } from "@/lib/batches";
+import { generationTimeoutMs, latestGenerationStart } from "@/lib/batch-generation-status";
 import { DomainError } from "@/lib/errors";
 import { logError } from "@/lib/log";
 import { tenantWhere } from "@/lib/tenant-scope";
@@ -10,9 +11,6 @@ import { tenantWhere } from "@/lib/tenant-scope";
 export const generationJobSchema = z
   .object({ tenantId: z.uuid(), generationId: z.uuid() })
   .strict();
-
-// Generation and quality review together stay well under the queue's one-hour expiry.
-const generationTimeoutMs = 30 * 60_000;
 
 function updateGeneration(
   tenantId: string,
@@ -31,7 +29,8 @@ function updateGeneration(
  */
 export async function runBatchGeneration(data: unknown) {
   const { tenantId, generationId } = generationJobSchema.parse(data);
-  // The tenant check and the queued→running claim happen in one statement.
+  // The tenant check and the queued→running claim happen in one statement. A generation that
+  // waited too long is not started: the chat card would give up on it before it could finish.
   const [generation] = await db
     .update(batchGenerations)
     .set({ status: "running" })
@@ -41,10 +40,24 @@ export async function runBatchGeneration(data: unknown) {
         tenantId,
         eq(batchGenerations.id, generationId),
         eq(batchGenerations.status, "queued"),
+        gt(batchGenerations.createdAt, latestGenerationStart()),
       ),
     )
     .returning();
-  if (!generation) return;
+  if (!generation) {
+    await db
+      .update(batchGenerations)
+      .set({ status: "failed" })
+      .where(
+        tenantWhere(
+          batchGenerations,
+          tenantId,
+          eq(batchGenerations.id, generationId),
+          eq(batchGenerations.status, "queued"),
+        ),
+      );
+    return;
+  }
   try {
     const batch = await generateBatch(
       tenantId,

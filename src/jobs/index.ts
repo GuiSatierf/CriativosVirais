@@ -1,4 +1,4 @@
-import { PgBoss, type QueueOptions } from "pg-boss";
+import { PgBoss, type QueueOptions, type WorkOptions } from "pg-boss";
 import { pool } from "@/db";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "@/db/schema";
@@ -16,6 +16,15 @@ export const queueOptions: QueueOptions = {
 const perQueue: Partial<Record<(typeof queues)[number], QueueOptions>> = {
   "generate-batch": { retryLimit: 0, expireInSeconds: 3600 },
 };
+// A batch generation can hold its slot for up to 30 minutes; one at a time would make every
+// other tenant's batch wait behind it.
+const perQueueWork: Partial<Record<(typeof queues)[number], WorkOptions>> = {
+  "generate-batch": { localConcurrency: 4 },
+};
+/** Options for boss.work: one job per fetch, with more parallel slots for long queues. */
+export function workOptions(name: string): WorkOptions {
+  return { batchSize: 1, ...perQueueWork[name as (typeof queues)[number]] };
+}
 function createBoss(sendOnly: boolean) {
   const boss = new PgBoss({
     connectionString: dbEnv().DATABASE_URL,

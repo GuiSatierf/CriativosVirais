@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { startWorkerJobs } from "./jobs";
+import { startWorkerJobs, workOptions } from "./jobs";
 import { analyzeVideo } from "./jobs/analyze-video";
 import { ingestEvent } from "./jobs/ingest-event";
 import { syncMetrics } from "./jobs/sync-metrics";
@@ -19,7 +19,7 @@ async function main() {
       ),
   };
   for (const [name, handler] of Object.entries(handlers))
-    await boss.work(name, { batchSize: 1 }, async ([job]) => {
+    await boss.work(name, workOptions(name), async ([job]) => {
       try {
         await handler(job.data);
       } catch (error) {
