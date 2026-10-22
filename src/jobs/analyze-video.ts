@@ -215,7 +215,7 @@ export async function analyzeVideo(data: unknown) {
     for (let offset = 0; offset < files.length; offset += 8) {
       const chunk = files.slice(offset, offset + 8);
       const content: (
-        { type: "text"; text: string } | { type: "image"; image: Uint8Array }
+        { type: "text"; text: string } | { type: "file"; data: Uint8Array; mediaType: "image/jpeg" }
       )[] = [
         {
           type: "text",
@@ -225,7 +225,7 @@ export async function analyzeVideo(data: unknown) {
       for (let i = 0; i < chunk.length; i++) {
         content.push(
           { type: "text", text: `Timestamp ${(offset + i) * interval}s` },
-          { type: "image", image: await readFile(join(dir, chunk[i])) },
+          { type: "file", data: await readFile(join(dir, chunk[i])), mediaType: "image/jpeg" },
         );
       }
       const { output: object } = await generateText({
