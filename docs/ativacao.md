@@ -74,6 +74,18 @@ Use `.env.production.example` como referência dos campos de runtime; ele não c
 5. Execute `node dist/tools/scripts/doctor.js --production --connections --strict-providers` dentro do worker. Corrija os FAILs antes de ativar todos os fluxos. Se quiser usar somente CSV/webhook inicialmente, omita `--strict-providers`.
 6. Faça os testes da tabela acima. No navegador, confirme que o endpoint público S3 permite PUT a partir do domínio final. Confira os logs do worker e acompanhe um asset até `done`; o diagnóstico não verifica heartbeat do worker nem a rede do navegador.
 7. Reinicie os serviços e confirme persistência, login e um resultado já salvo. Faça backup de Postgres, objetos RustFS e ENCRYPTION_KEY antes de atualizar.
+8. Configure um monitor externo de disponibilidade (UptimeRobot, Better Stack, Uptime Kuma ou similar) para consultar `https://<domínio>/api/health/system` a cada 5 minutos e avisar por e-mail ou mensagem quando a resposta não for 200. Ela responde 503 com `problems` indicando o que falhou: `database` (Postgres não responde), `worker` (worker sem sinal há mais de 3 minutos) ou `queue` (job pronto esperando há mais de 10 minutos). Não use esse endereço como healthcheck do container: o app continua de pé quando o worker cai, e reiniciá-lo não resolve.
+
+### Pelo Compose pronto para o Coolify
+
+`docker-compose.coolify.yml` monta os passos 1 a 4 num recurso só: Postgres, RustFS, um serviço `migrate` que aplica as migrations e prepara o bucket antes de app e worker subirem, o app e o worker. O Coolify gera as senhas do banco e do RustFS, `BETTER_AUTH_SECRET` e `ENCRYPTION_KEY` no primeiro deploy (variáveis `SERVICE_*`) e as mantém nos seguintes.
+
+1. Crie um recurso **Public Git Repository** com este repositório, **Build Pack** *Docker Compose* e **Docker Compose Location** `/docker-compose.coolify.yml`.
+2. Em **Domains**, informe o domínio do serviço `app` com a porta interna (`https://app.exemplo.com.br:3000`) e o do serviço `rustfs` (`https://arquivos.exemplo.com.br:9000`). Os outros serviços ficam sem domínio. Atrás da Cloudflare, o domínio do RustFS fica em "DNS only": o proxy do plano gratuito recusa envios acima de 100 MB.
+3. Em **Environment Variables**, preencha só as chaves e modelos da DeepSeek e da Groq quando forem usados, e `RESEND_API_KEY` com `EMAIL_FROM` para a recuperação de senha por e-mail. Não altere as `SERVICE_*`: trocar `SERVICE_REALBASE64_ENCRYPTION` torna as credenciais salvas ilegíveis.
+4. Faça o deploy e siga a partir do passo 5 acima.
+
+A cada deploy o `migrate` roda de novo antes de app e worker. Para migrations que pedem os processos parados (veja abaixo), pare o recurso antes do deploy.
 
 ## Atualizar uma instalação existente
 

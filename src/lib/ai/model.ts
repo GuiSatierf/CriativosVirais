@@ -2,15 +2,16 @@ import { createDeepSeek } from "@ai-sdk/deepseek";
 import { DomainError } from "../errors";
 import { aiEnv, aiProviderEnv } from "../env";
 import { fakeLanguageModel } from "./fake-model";
-const unavailable =
-  "O assistente está indisponível no momento. Tente novamente mais tarde.";
+// Missing keys are a setup problem, not an outage: waiting does not fix it. Provider failures
+// keep the "indisponível" message from the chat route.
+const notConfigured = "O Estrategista ainda não foi configurado nesta instalação.";
 function usesFakeModel() {
   return aiProviderEnv().AI_PROVIDER === "fake";
 }
 function deepSeekConfig(vision: boolean) {
   const env = aiEnv();
   const model = vision ? env?.DEEPSEEK_MODEL_VISION : env?.DEEPSEEK_MODEL_TEXT;
-  if (!env || !model) throw new DomainError("unavailable", unavailable);
+  if (!env || !model) throw new DomainError("unavailable", notConfigured);
   return { apiKey: env.DEEPSEEK_API_KEY, model };
 }
 /** Whether the chat can answer; used by pages to show the assistant as available. */

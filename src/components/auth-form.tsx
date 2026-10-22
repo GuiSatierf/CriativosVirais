@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { LoaderCircle, LogIn, UserPlus } from "@/components/icons";
 import { authClient } from "@/lib/auth-client";
+import { newPasswordSchema } from "@/lib/password-rules";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -26,10 +27,7 @@ const signupSchema = z.object({
     .min(2, { error: "Informe seu nome." })
     .max(100, { error: "Use no máximo 100 caracteres." }),
   email: loginSchema.shape.email,
-  password: z
-    .string()
-    .min(12, { error: "A senha precisa ter pelo menos 12 caracteres." })
-    .max(128, { error: "Use no máximo 128 caracteres." }),
+  password: newPasswordSchema,
 });
 
 type Field = "name" | "email" | "password";

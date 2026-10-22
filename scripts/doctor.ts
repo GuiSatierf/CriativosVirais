@@ -63,6 +63,8 @@ async function main() {
     ["DEEPSEEK_MODEL_VISION", "análise visual"],
     ["GROQ_API_KEY", "transcrição"],
     ["GROQ_WHISPER_MODEL", "transcrição"],
+    ["RESEND_API_KEY", "recuperação de senha por e-mail"],
+    ["EMAIL_FROM", "recuperação de senha por e-mail"],
   ]) {
     const ok = present.safeParse(process.env[name]).success;
     report(name, ok, ok ? "configurado; chamada real não executada" : `pendente para ${required}`,

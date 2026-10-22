@@ -9,6 +9,8 @@ import { user, session, account, verification, rateLimit, twoFactor } from "@/db
 import { authEnv } from "./env";
 import { provisionTenant } from "./provision-tenant";
 import { deleteAccountData } from "./account-deletion";
+import { sendPasswordResetEmail } from "./password-reset-email";
+import { maxPasswordLength, minPasswordLength, resetLinkLifetimeSeconds } from "./password-rules";
 import { hasAccessGrant, removeAccessGrant } from "./access";
 import { enrollmentHeader, isValidEnrollmentCode } from "./admin-enrollment";
 
@@ -26,7 +28,15 @@ const accessRules = createAuthMiddleware(async (ctx) => {
   if (ctx.path.startsWith("/admin/") && ctx.request)
     throw new APIError("NOT_FOUND", { message: "Não encontrado." });
   if (twoFactorEnrollment.has(ctx.path)) await requireEnrollmentCode(ctx);
+  if (ctx.path === "/delete-user") requireDeletionPassword(ctx.body?.password);
 });
+
+// Better Auth deletes a fresh session's account without a password; this app always
+// demands it, so a session left open on another device cannot erase the account.
+function requireDeletionPassword(password: unknown) {
+  if (typeof password === "string" && password.length > 0) return;
+  throw new APIError("BAD_REQUEST", { message: "Digite sua senha para excluir a conta." });
+}
 
 // An admin without two-factor enrolls (or resumes enrolling) only with the operator's one-time code.
 const twoFactorEnrollment = new Set(["/two-factor/enable", "/two-factor/get-totp-uri"]);
@@ -54,8 +64,16 @@ function createAuth() {
     }),
     emailAndPassword: {
       enabled: true,
-      minPasswordLength: 12,
-      maxPasswordLength: 128,
+      minPasswordLength,
+      maxPasswordLength,
+      resetPasswordTokenExpiresIn: resetLinkLifetimeSeconds,
+      // Whoever had the old password loses every open session once it changes.
+      revokeSessionsOnPasswordReset: true,
+      // Not awaited: waiting for Resend would make real accounts answer slower than unknown
+      // emails and reveal which ones exist. The sender logs its own failures.
+      sendResetPassword: async ({ user, url }) => {
+        void sendPasswordResetEmail(user, url);
+      },
     },
     user: {
       deleteUser: {

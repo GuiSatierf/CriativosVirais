@@ -23,6 +23,7 @@ async function main() {
   const migrationDir = await mkdtemp(join(tmpdir(), "creatives-migrations-"));
   let tenantId: string | undefined;
   let otherTenantId: string | undefined;
+  let rankingTenantId: string | undefined;
   try {
     const empty = await pool.query("select count(*)::int n from pg_tables where schemaname='public'");
     assert.equal(empty.rows[0].n, 0, "Use an empty dedicated test database.");
@@ -50,7 +51,12 @@ async function main() {
     const revenue = async (campaignKey?: string) => (await getBenchmark(tenantId!, { ...period, ...(campaignKey ? { campaignKey } : {}) })).top.revenue_cents?.[0]?.value;
     assert.equal(await revenue("A"), "100");
     assert.equal(await revenue("B"), "700");
-    assert.equal(await revenue(), undefined); // Pending unknown money remains NULL in totals.
+    // A day or campaign with only pending events is not observed: it is left out of the totals
+    // instead of turning them NULL (one pending Pix used to hide a whole month of sales).
+    assert.equal(await revenue(), "800");
+    const twoDays = await getBenchmark(tenantId!, { from: "2026-10-01", to: "2026-10-02", source: "webhook", campaignKey: "A" });
+    assert.equal(twoDays.top.revenue_cents?.[0]?.value, "100");
+    assert.equal(twoDays.top.approved_sales?.[0]?.value, "1");
     const legacyCsv = await db.select().from(creativeMetrics).where(eq(creativeMetrics.source, "csv"));
     assert.equal(legacyCsv[0].campaignKey, "");
     assert.equal(legacyCsv[0].revenueCents, 77n);
@@ -93,10 +99,40 @@ async function main() {
     assert.ok((await getBenchmark(tenantId!, { ...csvPeriod, campaignKey: "A" })).top.approved_sales.some((row) => row.creative_key === "SINGLE"));
     await assert.rejects(() => saveMetrics(tenantId!, [{ ...single[0], period_to: "2026-10-02" }]), /sobreposto/);
     await saveMetrics(tenantId!, [{ ...single[0], campaign_key: "B", period_to: "2026-10-02" }]); // Different campaigns can overlap.
-    console.log("Campaign migration, replay, NULL/exact-money, CSV metadata and tenant/batch isolation checks passed.");
+
+    // Ranking sample rules: a tiny spend or audience cannot top ROAS or CTR, refunds compare as a
+    // rate among creatives that sold, and ties go to the larger sample instead of the key's order.
+    const [ranking] = await db.insert(tenants).values({ nome: "Ranking sample fixture" }).returning();
+    rankingTenantId = ranking.id;
+    const rankingCsv = parseCsv({
+      from: "2026-09-01", to: "2026-09-30", decimal: "dot", moneyUnit: "cents",
+      csv: [
+        "key,campaign,spend,impressions,clicks,sales,revenue,refunds",
+        "BIG,A,500000,100000,2000,200,2000000,6",
+        "MID,A,100000,50000,500,10,300000,0",
+        "TINY,A,100,3,1,1,99700,0",
+        "HIGHREF,A,80000,40000,400,2,160000,1",
+        "NOSALES,A,60000,30000,300,0,0,0",
+        "A_SMALL,A,20000,20000,200,4,40000,0",
+        "Z_BIG,A,90000,45000,450,9,180000,0",
+      ].join("\n"),
+      mapping: { creative_key: "key", campaign_key: "campaign", spend_cents: "spend", impressions: "impressions", clicks: "clicks", approved_sales: "sales", revenue_cents: "revenue", refunds: "refunds" },
+    });
+    await saveMetrics(ranking.id, rankingCsv);
+    const ranked = (await getBenchmark(ranking.id, { from: "2026-09-01", to: "2026-09-30", source: "csv" })).top;
+    const keysOf = (metric: string) => (ranked[metric] ?? []).map((row) => row.creative_key);
+    assert.equal(keysOf("roas")[0], "BIG"); // R$1 of spend and one sale (ROAS 997) no longer wins.
+    assert.ok(!keysOf("roas").includes("TINY"));
+    assert.ok(!keysOf("ctr").includes("TINY")); // 3 impressions.
+    assert.ok(keysOf("refund_rate").includes("BIG")); // 6 refunds in 200 sales (3%).
+    assert.ok(!keysOf("refund_rate").includes("NOSALES")); // No sale, no refund rate.
+    assert.ok(!keysOf("refund_rate").includes("HIGHREF")); // 1 refund in 2 sales (50%).
+    assert.ok(keysOf("roas").indexOf("Z_BIG") < keysOf("roas").indexOf("A_SMALL")); // Same ROAS, more spend first.
+    console.log("Campaign migration, replay, NULL/exact-money, CSV metadata, ranking sample and tenant/batch isolation checks passed.");
   } finally {
     if (tenantId) await db.delete(tenants).where(eq(tenants.id, tenantId));
     if (otherTenantId) await db.delete(tenants).where(eq(tenants.id, otherTenantId));
+    if (rankingTenantId) await db.delete(tenants).where(eq(tenants.id, rankingTenantId));
     await pool.end();
     await rm(migrationDir, { recursive: true, force: true });
   }
