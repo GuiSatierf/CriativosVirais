@@ -55,6 +55,9 @@ test("a Hotmart purchase frees the email to sign up and a refund blocks the acco
   const [stillBlocked] = await testDatabase<{ banned: boolean }>(`select banned from "user" where email = $1`, [email]);
   expect(stillBlocked.banned).toBe(true);
   expect((await (await send({ event: "SUBSCRIPTION_CANCELLATION", data: {} })).json()).result).toBe("ignored");
+  // Without the transaction a refund could not be matched to its approval, so nothing changes.
+  const anonymous = purchase("PURCHASE_APPROVED", email);
+  expect((await (await send({ ...anonymous, data: { ...anonymous.data, purchase: { status: "APPROVED" } } })).json()).result).toBe("ignored");
 
   // 5. A new purchase lifts the block the refund put on the account.
   await send(purchase("PURCHASE_APPROVED", email));

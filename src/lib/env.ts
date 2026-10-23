@@ -49,7 +49,10 @@ const schemas = {
     // The Hotmart account's hottok, sent in X-HOTMART-HOTTOK on every webhook call.
     HOTMART_HOTTOK: filled,
     // Comma-separated Hotmart product ids that grant access; other products on the account are ignored.
-    HOTMART_PRODUCT_IDS: filled.transform((v) => v.split(",").map((id) => id.trim()).filter((id) => id.length > 0)),
+    HOTMART_PRODUCT_IDS: filled
+      .transform((v) => v.split(",").map((id) => id.trim()).filter((id) => id.length > 0))
+      // "," alone would turn every purchase into "ignored" without any warning.
+      .refine((ids) => ids.length > 0),
   }),
   crypto: z.object({
     ENCRYPTION_KEY: z

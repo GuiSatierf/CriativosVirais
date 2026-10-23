@@ -22,7 +22,8 @@ const purchaseEventSchema = z.object({
   data: z.object({
     product: z.object({ id: z.union([z.number().int(), z.string()]) }),
     buyer: z.object({ email: z.email().max(254) }),
-    purchase: z.object({ transaction: z.string().max(100).optional() }),
+    // The transaction links a refund to its approval; an event without it cannot be trusted.
+    purchase: z.object({ transaction: z.string().trim().min(1).max(100) }),
   }),
 });
 export type HotmartPurchaseEvent = z.infer<typeof purchaseEventSchema>;
@@ -106,7 +107,7 @@ export async function applyPurchaseEvent(event: HotmartPurchaseEvent | null, pro
   if (event == null) return "ignored";
   if (!productIds.includes(String(event.data.product.id))) return "ignored";
   const email = normalizeEmail(event.data.buyer.email);
-  const transaction = event.data.purchase.transaction ?? event.id;
+  const transaction = event.data.purchase.transaction;
   if (grantingEvents.has(event.event)) {
     await grant(email, transaction);
     return "granted";
