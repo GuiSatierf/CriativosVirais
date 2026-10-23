@@ -1,5 +1,5 @@
 import { z } from "zod";
-const cents = z.number().int().safe().nonnegative().nullable();
+const cents = z.number().int().nonnegative().nullable();
 export const eventSchema = z
   .object({
     event_id: z.string().trim().min(1).max(200),
@@ -14,7 +14,7 @@ export const eventSchema = z
     ]),
     currency: z.literal("BRL"),
     revenue: cents.default(null),
-    profit: z.number().int().safe().nullable().default(null),
+    profit: z.number().int().nullable().default(null),
     creative_key: z.string().trim().min(1).max(200).optional(),
     utm_source: z.string().max(200).optional(),
     utm_campaign: z.string().trim().max(200).optional(),

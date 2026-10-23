@@ -59,7 +59,7 @@ export function PasswordResetRequest() {
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const input = event.currentTarget.elements.namedItem("email");
     const parsed = emailSchema.safeParse(new FormData(event.currentTarget).get("email"));

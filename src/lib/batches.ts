@@ -1,5 +1,5 @@
 import { eq, sql } from "drizzle-orm";
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 import { db } from "@/db";
 import { batches, batchGenerations, batchItems, clientContexts, creatives } from "@/db/schema";
@@ -56,12 +56,12 @@ async function quality(
   system: string,
   signal?: AbortSignal,
 ) {
-  const { object } = await generateObject({
+  const { output: object } = await generateText({
     model: textModel(),
     providerOptions,
-    schema: qualitySchema,
+    output: Output.object({ schema: qualitySchema }),
     maxOutputTokens: 4000,
-    system,
+    instructions: system,
     prompt: `Verifique CADA item pelos 15 critérios da seção 26. Falta de prova não autoriza inventar; prova ausente deve estar declarada. Retorne index (base zero), passed e issues para TODOS os itens.\n${untrusted("items", items)}`,
     maxRetries: 1,
     abortSignal: deadline(90_000, signal),
@@ -84,12 +84,12 @@ export async function generateBatch(
   const context = await loadContext(tenantId);
   if (!contextReady(context)) throw new DomainError("invalid_input", missingContext);
   const system = await buildSystemPrompt(tenantId, conversationId);
-  const { object } = await generateObject({
+  const { output: object } = await generateText({
     model: textModel(),
     providerOptions,
-    schema: batchSchema,
+    output: Output.object({ schema: batchSchema }),
     maxOutputTokens: 24000,
-    system,
+    instructions: system,
     prompt: `Crie exatamente ${quantity} criativos no template. instrucoes_gravacao e instrucoes_edicao devem ser vazias salvo necessidade real. 3 hooks compatíveis com o mesmo corpo completo falado com CTA. Use somente provas autorizadas. Cada item é uma hipótese explícita.\n${untrusted("generation_request", instructions)}`,
     maxRetries: 1,
     abortSignal: deadline(180_000, signal),
@@ -98,18 +98,18 @@ export async function generateBatch(
     throw new Error("Unexpected batch size");
   const checks = await quality(object.items, system, signal);
   for (const check of checks.filter((c) => !c.passed)) {
-    const regenerated = await generateObject({
+    const regenerated = await generateText({
       model: textModel(),
       providerOptions,
-      schema: batchItemSchema,
+      output: Output.object({ schema: batchItemSchema }),
       maxOutputTokens: 5000,
-      system,
+      instructions: system,
       prompt: `Corrija somente este item pelos critérios de qualidade.\n${untrusted("failed_item", { item: object.items[check.index], issues: check.issues })}`,
       maxRetries: 1,
       abortSignal: deadline(90_000, signal),
     });
-    object.items[check.index] = regenerated.object;
-    const [verified] = await quality([regenerated.object], system, signal);
+    object.items[check.index] = regenerated.output;
+    const [verified] = await quality([regenerated.output], system, signal);
     if (!verified.passed)
       throw new Error(
         "A copy não passou na revisão de qualidade. Ajuste o contexto e tente novamente.",

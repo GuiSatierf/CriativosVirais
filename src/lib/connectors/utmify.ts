@@ -4,7 +4,7 @@ export const utmifyCredentials = z.object({
   apiKey: z.string().trim().min(10).max(500),
   dashboardId: z.string().trim().regex(/^[a-fA-F0-9]{24}$/),
 });
-const n = z.number().int().safe().nullable().optional();
+const n = z.number().int().nullable().optional();
 const summarySchema = z.object({
   currency: z.literal("BRL"),
   viewType: z.enum(["Total", "Normal"]),
@@ -13,7 +13,7 @@ const summarySchema = z.object({
   ads: z.object({ spend: n, clicks: n, leads: n, initiateCheckouts: n }),
   result: z.object({
     profit: n,
-    roas: z.number().finite().nullable().optional(),
+    roas: z.number().nullable().optional(),
   }),
 });
 // Official read API provides consolidated dashboards, not a documented utm_content breakdown.
