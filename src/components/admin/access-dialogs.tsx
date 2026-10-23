@@ -52,7 +52,7 @@ function Spinner({ pending }: { pending: boolean }) {
 
 export function GrantDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { pending, error, setError, run } = useAction(() => onOpenChange(false));
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email") ?? "").trim();
@@ -89,7 +89,7 @@ export function GrantDialog({ open, onOpenChange }: { open: boolean; onOpenChang
 
 export function BlockDialog({ row, onClose }: { row: AccessRow | null; onClose: () => void }) {
   const { pending, error, setError, run } = useAction(onClose);
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (row?.userId == null) return;
     const userId = row.userId;
