@@ -11,7 +11,7 @@ function purchase(event: string, email: string, productId = 1234567) {
     data: {
       product: { id: productId, ucode: "abc", name: "Criativos Virais" },
       buyer: { email, name: "Compradora Teste" },
-      purchase: { transaction: `HP${Date.now()}`, status: "APPROVED", origin: { sck: "L01-C02" } },
+      purchase: { transaction: `HP${randomUUID()}`, status: "APPROVED", origin: { sck: "L01-C02" } },
     },
   };
 }
@@ -63,4 +63,11 @@ test("a Hotmart purchase frees the email to sign up and a refund blocks the acco
   await send(purchase("PURCHASE_APPROVED", email));
   const [account] = await testDatabase<{ banned: boolean }>(`select banned from "user" where email = $1`, [email]);
   expect(account.banned).toBe(false);
+
+  // 6. A block the team put on the account outlives a refund and a later purchase.
+  await testDatabase(`update "user" set banned = true, ban_reason = 'bloqueio da equipe' where email = $1`, [email]);
+  await send(purchase("PURCHASE_REFUNDED", email));
+  await send(purchase("PURCHASE_APPROVED", email));
+  const [teamBlocked] = await testDatabase<{ banned: boolean; ban_reason: string }>(`select banned, ban_reason from "user" where email = $1`, [email]);
+  expect(teamBlocked).toEqual({ banned: true, ban_reason: "bloqueio da equipe" });
 });
