@@ -46,8 +46,8 @@ function ProductPreview() {
         </div>
       </div>
       <div className="relative mt-4 grid grid-cols-2 gap-3">
-        <StatCard label="Retorno" value="3,8x" hint="Melhor criativo" />
-        <StatCard label="Custo por venda" value="R$ 42" hint="Últimos 7 dias" />
+        <StatCard label="Retorno" value="3,8x" hint="Exemplo: melhor criativo" />
+        <StatCard label="Custo por venda" value="R$ 42" hint="Exemplo: últimos 7 dias" />
       </div>
     </div>
   );
