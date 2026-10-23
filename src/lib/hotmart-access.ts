@@ -43,12 +43,14 @@ export function parsePurchaseEvent(body: unknown) {
   return purchaseEventSchema.safeParse(body).data ?? null;
 }
 
-async function audit(action: string, email: string, details: Record<string, string>) {
-  await db.insert(adminAuditLog).values({ actorEmail: actor, action, targetEmail: email, details });
+type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function audit(tx: Transaction, action: string, email: string, details: Record<string, string>) {
+  await tx.insert(adminAuditLog).values({ actorEmail: actor, action, targetEmail: email, details });
 }
 
-async function findAccount(email: string) {
-  const [account] = await db
+async function findAccount(tx: Transaction, email: string) {
+  const [account] = await tx
     .select({ id: user.id, role: user.role, banned: user.banned, banReason: user.banReason })
     .from(user)
     .where(sql`lower(${user.email}) = ${email}`);
@@ -58,8 +60,8 @@ async function findAccount(email: string) {
 const hotmartBlocks: readonly string[] = Object.values(blockReasons);
 
 /** Hotmart may deliver an old approval after the refund of the same purchase; it must not undo it. */
-async function wasReversed(email: string, transaction: string) {
-  const [reversal] = await db
+async function wasReversed(tx: Transaction, email: string, transaction: string) {
+  const [reversal] = await tx
     .select({ id: adminAuditLog.id })
     .from(adminAuditLog)
     .where(
@@ -75,31 +77,31 @@ async function wasReversed(email: string, transaction: string) {
 }
 
 /** A purchase frees the email to sign up and lifts a block that a past refund put on it. */
-async function grant(email: string, transaction: string) {
-  if (await wasReversed(email, transaction)) return audit("access.grant_skipped", email, { transaction });
-  await db
+async function grant(tx: Transaction, email: string, transaction: string) {
+  if (await wasReversed(tx, email, transaction)) return audit(tx, "access.grant_skipped", email, { transaction });
+  await tx
     .insert(accessGrants)
     .values({ email, source: "hotmart", note: `Hotmart ${transaction}` })
     .onConflictDoNothing({ target: accessGrants.email });
-  const account = await findAccount(email);
+  const account = await findAccount(tx, email);
   if (account?.banned === true && account.banReason != null && hotmartBlocks.includes(account.banReason))
-    await db.update(user).set({ banned: false, banReason: null, banExpires: null }).where(eq(user.id, account.id));
-  await audit("access.granted", email, { transaction });
+    await tx.update(user).set({ banned: false, banReason: null, banExpires: null }).where(eq(user.id, account.id));
+  await audit(tx, "access.granted", email, { transaction });
 }
 
 /** A refund or chargeback takes access away; a team account is never touched from outside. */
-async function revoke(email: string, reason: string, transaction: string) {
-  const account = await findAccount(email);
+async function revoke(tx: Transaction, email: string, reason: string, transaction: string) {
+  const account = await findAccount(tx, email);
   if (account == null) {
-    await db.delete(accessGrants).where(and(eq(accessGrants.email, email), eq(accessGrants.source, "hotmart")));
-    return audit("access.removed", email, { reason, transaction });
+    await tx.delete(accessGrants).where(and(eq(accessGrants.email, email), eq(accessGrants.source, "hotmart")));
+    return audit(tx, "access.removed", email, { reason, transaction });
   }
   // Any role other than a plain client is the team (admin today, owner and support later).
   const onTeam = account.role != null && account.role !== "user";
-  if (onTeam) return audit("access.revoke_skipped", email, { reason, transaction });
-  await db.update(user).set({ banned: true, banReason: reason }).where(eq(user.id, account.id));
-  await db.delete(session).where(eq(session.userId, account.id));
-  await audit("account.blocked", email, { reason, transaction });
+  if (onTeam) return audit(tx, "access.revoke_skipped", email, { reason, transaction });
+  await tx.update(user).set({ banned: true, banReason: reason }).where(eq(user.id, account.id));
+  await tx.delete(session).where(eq(session.userId, account.id));
+  await audit(tx, "account.blocked", email, { reason, transaction });
 }
 
 /** Applies one purchase event; anything that is not a sale or a reversal of this product is ignored. */
@@ -108,13 +110,16 @@ export async function applyPurchaseEvent(event: HotmartPurchaseEvent | null, pro
   if (!productIds.includes(String(event.data.product.id))) return "ignored";
   const email = normalizeEmail(event.data.buyer.email);
   const transaction = event.data.purchase.transaction;
-  if (grantingEvents.has(event.event)) {
-    await grant(email, transaction);
-    return "granted";
-  }
-  if (event.event in blockReasons) {
-    await revoke(email, blockReasons[event.event as keyof typeof blockReasons], transaction);
-    return "revoked";
-  }
-  return "ignored";
+  const reason = event.event in blockReasons ? blockReasons[event.event as keyof typeof blockReasons] : null;
+  if (!grantingEvents.has(event.event) && reason == null) return "ignored";
+  return db.transaction(async (tx) => {
+    // Hotmart may deliver an approval and its refund at the same time; one buyer's events run one at a time.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${email}, 3))`);
+    if (reason == null) {
+      await grant(tx, email, transaction);
+      return "granted" as const;
+    }
+    await revoke(tx, email, reason, transaction);
+    return "revoked" as const;
+  });
 }
