@@ -1,44 +1,48 @@
 import "server-only";
 import { desc, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { z } from "zod";
 import { db } from "@/db";
 import { accessGrants, adminAuditLog, user } from "@/db/schema";
 import { normalizeEmail } from "./access";
 import { accessStatus, blockRefusal } from "./admin-rules";
 import { getAuth } from "./auth";
-import { authEnv } from "./env";
 import { HttpError } from "./errors";
+import { requireSameOrigin } from "./http";
+import { can, isStaffRole, type StaffPermission, type StaffRole } from "./staff";
 
-export type AdminActor = { id: string; email: string; name: string };
+/** Better Auth user ids in admin routes. */
+export const userIdSchema = z.string().trim().min(1).max(100);
+
+export type AdminActor = { id: string; email: string; name: string; role: StaffRole };
 export type AdminGate =
   | { status: "ok"; actor: AdminActor }
   | { status: "needs-two-factor"; actor: AdminActor }
   | { status: "not-admin" };
 
-/** Who may enter /admin: an admin role, and two-factor turned on before any data is shown. */
+/** Who may enter /admin: a team role, and two-factor turned on before any data is shown. */
 export async function adminGate(requestHeaders: Headers): Promise<AdminGate> {
   const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (session == null) return { status: "not-admin" };
   const { id, email, name, role, twoFactorEnabled } = session.user;
-  if (role !== "admin") return { status: "not-admin" };
-  const actor = { id, email, name };
+  if (!isStaffRole(role)) return { status: "not-admin" };
+  const actor = { id, email, name, role };
   if (twoFactorEnabled !== true) return { status: "needs-two-factor", actor };
   return { status: "ok", actor };
 }
 
-/** API guard: same-origin writes only; anyone but a two-factor admin gets 404 or 403. */
-export async function requireAdmin(request: Request) {
-  const sameOrigin = request.headers.get("origin") === new URL(authEnv().BETTER_AUTH_URL).origin;
-  if (!["GET", "HEAD"].includes(request.method) && !sameOrigin)
-    throw new HttpError(403, "Origem não autorizada.");
+/** API guard: same-origin writes only; anyone off the team gets 404, a team role without the permission 403. */
+export async function requireAdmin(request: Request, permission: StaffPermission = "manage-access") {
+  if (!["GET", "HEAD"].includes(request.method)) requireSameOrigin(request);
   const gate = await adminGate(request.headers);
   if (gate.status === "not-admin") throw new HttpError(404, "Não encontrado.");
   if (gate.status === "needs-two-factor")
     throw new HttpError(403, "Ative a verificação em duas etapas para usar o painel.");
+  if (!can(gate.actor.role, permission)) throw new HttpError(403, "O seu papel na equipe não permite isso.");
   return gate.actor;
 }
 
-async function audit(actor: AdminActor, action: string, targetEmail: string, details: Record<string, string> = {}) {
+export async function audit(actor: Pick<AdminActor, "id" | "email">, action: string, targetEmail: string, details: Record<string, string> = {}) {
   await db.insert(adminAuditLog).values({
     actorUserId: actor.id,
     actorEmail: actor.email,
@@ -70,7 +74,7 @@ export async function listAccess() {
     .orderBy(desc(accessGrants.createdAt));
   return rows.map(({ banned, role, ...row }) => ({
     ...row,
-    isAdmin: role === "admin",
+    teamRole: isStaffRole(role) ? role : null,
     status: accessStatus({ userId: row.userId, banned }),
   }));
 }

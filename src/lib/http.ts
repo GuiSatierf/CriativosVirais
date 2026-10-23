@@ -45,6 +45,11 @@ export async function readJson<T>(
     throw new HttpError(400, "Dados inválidos. Confira os campos e formatos.");
   }
 }
+/** Writes come only from this app's own pages. */
+export function requireSameOrigin(request: Request) {
+  if (request.headers.get("origin") === new URL(authEnv().BETTER_AUTH_URL).origin) return;
+  throw new HttpError(403, "Origem não autorizada.");
+}
 export async function apiTenant(request: Request) {
   const { BETTER_AUTH_URL } = authEnv();
   if (

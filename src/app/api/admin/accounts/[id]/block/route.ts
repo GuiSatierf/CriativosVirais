@@ -1,9 +1,8 @@
 import { z } from "zod";
-import { blockAccount, requireAdmin, unblockAccount } from "@/lib/admin";
+import { blockAccount, requireAdmin, unblockAccount, userIdSchema } from "@/lib/admin";
 import { handle, json, readJson } from "@/lib/http";
 
 const blockSchema = z.object({ reason: z.string().trim().min(3).max(200) });
-const userIdSchema = z.string().trim().min(1).max(100);
 
 /** Blocks the account; the client sees the reason when trying to sign in. */
 export function POST(request: Request, context: { params: Promise<{ id: string }> }) {

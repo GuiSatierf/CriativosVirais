@@ -99,11 +99,14 @@ export function AppShell({
   panel,
   user,
   conversations,
+  banner,
 }: {
   children: React.ReactNode;
   panel: React.ReactNode;
   user: User;
   conversations: Conversation[];
+  /** Notice above the header, such as the support visit. */
+  banner?: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -132,6 +135,7 @@ export function AppShell({
         chat ? "h-dvh overflow-hidden" : "min-h-svh",
       )}
     >
+      {banner}
       <header
         data-print="hide"
         className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-1 bg-background/85 px-2 pt-[env(safe-area-inset-top)] backdrop-blur-md sm:px-4"
@@ -163,7 +167,7 @@ export function AppShell({
             <History aria-hidden className="size-5" />
           </Button>
         </Hint>
-        <UserMenu user={user} />
+        <UserMenu user={user} supportVisit={Boolean(banner)} />
       </header>
 
       <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
@@ -532,12 +536,19 @@ const menuLink =
   "flex h-8 items-center gap-2 rounded-md px-2.5 text-sm outline-hidden select-none pointer-coarse:h-10 data-highlighted:bg-accent data-highlighted:text-accent-foreground [&_svg]:size-4 [&_svg]:text-muted-foreground";
 
 /** Account menu in the top bar: identity, places, theme and sign out. */
-function UserMenu({ user }: { user: User }) {
+function UserMenu({ user, supportVisit }: { user: User; supportVisit: boolean }) {
   const router = useRouter();
   const initial = user.name.trim().charAt(0).toUpperCase() || "?";
 
   async function logout() {
     try {
+      // Inside a client's account, signing out ends the visit and goes back to the panel.
+      if (supportVisit) {
+        await api("/api/support-visit", z.object({ left: z.boolean() }), {}, "DELETE");
+        router.replace("/admin?aba=contas");
+        router.refresh();
+        return;
+      }
       const result = await authClient.signOut();
       if (result.error) throw new Error();
       router.replace("/login");

@@ -9,10 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api, toastError } from "@/lib/client";
+import { staffRoleLabel, type StaffRole } from "@/lib/staff";
 import { cn } from "@/lib/utils";
 import { BlockDialog, GrantDialog, RemoveDialog } from "./access-dialogs";
+import { AdminHeading, type AdminNavigation } from "./admin-heading";
 
 export type AccessRow = {
   id: string;
@@ -23,7 +24,7 @@ export type AccessRow = {
   grantedBy: string | null;
   userId: string | null;
   banReason: string | null;
-  isAdmin: boolean;
+  teamRole: StaffRole | null;
   status: "waiting" | "active" | "blocked";
 };
 type Filter = "all" | AccessRow["status"];
@@ -60,7 +61,7 @@ function StatusPill({ row }: { row: AccessRow }) {
         <span aria-hidden className="size-1.5 rounded-full bg-current" />
         {statusLabel[row.status]}
       </Badge>
-      {row.isAdmin && <Badge variant="secondary" className="ml-1.5">Admin</Badge>}
+      {row.teamRole != null && <Badge variant="secondary" className="ml-1.5">{staffRoleLabel[row.teamRole]}</Badge>}
       {row.status === "blocked" && row.banReason != null && (
         <span className="block text-xs text-muted-foreground">Motivo: {row.banReason}</span>
       )}
@@ -69,7 +70,15 @@ function StatusPill({ row }: { row: AccessRow }) {
 }
 
 /** Admin list of who may create an account, with block, unblock and remove. */
-export function AccessPanel({ access, actorId }: { access: AccessRow[]; actorId: string }) {
+export function AccessPanel({
+  access,
+  actorId,
+  navigation,
+}: {
+  access: AccessRow[];
+  actorId: string;
+  navigation: AdminNavigation;
+}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -98,8 +107,8 @@ export function AccessPanel({ access, actorId }: { access: AccessRow[]; actorId:
       return <Button variant="ghost" size="sm" onClick={() => setRemoving(row)}>Remover</Button>;
     if (row.status === "blocked")
       return <Button variant="ghost" size="sm" onClick={() => unblock(row)}>Desbloquear</Button>;
-    // Admins are not blocked from the panel (removing an admin is a server command).
-    if (row.userId === actorId || row.isAdmin) return null;
+    // Team members are not blocked from the panel; the owner removes them in the Equipe tab.
+    if (row.userId === actorId || row.teamRole != null) return null;
     return (
       <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setBlocking(row)}>
         Bloquear
@@ -109,30 +118,16 @@ export function AccessPanel({ access, actorId }: { access: AccessRow[]; actorId:
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="page-title">Painel de admin</h1>
-          <p className="text-sm text-muted-foreground">Quem pode criar conta e usar o Criativos Virais.</p>
-        </div>
-        <Button onClick={() => setGranting(true)}>
-          <Plus aria-hidden />
-          Liberar e-mail
-        </Button>
-      </div>
-
-      <Tabs value="acessos">
-        <TabsList variant="line" className="w-full justify-start gap-6 overflow-x-auto rounded-none border-b p-0 group-data-horizontal/tabs:h-10">
-          <TabsTrigger value="acessos" className="h-full flex-none rounded-none border-0 px-0.5 after:bottom-[-1px]!">
-            Acessos
-          </TabsTrigger>
-          <TabsTrigger value="contas" disabled className="h-full flex-none rounded-none border-0 px-0.5">
-            Contas <span className="hidden text-xs sm:inline">· em breve</span>
-          </TabsTrigger>
-          <TabsTrigger value="falhas" disabled className="h-full flex-none rounded-none border-0 px-0.5">
-            Falhas <span className="hidden text-xs sm:inline">· em breve</span>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <AdminHeading
+        navigation={navigation}
+        current="acessos"
+        action={
+          <Button onClick={() => setGranting(true)}>
+            <Plus aria-hidden />
+            Liberar e-mail
+          </Button>
+        }
+      />
 
       <div className="flex flex-wrap gap-2.5">
         <div className="relative w-full sm:w-80">
