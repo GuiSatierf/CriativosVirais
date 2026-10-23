@@ -99,6 +99,8 @@ services:
       - AI_PRICE_OUTPUT_CENTS_PER_MTOK=${AI_PRICE_OUTPUT_CENTS_PER_MTOK:-}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-}
+      - HOTMART_HOTTOK=${HOTMART_HOTTOK:-}
+      - HOTMART_PRODUCT_IDS=${HOTMART_PRODUCT_IDS:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -135,6 +137,8 @@ services:
       - AI_PRICE_OUTPUT_CENTS_PER_MTOK=${AI_PRICE_OUTPUT_CENTS_PER_MTOK:-}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-}
+      - HOTMART_HOTTOK=${HOTMART_HOTTOK:-}
+      - HOTMART_PRODUCT_IDS=${HOTMART_PRODUCT_IDS:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
