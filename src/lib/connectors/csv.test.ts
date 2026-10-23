@@ -23,7 +23,15 @@ describe("CSV normalization", () => {
   });
 
   it("lists only the mapped metrics, so a re-import keeps the columns this file did not bring", () => {
-    expect(mappedMetrics(base.mapping)).toEqual(["spend_cents", "approved_sales", "profit_cents"]);
+    expect(mappedMetrics(base.mapping)).toEqual(["spend_cents", "approved_sales", "profit_cents", "roas"]);
+    expect(mappedMetrics({ creative_key: "key", approved_sales: "sales" })).toEqual(["approved_sales"]);
+    expect(mappedMetrics({ creative_key: "key", clicks: "clicks" })).toEqual(["clicks", "ctr"]);
+  });
+
+  it("keeps every row of a file with blank lines between rows", () => {
+    const rows = Array.from({ length: 5000 }, (_, i) => `AD-${i};1;1;1`).join("\n\n");
+    expect(parseCsv({ ...base, csv: `key;spend;sales;profit\n${rows}` })).toHaveLength(5000);
+    expect(() => parseCsv({ ...base, csv: `key;spend;sales;profit\n${rows}\n\nAD-x;1;1;1` })).toThrow("acima de 5000 linhas");
   });
 
   it("requires registered Hook Rate and Body Rate formulas", () => {
