@@ -24,7 +24,7 @@ const emailSchema = z.email();
 const minimumReason = 3;
 
 /** Shared submit flow: one request, a success toast, a fresh list, or the server's pt-BR error inline. */
-function useAction(onDone: () => void) {
+export function useAction(onDone: () => void) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +45,7 @@ function useAction(onDone: () => void) {
   return { pending, error, setError, run };
 }
 
-function Spinner({ pending }: { pending: boolean }) {
+export function Spinner({ pending }: { pending: boolean }) {
   if (!pending) return null;
   return <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden />;
 }

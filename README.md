@@ -18,6 +18,7 @@ A fonte de verdade de negócio é [`docs/documento-mestre.md`](docs/documento-me
 - Contexto do negócio coletado na conversa (o assistente salva cada resposta e mostra o cartão "Anotei na sua oferta") e editável no painel Minha oferta; o preço é informado em reais e salvo em centavos.
 - Métricas por CSV (mapeamento de colunas), webhook de vendas assinado e resumo UTMify. Ranking interno top 5 das 14 métricas por janela, fonte e campanha, com glossário das métricas na tela Criativos.
 - Resultados por leva, aprendizados privados com nível de evidência e padrões compartilhados anônimos.
+- Painel da equipe (`/admin`), com verificação em duas etapas obrigatória e registro de cada ação. Papéis: dono (tudo, inclusive a aba Equipe), admin (libera e bloqueia e-mails e contas, entra na conta de clientes) e suporte (só a aba Contas). "Entrar como cliente" abre a conta por até 1 hora, sem senha e com motivo obrigatório; uma faixa no topo mostra a visita. Pela mesma aba a equipe troca o e-mail e define uma senha nova para o cliente; excluir a conta, duas etapas e sessões ficam só com o cliente. O primeiro dono é criado no servidor com `node dist/tools/scripts/admin-access.js make-owner <email>`.
 
 Fora do escopo: edição ou renderização de vídeo, publicação de anúncios e alteração de campanhas.
 
@@ -191,6 +192,7 @@ Usa `POST https://query-api.utmify.com.br/public-api/v1/dashboards/{dashboardId}
 - Vídeos, transcrições, copy, contexto e aprendizados entram nos prompts delimitados como dados não confiáveis.
 - Motivos de seleção de vídeos, entradas e saídas de ferramentas e raciocínio do modelo não chegam ao navegador.
 - Credenciais de integração ficam cifradas com AES-256-GCM e nunca vão para o cliente, o modelo ou os logs. Mensagens que parecem conter chave ou token são recusadas no navegador e no servidor antes de serem salvas (`src/lib/secrets.ts`).
+- Na visita de suporte a sessão é a do cliente, marcada com `impersonatedBy`, então o tenant continua vindo da sessão. Contas da equipe não podem ser acessadas.
 - `shared_patterns` guarda apenas combinações de enums com uma frase fixa, sem texto ou números de clientes.
 - ffmpeg e ffprobe rodam sem shell, só com protocolos `file`/`pipe`, demuxer definido pelo MIME, limites de duração e diretório temporário exclusivo.
 

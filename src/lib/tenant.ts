@@ -10,6 +10,6 @@ export const requireTenant = cache(async () => {
   if (!session) redirect("/login");
   // Recovers an interrupted signup without creating duplicate or orphan tenants.
   const tenantId = await provisionTenant(session.user);
-  return { tenantId, user: session.user };
+  return { tenantId, user: session.user, session: session.session };
 });
 export { tenantWhere, tenantValues } from "./tenant-scope";
