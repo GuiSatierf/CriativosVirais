@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RetryLaterError } from "../errors";
+import { ProviderRejectedError, RetryLaterError } from "../errors";
 export const utmifyCredentials = z.object({
   apiKey: z.string().trim().min(10).max(500),
   dashboardId: z.string().trim().regex(/^[a-fA-F0-9]{24}$/),
@@ -16,6 +16,20 @@ const summarySchema = z.object({
     roas: z.number().nullable().optional(),
   }),
 });
+const newTokenHint = "Crie um token em Avançado → API Oficial → Novo Token e conecte de novo.";
+
+/** What the user can do about each refusal documented by the UTMify query API. */
+async function rejection(response: Response) {
+  if (response.status === 401) return `A UTMify recusou a chave. ${newTokenHint}`;
+  if (response.status === 404) return "A UTMify não encontrou este dashboard. Confira o ID no endereço do dashboard.";
+  if (response.status !== 403) return null;
+  const body: unknown = await response.json().catch(() => null);
+  const code = typeof body === "object" && body !== null && "code" in body ? body.code : null;
+  if (code === "API_KEY_HAS_NO_ACCESS_TO_DASHBOARD")
+    return `Este token não tem acesso a este dashboard. ${newTokenHint}`;
+  return "A UTMify não liberou a API Oficial para esta conta. Ela exige plano Monster, Scale ou Enterprise e acesso ao beta da API.";
+}
+
 // Official read API provides consolidated dashboards, not a documented utm_content breakdown.
 export class UtmifyConnector {
   constructor(private credentials: z.infer<typeof utmifyCredentials>) {}
@@ -45,6 +59,8 @@ export class UtmifyConnector {
         ? Math.max(now + 60_000, requested) : now + 60_000;
       throw new RetryLaterError("UTMify", new Date(retryAt).toISOString());
     }
+    const refused = await rejection(response);
+    if (refused != null) throw new ProviderRejectedError(refused);
     if (!response.ok)
       throw Object.assign(new Error("UTMify request failed"), {
         statusCode: response.status,
