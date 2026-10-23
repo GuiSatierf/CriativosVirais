@@ -152,4 +152,15 @@ test("support enters a client's account without the password, changes its email 
   await page.reload();
   await expect(page.getByRole("row").filter({ hasText: invited })).toContainText("Falta ativar");
   await expect(page.getByRole("region", { name: "Convites aguardando cadastro" })).toHaveCount(0);
+
+  // 8. An invite that expires unused takes back the access it freed.
+  const unused = `sem-uso-${randomUUID()}@exemplo.test`;
+  await page.getByRole("button", { name: "Adicionar à equipe" }).click();
+  await page.getByLabel("E-mail").fill(unused);
+  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  await expect(page.getByText(`Convite enviado para ${unused}`)).toBeVisible();
+  await testDatabase(`update verification set expires_at = now() - interval '1 minute' where identifier = $1`, [`team-invite:${unused}`]);
+  await page.reload();
+  await expect(page.getByText(unused)).toHaveCount(0);
+  expect(await testDatabase(`select 1 from access_grants where email = $1`, [unused])).toHaveLength(0);
 });

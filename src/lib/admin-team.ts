@@ -6,7 +6,7 @@ import { normalizeEmail } from "./access";
 import { audit, type AdminActor } from "./admin";
 import { sendAccessInvite } from "./access-invite-email";
 import { issueEnrollmentCode } from "./admin-enrollment";
-import { deleteTeamInvite, saveTeamInvite } from "./team-invites";
+import { deleteTeamInvite, saveTeamInvite, teamInviteNote } from "./team-invites";
 import { HttpError } from "./errors";
 import { isStaffRole, staffRoleLabel, staffRoles, type StaffRole } from "./staff";
 
@@ -63,7 +63,7 @@ async function enrollmentCodeFor(member: { id: string; twoFactorEnabled: boolean
 async function inviteTeamMember(actor: AdminActor, email: string, role: StaffRole) {
   await db
     .insert(accessGrants)
-    .values({ email, note: "Convite para a equipe", grantedBy: actor.id })
+    .values({ email, note: teamInviteNote, grantedBy: actor.id })
     .onConflictDoNothing({ target: accessGrants.email });
   await saveTeamInvite(email, role, actor.email);
   await audit(actor, "team.invited", email, { role });

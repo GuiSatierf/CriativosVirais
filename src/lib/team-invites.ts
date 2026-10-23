@@ -1,9 +1,9 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, eq, gt, like } from "drizzle-orm";
+import { and, eq, gt, like, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { adminAuditLog, user, verification } from "@/db/schema";
+import { accessGrants, adminAuditLog, user, verification } from "@/db/schema";
 import { normalizeEmail } from "./access";
 import { isStaffRole, staffRoles, type StaffRole } from "./staff";
 
@@ -13,6 +13,31 @@ const prefix = "team-invite:";
 const inviteSchema = z.object({ role: z.enum(staffRoles), by: z.string() });
 
 const identifierOf = (email: string) => `${prefix}${normalizeEmail(email)}`;
+/** Note on the access grant an invite creates, so an unused invite can take its grant back. */
+export const teamInviteNote = "Convite para a equipe";
+
+// Without this, an expired or cancelled invite would leave a grant anyone with that mailbox could
+// use to sign up as a client without buying.
+async function dropUnusedInviteGrant(email: string) {
+  await db
+    .delete(accessGrants)
+    .where(
+      and(
+        eq(accessGrants.email, normalizeEmail(email)),
+        eq(accessGrants.note, teamInviteNote),
+        sql`not exists (select 1 from ${user} where lower(${user.email}) = ${normalizeEmail(email)})`,
+      ),
+    );
+}
+
+/** Expired invites leave the list together with the grant they created. */
+async function pruneExpiredTeamInvites() {
+  const expired = await db
+    .delete(verification)
+    .where(and(like(verification.identifier, `${prefix}%`), lte(verification.expiresAt, new Date())))
+    .returning({ identifier: verification.identifier });
+  for (const row of expired) await dropUnusedInviteGrant(row.identifier.slice(prefix.length));
+}
 
 export async function saveTeamInvite(email: string, role: StaffRole, invitedBy: string) {
   const identifier = identifierOf(email);
@@ -28,6 +53,7 @@ export async function saveTeamInvite(email: string, role: StaffRole, invitedBy: 
 }
 
 export async function listTeamInvites() {
+  await pruneExpiredTeamInvites();
   const rows = await db
     .select({ identifier: verification.identifier, value: verification.value, expiresAt: verification.expiresAt })
     .from(verification)
@@ -44,6 +70,7 @@ export async function deleteTeamInvite(email: string) {
     .delete(verification)
     .where(eq(verification.identifier, identifierOf(email)))
     .returning({ id: verification.id });
+  if (deleted.length > 0) await dropUnusedInviteGrant(email);
   return deleted.length > 0;
 }
 
