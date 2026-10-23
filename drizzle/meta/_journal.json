@@ -50,6 +50,13 @@
       "when": 1792333389711,
       "tag": "0006_batch-generations",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792700355002,
+      "tag": "0007_admin-access",
+      "breakpoints": true
     }
   ]
 }

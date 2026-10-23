@@ -8,7 +8,7 @@ import { BatchResults } from "@/components/batch-results";
 import { ScriptBrowser, type Script } from "@/components/levas/script-browser";
 import { BatchActions } from "@/components/levas/batch-actions";
 import { Badge } from "@/components/ui/badge";
-import { defaultMetricsPeriod } from "@/lib/default-period";
+import { csvImportPeriods, defaultMetricsPeriod } from "@/lib/default-period";
 import { hasWebhookSource } from "@/lib/metric-sources";
 import { buttonVariants } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,10 +28,11 @@ export async function BatchView({
   const { tenantId } = await requireTenant();
   const id = z.uuid().safeParse((await params).batchId);
   if (!id.success) notFound();
-  const [batch, resultsPeriod, showSource] = await Promise.all([
+  const [batch, resultsPeriod, showSource, csvPeriods] = await Promise.all([
     getBatch(tenantId, id.data),
     defaultMetricsPeriod(tenantId),
     hasWebhookSource(tenantId),
+    csvImportPeriods(tenantId),
   ]);
   if (!batch) notFound();
 
@@ -153,6 +154,7 @@ export async function BatchView({
             defaultFilters={resultsPeriod}
             names={names}
             showSource={showSource}
+            csvPeriods={csvPeriods}
           />
         </TabsContent>
       </Tabs>

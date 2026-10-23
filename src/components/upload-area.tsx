@@ -124,6 +124,7 @@ export function UploadArea({
   onVideoReady,
   compact = false,
   onDismiss,
+  onFailedChange,
   dense = false,
   onUploaded,
 }: {
@@ -135,6 +136,8 @@ export function UploadArea({
   compact?: boolean;
   /** Compact mode only: lets the user discard a failed asset. */
   onDismiss?: () => void;
+  /** Reports when processing fails (true) and when a retry starts again (false). */
+  onFailedChange?: (failed: boolean) => void;
   dense?: boolean;
   onUploaded?: (assetId: string, fileName: string) => void;
 }) {
@@ -158,6 +161,8 @@ export function UploadArea({
     }
   });
 
+  const reportFailure = useEffectEvent(() => onFailedChange?.(true));
+
   useEffect(() => {
     if (!assetId) return;
     let stopped = false;
@@ -171,6 +176,7 @@ export function UploadArea({
         if (asset.status === "error") {
           setFailure(asset.error);
           setPhase("failed");
+          reportFailure();
           return;
         }
         if (asset.status === "done") {
@@ -184,6 +190,7 @@ export function UploadArea({
         failures += 1;
         if (failures >= maxPollFailures) {
           setPhase("unreachable");
+          reportFailure();
           return;
         }
       }
@@ -230,6 +237,7 @@ export function UploadArea({
     setFailure(null);
     setPhase("waiting");
     setAttempt((value) => value + 1);
+    onFailedChange?.(false);
   }
 
   const uploading = phase === "uploading";
