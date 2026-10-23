@@ -27,13 +27,13 @@ export async function ArchivedConversationsView() {
     <div className="max-w-3xl space-y-6">
       <PageHeader
         title="Conversas arquivadas"
-        description="Conversas fora da barra lateral. Restaure quando quiser voltar a elas."
+        description="Conversas fora do Histórico. Restaure quando quiser voltar a elas."
       />
       {rows.length === 0 ? (
         <EmptyState
           icon={Archive}
           title="Nenhuma conversa arquivada"
-          description="Use o menu de uma conversa na barra lateral para arquivá-la."
+          description="Use o menu de uma conversa no Histórico para arquivá-la."
         />
       ) : (
         <ul className="divide-y rounded-xl border bg-card">
