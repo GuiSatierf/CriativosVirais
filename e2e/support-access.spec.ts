@@ -1,6 +1,16 @@
 import { randomUUID } from "node:crypto";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { signUp, testDatabase } from "./support";
+import { signUp, testDatabase, testPassword, waitForSignUpSlot } from "./support";
+
+// playwright.config.ts points the app's email outbox here, so no message is really sent.
+async function emailsTo(email: string) {
+  const outbox = "test-results/outbox";
+  const files = await readdir(outbox).catch(() => []);
+  const messages = await Promise.all(files.map(async (file) => JSON.parse(await readFile(path.join(outbox, file), "utf8"))));
+  return messages.filter((message) => message.to === email);
+}
 
 test("support enters a client's account without the password, changes its email and password from the panel, and the owner manages the team", async ({ page, browser, baseURL }) => {
   // A client with a findable name, and a support member who already turned on two-factor.
@@ -115,4 +125,31 @@ test("support enters a client's account without the password, changes its email 
   await expect(page.getByRole("row").filter({ hasText: newEmail })).toContainText("Suporte");
   const [role] = await testDatabase<{ role: string }>(`select role from "user" where email = $1`, [newEmail]);
   expect(role.role).toBe("support");
+
+  // 7. An email with no account is invited: it gets the team invite and joins with the role on sign-up.
+  const invited = `convidado-${randomUUID()}@exemplo.test`;
+  await page.getByRole("button", { name: "Adicionar à equipe" }).click();
+  await page.getByLabel("E-mail").fill(invited);
+  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  await expect(page.getByText(`Convite enviado para ${invited}`)).toBeVisible();
+  await expect(page.getByRole("region", { name: "Convites aguardando cadastro" })).toContainText(invited);
+  await expect.poll(async () => (await emailsTo(invited)).length).toBe(1);
+  const [invite] = await emailsTo(invited);
+  expect(invite.subject).toBe("Você foi convidado para a equipe do Criativos Virais");
+  const link = new URL(invite.text.match(/https?:\/\/\S+\/signup\?email=\S+/)?.[0] ?? "http://invalid");
+
+  const guest = await browser.newContext({ baseURL, locale: "pt-BR" });
+  const guestPage = await guest.newPage();
+  await waitForSignUpSlot();
+  await guestPage.goto(link.pathname + link.search);
+  await guestPage.getByLabel("Nome").fill("Pessoa Convidada");
+  await guestPage.getByRole("textbox", { name: "Senha" }).fill(testPassword);
+  await guestPage.getByRole("button", { name: "Criar conta" }).click();
+  await expect(guestPage).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
+  await guest.close();
+  const [joined] = await testDatabase<{ role: string }>(`select role from "user" where email = $1`, [invited]);
+  expect(joined.role).toBe("support");
+  await page.reload();
+  await expect(page.getByRole("row").filter({ hasText: invited })).toContainText("Falta ativar");
+  await expect(page.getByRole("region", { name: "Convites aguardando cadastro" })).toHaveCount(0);
 });
