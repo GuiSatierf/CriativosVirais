@@ -28,6 +28,12 @@ export const csvImportSchema = z
   })
   .refine((v) => v.from <= v.to);
 export type CsvInput = z.input<typeof csvImportSchema>;
+const maxRows = 5000;
+
+/** Metrics the user mapped to a column; the others are left untouched when a period is re-imported. */
+export function mappedMetrics(mapping: CsvInput["mapping"]) {
+  return metricNames.filter((metric) => Boolean(mapping[metric]));
+}
 function numeric(
   raw: string,
   decimal: "comma" | "dot",
@@ -54,14 +60,26 @@ function numeric(
   }
   return v;
 }
+/** Number errors name the spreadsheet row and column, so the user can find the cell. */
+function numericAt(index: number, column: string | undefined, parse: () => string | null) {
+  try {
+    return parse();
+  } catch (error) {
+    if (!(error instanceof DomainError)) throw error;
+    throw new DomainError("invalid_input", `Linha ${index + 2}, coluna "${column ?? ""}": ${error.message.toLowerCase()}.`);
+  }
+}
+
 export function parseCsv(input: CsvInput): MetricRecord[] {
   const p = csvImportSchema.parse(input);
   for (const metric of ["hook_rate", "body_rate"] as const)
     if (p.mapping[metric] && !p.metricDefinitions[metric])
       throw new DomainError("invalid_input", `Informe a fórmula de ${metricLabels[metric]} antes de importar.`);
+  // One row past the limit is enough to refuse the file without building millions of objects.
   const parsed = Papa.parse<Record<string, string>>(p.csv, {
     header: true,
     skipEmptyLines: "greedy",
+    preview: maxRows + 1,
     transformHeader: (h) => h.trim().replace(/^\uFEFF/, ""),
   });
   if (
@@ -72,9 +90,11 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
   if (
     parsed.errors.length ||
     !parsed.meta.fields?.length ||
-    parsed.data.length > 5000
+    parsed.data.length > maxRows
   )
     throw new DomainError("invalid_input", "CSV inválido, colunas repetidas ou acima de 5000 linhas.");
+  if (parsed.data.length === 0)
+    throw new DomainError("invalid_input", "A planilha não tem nenhuma linha de dados, só o cabeçalho.");
   if (
     !p.mapping.creative_key ||
     !parsed.meta.fields.includes(p.mapping.creative_key)
@@ -99,11 +119,8 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
       confidence: "observed",
     };
     for (const metric of metricNames) {
-      const value = numeric(
-        read(metric),
-        p.decimal,
-        centsNames.some((m) => m === metric),
-        p.moneyUnit === "major",
+      const value = numericAt(index, p.mapping[metric], () =>
+        numeric(read(metric), p.decimal, centsNames.some((m) => m === metric), p.moneyUnit === "major"),
       );
       base[metric] =
         floatNames.some((m) => m === metric) && value !== null

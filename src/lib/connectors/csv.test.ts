@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCsv, csvImportSchema, type CsvInput } from "./csv";
+import { mappedMetrics, parseCsv, csvImportSchema, type CsvInput } from "./csv";
 const base: CsvInput = {
   csv: "",
   mapping: {
@@ -15,6 +15,17 @@ const base: CsvInput = {
   metricDefinitions: {},
 };
 describe("CSV normalization", () => {
+  it("refuses a file with only the header and says which cell holds a bad number", () => {
+    expect(() => parseCsv({ ...base, csv: "key;spend;sales;profit\n" })).toThrow("nenhuma linha de dados");
+    expect(() => parseCsv({ ...base, csv: "key;spend;sales;profit\nAD-1;10;1;1\nAD-2;R$ 5;1;1" })).toThrow(
+      'Linha 3, coluna "spend"',
+    );
+  });
+
+  it("lists only the mapped metrics, so a re-import keeps the columns this file did not bring", () => {
+    expect(mappedMetrics(base.mapping)).toEqual(["spend_cents", "approved_sales", "profit_cents"]);
+  });
+
   it("requires registered Hook Rate and Body Rate formulas", () => {
     const input = {
       ...base,
