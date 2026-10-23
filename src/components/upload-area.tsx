@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api, savedSchema, toastError } from "@/lib/client";
+import { pollDelay, whenVisible } from "@/lib/polling";
 
 const assetSchema = z.object({
   id: z.uuid(),
@@ -168,7 +169,10 @@ export function UploadArea({
     let stopped = false;
     let failures = 0;
     let timer: ReturnType<typeof setTimeout>;
+    const started = Date.now();
     async function poll() {
+      await whenVisible();
+      if (stopped) return;
       try {
         const asset = await api(`/api/assets/${assetId}`, assetSchema);
         if (stopped) return;
@@ -194,7 +198,7 @@ export function UploadArea({
           return;
         }
       }
-      if (!stopped) timer = setTimeout(poll, pollInterval);
+      if (!stopped) timer = setTimeout(poll, pollDelay(Date.now() - started, pollInterval));
     }
     void poll();
     return () => {
