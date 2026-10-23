@@ -5,6 +5,7 @@ import { integrations } from "@/db/schema";
 import { decrypt } from "@/lib/crypto";
 import { spDay } from "@/lib/dates";
 import { ProviderRejectedError, RetryLaterError } from "@/lib/errors";
+import { logError } from "@/lib/log";
 import { UtmifyConnector, utmifyCredentials } from "@/lib/connectors/utmify";
 import { tenantWhere } from "@/lib/tenant-scope";
 const integrationJob = z
@@ -85,7 +86,9 @@ export async function syncMetrics(
             },
       })
       .where(where);
-    // A provider-requested pause is not a failure, and a refusal only changes when the user acts.
+    // A provider-requested pause is not a failure, and a refusal only changes when the user acts,
+    // so neither is retried; the refusal is still logged so operators can see it.
+    if (rejected) logError("sync-metrics", error);
     if (!retryLater && !rejected) throw error;
   }
 }
