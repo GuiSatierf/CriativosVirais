@@ -27,6 +27,9 @@ test("support enters a client's account without the password, changes its email 
   expect((await page.request.get("/api/admin/team")).status()).toBe(403);
 
   // 2. Entering the account asks for a reason, then opens the client's chat under a banner.
+  // A literal % or _ matches nothing here instead of acting as a wildcard for every account.
+  await page.getByLabel("Buscar por nome ou e-mail").fill("_");
+  await expect(page.getByText("Nenhum cliente encontrado com essa busca.")).toBeVisible();
   await page.getByLabel("Buscar por nome ou e-mail").fill(clientName);
   const row = page.getByRole("row").filter({ hasText: clientEmail });
   await row.getByRole("button", { name: "Entrar como cliente" }).click();
