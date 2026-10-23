@@ -23,8 +23,12 @@ async function assertReplay(tx: Transaction, tenantId: string, input: SalesEvent
   );
 }
 
-/** Stores one sale for a server-resolved tenant and queues its processing once. */
-export async function recordSalesEvent(tenantId: string, input: SalesEventInput, source: "webhook") {
+/**
+ * Stores one sale for a server-resolved tenant and queues its processing once. A repeated event_id
+ * from our own webhook must be an exact retry; Hotmart resends with new timestamps, so for it the
+ * first delivery wins.
+ */
+export async function recordSalesEvent(tenantId: string, input: SalesEventInput, source: "webhook" | "hotmart") {
   const boss = await getJobs();
   await jobTransaction(async (tx, connection) => {
     const [event] = await tx
@@ -48,7 +52,7 @@ export async function recordSalesEvent(tenantId: string, input: SalesEventInput,
       .onConflictDoNothing({ target: [salesEvents.tenantId, salesEvents.eventId] })
       .returning({ id: salesEvents.id });
     if (!event) {
-      await assertReplay(tx, tenantId, input);
+      if (source === "webhook") await assertReplay(tx, tenantId, input);
       return;
     }
     await boss.send("ingest-event", { tenantId, eventId: event.id }, { db: connection, singletonKey: event.id });

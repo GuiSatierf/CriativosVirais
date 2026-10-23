@@ -1,10 +1,10 @@
 import "server-only";
-import { createHash, timingSafeEqual } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { accessGrants, adminAuditLog, session, user } from "@/db/schema";
 import { normalizeEmail } from "./access";
+import { sameHottok } from "./connectors/hotmart";
 import { hotmartEnv } from "./env";
 import { HttpError } from "./errors";
 
@@ -28,13 +28,11 @@ const purchaseEventSchema = z.object({
 });
 export type HotmartPurchaseEvent = z.infer<typeof purchaseEventSchema>;
 
-/** Hotmart proves who it is only with the account's hottok; compared in constant time. */
+/** Only the Hotmart account that sells this app may change access. */
 export function requireHotmart(hottok: string | null) {
   const config = hotmartEnv();
   if (config == null) throw new HttpError(404, "Não encontrado.");
-  const digest = (value: string) => createHash("sha256").update(value).digest();
-  if (hottok == null || !timingSafeEqual(digest(hottok), digest(config.HOTMART_HOTTOK)))
-    throw new HttpError(401, "Credencial inválida.");
+  if (!sameHottok(hottok, config.HOTMART_HOTTOK)) throw new HttpError(401, "Credencial inválida.");
   return config;
 }
 
