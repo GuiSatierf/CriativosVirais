@@ -81,6 +81,7 @@ Referências: [`.env.example`](.env.example) (local) e [`.env.production.example
 | `AI_PROVIDER` | Opcional. `fake` troca o modelo de texto por um roteiro fixo (`src/lib/ai/fake-model.ts`), sem chamar a DeepSeek; só em desenvolvimento e testes, recusado com `NODE_ENV=production` |
 | `GROQ_API_KEY`, `GROQ_WHISPER_MODEL` | Transcrição de áudio e da trilha dos vídeos |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Recuperação de senha por e-mail (Resend). `EMAIL_FROM` usa um domínio verificado no Resend, por exemplo `Criativos Virais <nao-responda@mail.exemplo.com.br>`. Sem elas, a tela de recuperação mostra o contato do suporte |
+| `HOTMART_HOTTOK`, `HOTMART_PRODUCT_IDS` | Opcionais. Liberação automática pela Hotmart: o hottok da conta (Hotmart → Ferramentas → Webhook → Autenticação) e os IDs dos produtos que dão acesso, separados por vírgula. Sem elas, `/api/hotmart/access` responde 404 e o acesso é liberado só pelo painel |
 | `EMAIL_OUTBOX_DIR` | Opcional. Grava os e-mails como arquivos JSON nessa pasta em vez de enviar; só em desenvolvimento e testes, recusado com `NODE_ENV=production` |
 | `TEST_DATABASE_URL` | Só para `test:attribution`; banco vazio cujo nome termina em `_test` |
 
@@ -125,6 +126,15 @@ sendMessage({ text, metadata: { assetIds: ["<uuid>"] } }); // até 5
 ```
 
 O servidor confirma que cada asset é um vídeo da própria operação (400 se algum não for encontrado), salva a mensagem com os metadados e informa os IDs ao modelo numa cópia da mensagem que não aparece na conversa. Mensagens só aceitam partes de texto; áudio precisa ser transcrito antes.
+
+### Acesso pela Hotmart
+
+Na Hotmart, crie em Ferramentas → Webhook uma configuração versão 2.0.0 apontando para `https://SEU-DOMINIO/api/hotmart/access`, com os eventos de compra aprovada, completa, reembolsada e chargeback. A Hotmart manda o hottok no cabeçalho `X-HOTMART-HOTTOK`, conferido em tempo constante.
+
+- `PURCHASE_APPROVED` e `PURCHASE_COMPLETE` liberam o e-mail do comprador (origem Hotmart no painel) e tiram um bloqueio que um reembolso anterior tenha posto.
+- `PURCHASE_REFUNDED` e `PURCHASE_CHARGEBACK` bloqueiam a conta com o motivo e encerram as sessões; sem conta, removem a liberação. Contas da equipe nunca são alteradas, e um bloqueio feito pela equipe continua com o motivo dela (uma compra nova não o tira).
+- Produtos fora de `HOTMART_PRODUCT_IDS` e os demais eventos são ignorados. Cada ação fica no registro do painel com o autor "Hotmart". Repetições da Hotmart não mudam nada.
+- Cancelamento de assinatura ainda não bloqueia: falta decidir se o acesso termina na hora ou no fim do período pago.
 
 ### Webhook de vendas
 
