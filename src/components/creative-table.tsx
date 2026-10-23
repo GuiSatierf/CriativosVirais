@@ -224,9 +224,12 @@ export function CreativeTable({
     </div>
   );
 
-  const salesRank = topSellerRanks(
-    (data?.rows ?? []).filter((row) => showHidden || !row.hidden),
-  );
+  const allRows = data?.rows ?? [];
+  const hiddenKeys = new Set(
+    allRows.filter((row) => row.hidden).map((row) => row.creative_key),
+  ).size;
+  const rows = showHidden ? allRows : allRows.filter((row) => !row.hidden);
+  const salesRank = topSellerRanks(rows);
 
   const columns: DataColumn<CreativeRow>[] = [
     {
@@ -263,11 +266,6 @@ export function CreativeTable({
     ...mainMetrics.map(metricColumn),
   ];
 
-  const allRows = data?.rows ?? [];
-  const hiddenKeys = new Set(
-    allRows.filter((row) => row.hidden).map((row) => row.creative_key),
-  ).size;
-  const rows = showHidden ? allRows : allRows.filter((row) => !row.hidden);
   const hiddenToggle = hiddenKeys > 0 && (
     <Button
       variant="ghost"
