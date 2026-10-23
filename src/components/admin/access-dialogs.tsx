@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/lib/client";
 import type { AccessRow } from "./access-panel";
 
-const doneSchema = z.object({}).passthrough();
+const doneSchema = z.object({}).loose();
 const emailSchema = z.email();
 const minimumReason = 3;
 
