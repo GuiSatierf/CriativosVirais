@@ -2,6 +2,10 @@ import { z } from "zod";
 import { ConfigError } from "./errors";
 
 const filled = z.string().trim().min(1);
+const base64Key = z
+  .string()
+  .regex(/^[A-Za-z0-9+/]{43}=$/)
+  .refine((v) => Buffer.from(v, "base64").length === 32);
 const schemas = {
   db: z.object({ DATABASE_URL: z.url() }),
   auth: z.object({
@@ -60,6 +64,16 @@ const schemas = {
       .regex(/^[A-Za-z0-9+/]{43}=$/)
       .refine((v) => Buffer.from(v, "base64").length === 32),
   }),
+  backup: z.object({
+    BACKUP_S3_ENDPOINT: z.url(),
+    BACKUP_S3_REGION: filled,
+    BACKUP_S3_ACCESS_KEY: filled,
+    BACKUP_S3_SECRET_KEY: filled,
+    BACKUP_S3_BUCKET: z.string().min(3),
+    BACKUP_S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("false"),
+    // Separate from ENCRYPTION_KEY, which must never travel with the backups it protects.
+    BACKUP_ENCRYPTION_KEY: base64Key,
+  }),
 };
 type Group = keyof typeof schemas;
 const cache = new Map<Group, unknown>();
@@ -109,3 +123,5 @@ export function missingOptionalConfiguration() {
     .filter((name) => !optionalGroup(name))
     .map((name) => optionalProviders[name]);
 }
+/** Off until a bucket is set; once it is, a missing or invalid field is an error, not a skip. */
+export const backupEnv = () => (process.env.BACKUP_S3_BUCKET ? group("backup") : null);

@@ -73,8 +73,37 @@ Use `.env.production.example` como referência dos campos de runtime; ele não c
 4. Inicie o worker da mesma imagem com `node dist/worker.js`, sem domínio público, antes de liberar tráfego no app. Garanta acesso a Postgres e RustFS, jobs de até 30 minutos e desligamento gracioso de 35 segundos. O proxy do app precisa permitir streaming e respostas longas.
 5. Execute `node dist/tools/scripts/doctor.js --production --connections --strict-providers` dentro do worker. Corrija os FAILs antes de ativar todos os fluxos. Se quiser usar somente CSV/webhook inicialmente, omita `--strict-providers`.
 6. Faça os testes da tabela acima. No navegador, confirme que o endpoint público S3 permite PUT a partir do domínio final. Confira os logs do worker e acompanhe um asset até `done`; o diagnóstico não verifica heartbeat do worker nem a rede do navegador.
-7. Reinicie os serviços e confirme persistência, login e um resultado já salvo. Faça backup de Postgres, objetos RustFS e ENCRYPTION_KEY antes de atualizar.
-8. Configure um monitor externo de disponibilidade (UptimeRobot, Better Stack, Uptime Kuma ou similar) para consultar `https://<domínio>/api/health/system` a cada 5 minutos e avisar por e-mail ou mensagem quando a resposta não for 200. Ela responde 503 com `problems` indicando o que falhou: `database` (Postgres não responde), `worker` (worker sem sinal há mais de 3 minutos) ou `queue` (job pronto esperando há mais de 10 minutos). Não use esse endereço como healthcheck do container: o app continua de pé quando o worker cai, e reiniciá-lo não resolve.
+7. Reinicie os serviços e confirme persistência, login e um resultado já salvo. Antes de atualizar, rode um backup na hora (seção "Backup diário e restauração").
+8. Configure um monitor externo de disponibilidade (UptimeRobot, Better Stack, Uptime Kuma ou similar) para consultar `https://<domínio>/api/health/system` a cada 5 minutos e avisar por e-mail ou mensagem quando a resposta não for 200. Ela responde 503 com `problems` indicando o que falhou: `database` (Postgres não responde), `worker` (worker sem sinal há mais de 3 minutos) `queue` (job pronto esperando há mais de 10 minutos) ou `backup` (backup configurado sem cópia concluída nas últimas 26 horas). Não use esse endereço como healthcheck do container: o app continua de pé quando o worker cai, e reiniciá-lo não resolve.
+
+## Backup diário e restauração
+
+**Opcional e desligado por padrão.** Enquanto `BACKUP_S3_BUCKET` estiver vazio, nada é agendado e o `/api/health/system` não cobra backup. Instalações cujo servidor já tem backup externo podem deixar assim. Ligue apenas se não houver outra cópia fora do servidor.
+
+Quando ligado, o worker faz uma cópia por dia às 03:00 (horário de São Paulo) para um bucket compatível com S3 **fora deste servidor**, por exemplo Cloudflare R2 ou Backblaze B2. Se o worker estava parado nesse horário, a cópia roda quando ele volta. Cada cópia leva:
+
+- o banco inteiro (`pg_dump`, formato custom) em `database/AAAA-MM-DD.dump.enc`;
+- os arquivos novos ou alterados do RustFS em `files/<chave original>`. Arquivo apagado no app vai para `deleted/AAAA-MM-DD/` e é removido depois de 30 dias.
+
+Tudo é cifrado com AES-256-GCM antes de sair do servidor, com `BACKUP_ENCRYPTION_KEY`. Quem tiver acesso ao bucket não lê nada sem essa chave. Ficam guardadas as últimas 7 cópias diárias do banco e as 4 últimas de domingo.
+
+Configurar:
+
+1. Crie o bucket e uma chave de acesso só para ele (leitura, escrita e exclusão de objetos).
+2. Gere `BACKUP_ENCRYPTION_KEY` (32 bytes aleatórios em base64, diferente da `ENCRYPTION_KEY`) e preencha as variáveis `BACKUP_*` do `.env.production.example` no worker e no app. O app só lê essas variáveis para o `/api/health/system`.
+3. Guarde `ENCRYPTION_KEY` e `BACKUP_ENCRYPTION_KEY` num gerenciador de senhas. Sem a primeira, as credenciais de integração restauradas ficam ilegíveis; sem a segunda, a cópia inteira fica ilegível.
+4. Reinicie o worker e rode a primeira cópia na hora: `node dist/tools/scripts/backup-now.js`. Acompanhe no log do worker a linha `[backup] ... database saved`.
+
+Com as variáveis vazias, o worker avisa no log que o backup está desligado. Com `BACKUP_S3_BUCKET` preenchido e outra variável faltando ou inválida, o worker continua com o resto do trabalho, registra `[backup-config]` no log e o `/api/health/system` acusa `backup`.
+
+Restaurar (servidor novo ou desastre):
+
+1. Suba Postgres e RustFS vazios, com a mesma `ENCRYPTION_KEY` e as variáveis `BACKUP_*` da instalação original. **Não** rode as migrations antes: o dump já traz o schema.
+2. Execute `node dist/tools/scripts/init-storage.js` para criar o bucket.
+3. Execute `node dist/tools/scripts/restore-backup.js --yes` para a cópia mais recente, ou acrescente `--day=AAAA-MM-DD`. O script recusa banco que não esteja vazio, restaura o banco e depois devolve os arquivos ao bucket.
+4. Suba app e worker e confira login, uma conversa e um vídeo antigo.
+
+Se a restauração falhar no meio, nada é desfeito: apague o banco, crie-o vazio de novo e repita.
 
 ### Pelo Compose pronto para o Coolify
 

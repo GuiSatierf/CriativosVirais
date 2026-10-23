@@ -7,6 +7,27 @@ import { runBatchGeneration } from "./jobs/generate-batch";
 import { pool } from "./db";
 import { logError } from "./lib/log";
 import { logMissingConfiguration } from "./lib/configuration-report";
+import { runBackup } from "./jobs/backup";
+import { backupEnv } from "./lib/env";
+
+function backupConfigured() {
+  try {
+    return Boolean(backupEnv());
+  } catch (error) {
+    // A broken backup configuration must not stop video analysis and sales; health reports it.
+    logError("backup-config", error);
+    return false;
+  }
+}
+/** 03:00 in São Paulo; a run missed while the worker was down is sent once when it returns. */
+async function scheduleBackup(boss: Awaited<ReturnType<typeof startWorkerJobs>>) {
+  if (backupConfigured()) {
+    await boss.schedule("backup", "0 3 * * *", {}, { tz: "America/Sao_Paulo", missed: "once" });
+    return;
+  }
+  await boss.unschedule("backup");
+  console.warn("[config] worker: daily backup off until BACKUP_S3_* and BACKUP_ENCRYPTION_KEY are set.");
+}
 async function main() {
   const boss = await startWorkerJobs();
   const handlers: Record<string, (data: unknown) => Promise<void>> = {
@@ -17,6 +38,9 @@ async function main() {
       syncMetrics(data, (job) =>
         boss.send("sync-metrics", job, { singletonKey: job.integrationId }),
       ),
+    backup: async () => {
+      await runBackup();
+    },
   };
   for (const [name, handler] of Object.entries(handlers))
     await boss.work(name, workOptions(name), async ([job]) => {
@@ -29,6 +53,7 @@ async function main() {
       }
     });
   await boss.schedule("sync-metrics", "0 */6 * * *", {});
+  await scheduleBackup(boss);
   console.info(
     "Worker ready: video analysis, sales ingestion and six-hour metrics sync.",
   );

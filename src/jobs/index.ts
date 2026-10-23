@@ -4,7 +4,7 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "@/db/schema";
 import { dbEnv } from "@/lib/env";
 import { logError } from "@/lib/log";
-export const queues = ["analyze-video", "ingest-event", "sync-metrics", "generate-batch"] as const;
+export const queues = ["analyze-video", "ingest-event", "sync-metrics", "generate-batch", "backup"] as const;
 export const queueOptions: QueueOptions = {
   retryLimit: 3,
   retryDelay: 60,
@@ -15,6 +15,9 @@ export const queueOptions: QueueOptions = {
 // longer than the default expiry; a failure is shown on the chat card instead.
 const perQueue: Partial<Record<(typeof queues)[number], QueueOptions>> = {
   "generate-batch": { retryLimit: 0, expireInSeconds: 3600 },
+  // A first backup copies every stored video; later ones only what is new. One retry after 15
+  // minutes: the queue holds one backup at a time, so a longer wait would also block a manual run.
+  backup: { retryLimit: 1, retryDelay: 900, retryBackoff: false, expireInSeconds: 3 * 3600 },
 };
 // A batch generation can hold its slot for up to 30 minutes; one at a time would make every
 // other tenant's batch wait behind it.
