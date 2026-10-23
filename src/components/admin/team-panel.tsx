@@ -28,7 +28,7 @@ export function TeamPanel({ team, actorId, navigation }: { team: TeamRow[]; acto
   function actions(row: TeamRow) {
     if (row.id === actorId) return <span className="text-xs text-muted-foreground">Você</span>;
     return (
-      <div className="flex flex-wrap justify-end gap-1">
+      <div className="flex flex-wrap justify-end gap-1 sm:flex-nowrap">
         {!row.twoFactorEnabled && <Button variant="ghost" size="sm" onClick={() => setCoding(row)}>Novo código</Button>}
         <Button variant="ghost" size="sm" onClick={() => setChanging(row)}>Trocar papel</Button>
         <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setRemoving(row)}>Remover</Button>
@@ -68,7 +68,7 @@ export function TeamPanel({ team, actorId, navigation }: { team: TeamRow[]; acto
                 </TableCell>
                 <TableCell><Badge variant="secondary">{staffRoleLabel[row.role]}</Badge></TableCell>
                 <TableCell><TwoFactorPill row={row} /></TableCell>
-                <TableCell className="text-right">{actions(row)}</TableCell>
+                <TableCell className="text-right whitespace-nowrap">{actions(row)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -76,7 +76,7 @@ export function TeamPanel({ team, actorId, navigation }: { team: TeamRow[]; acto
       </div>
       <ul className="grid gap-2.5 sm:hidden">
         {team.map((row) => (
-          <li key={row.id} className="space-y-2 rounded-xl border bg-card p-4">
+          <li key={row.id} className="min-w-0 space-y-2 rounded-xl border bg-card p-4">
             <div className="min-w-0">
               <p className="truncate font-medium">{row.name}</p>
               <p className="truncate text-xs text-muted-foreground">{row.email}</p>

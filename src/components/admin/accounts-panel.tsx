@@ -241,12 +241,12 @@ export function AccountsPanel({ accounts: initial, navigation }: { accounts: Acc
           </div>
           <ul className="grid gap-2.5 sm:hidden">
             {accounts.map((row) => (
-              <li key={row.id} className="space-y-2 rounded-xl border bg-card p-4">
+              <li key={row.id} className="min-w-0 space-y-2 rounded-xl border bg-card p-4">
                 <div className="min-w-0">
                   <p className="truncate font-medium">{row.name}</p>
                   <p className="truncate text-xs text-muted-foreground">{row.email}</p>
                 </div>
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <StatusPill row={row} />
                   <span className="text-xs text-muted-foreground">Último acesso {formatLastAccess(row.lastAccess)}</span>
                 </div>
