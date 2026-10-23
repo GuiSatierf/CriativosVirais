@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { accessGrants, adminAuditLog, session, user } from "@/db/schema";
@@ -37,10 +37,9 @@ export function requireHotmart(hottok: string | null) {
   return config;
 }
 
+/** Null for anything that is not a purchase event; Hotmart retries every non-2xx answer forever. */
 export function parsePurchaseEvent(body: unknown) {
-  const parsed = purchaseEventSchema.safeParse(body);
-  if (!parsed.success) throw new HttpError(400, "Dados inválidos.");
-  return parsed.data;
+  return purchaseEventSchema.safeParse(body).data ?? null;
 }
 
 async function audit(action: string, email: string, details: Record<string, string>) {
@@ -57,8 +56,26 @@ async function findAccount(email: string) {
 
 const hotmartBlocks: readonly string[] = Object.values(blockReasons);
 
+/** Hotmart may deliver an old approval after the refund of the same purchase; it must not undo it. */
+async function wasReversed(email: string, transaction: string) {
+  const [reversal] = await db
+    .select({ id: adminAuditLog.id })
+    .from(adminAuditLog)
+    .where(
+      and(
+        eq(adminAuditLog.actorEmail, actor),
+        eq(adminAuditLog.targetEmail, email),
+        inArray(adminAuditLog.action, ["account.blocked", "access.removed"]),
+        sql`${adminAuditLog.details}->>'transaction' = ${transaction}`,
+      ),
+    )
+    .limit(1);
+  return reversal != null;
+}
+
 /** A purchase frees the email to sign up and lifts a block that a past refund put on it. */
 async function grant(email: string, transaction: string) {
+  if (await wasReversed(email, transaction)) return audit("access.grant_skipped", email, { transaction });
   await db
     .insert(accessGrants)
     .values({ email, source: "hotmart", note: `Hotmart ${transaction}` })
@@ -85,7 +102,8 @@ async function revoke(email: string, reason: string, transaction: string) {
 }
 
 /** Applies one purchase event; anything that is not a sale or a reversal of this product is ignored. */
-export async function applyPurchaseEvent(event: HotmartPurchaseEvent, productIds: readonly string[]) {
+export async function applyPurchaseEvent(event: HotmartPurchaseEvent | null, productIds: readonly string[]) {
+  if (event == null) return "ignored";
   if (!productIds.includes(String(event.data.product.id))) return "ignored";
   const email = normalizeEmail(event.data.buyer.email);
   const transaction = event.data.purchase.transaction ?? event.id;
