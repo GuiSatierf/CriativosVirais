@@ -35,8 +35,9 @@ export function AdminHeading({
         {action}
       </div>
 
+      {/* Swipes sideways on narrow screens; the active underline must not add a scrollbar. */}
       <Tabs value={current} onValueChange={(tab) => router.push(`/admin?aba=${tab}`)}>
-        <TabsList variant="line" className="w-full justify-start gap-6 overflow-x-auto rounded-none border-b p-0 group-data-horizontal/tabs:h-10">
+        <TabsList variant="line" className="w-full justify-start gap-6 overflow-x-auto rounded-none border-b p-0 [scrollbar-width:none] group-data-horizontal/tabs:h-10 [&::-webkit-scrollbar]:hidden">
           {navigation.tabs.map((tab) => (
             <TabsTrigger key={tab} value={tab} className={`${trigger} after:bottom-[-1px]!`}>
               {tabLabel[tab]}

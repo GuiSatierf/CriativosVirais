@@ -21,6 +21,8 @@ test("support enters a client's account without the password, changes its email 
   await expect(page.getByRole("tab", { name: "Contas" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Acessos" })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "Equipe" })).toHaveCount(0);
+  // The active tab's underline overflows by a pixel; the tab list must not show a scrollbar for it.
+  expect(await page.getByRole("tablist").evaluate((list) => getComputedStyle(list).scrollbarWidth)).toBe("none");
   expect((await page.request.get("/api/admin/access")).status()).toBe(403);
   expect((await page.request.get("/api/admin/team")).status()).toBe(403);
 
