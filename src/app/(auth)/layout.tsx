@@ -89,7 +89,7 @@ export default function AuthLayout({
           <Brand className="h-5" />
         </Link>
         <div className="flex flex-1 items-center justify-center py-10">
-          <div className="w-full max-w-sm">{children}</div>
+          <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-(--shadow-panel) sm:p-8">{children}</div>
         </div>
       </main>
     </div>
