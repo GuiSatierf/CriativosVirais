@@ -45,6 +45,12 @@ const schemas = {
     })
     // The file outbox exists only for development and automated tests.
     .refine((v) => v.NODE_ENV !== "production"),
+  hotmart: z.object({
+    // The Hotmart account's hottok, sent in X-HOTMART-HOTTOK on every webhook call.
+    HOTMART_HOTTOK: filled,
+    // Comma-separated Hotmart product ids that grant access; other products on the account are ignored.
+    HOTMART_PRODUCT_IDS: filled.transform((v) => v.split(",").map((id) => id.trim()).filter((id) => id.length > 0)),
+  }),
   crypto: z.object({
     ENCRYPTION_KEY: z
       .string()
@@ -79,11 +85,13 @@ export const aiProviderEnv = () => group("aiProvider");
 export const transcribeEnv = () => optionalGroup("transcribe");
 export const emailEnv = () => optionalGroup("email");
 export const emailOutboxEnv = () => optionalGroup("emailOutbox");
+export const hotmartEnv = () => optionalGroup("hotmart");
 
 const optionalProviders = {
   ai: { feature: "chat and batch generation", variables: ["DEEPSEEK_API_KEY", "DEEPSEEK_MODEL_TEXT"] },
   transcribe: { feature: "audio and video transcription", variables: ["GROQ_API_KEY", "GROQ_WHISPER_MODEL"] },
   email: { feature: "password reset by email", variables: ["RESEND_API_KEY", "EMAIL_FROM"] },
+  hotmart: { feature: "automatic access from Hotmart purchases", variables: ["HOTMART_HOTTOK", "HOTMART_PRODUCT_IDS"] },
 } as const;
 
 /** Optional providers that are not configured, by variable name only; values are never read out. */
