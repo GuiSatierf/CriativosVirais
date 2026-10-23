@@ -6,7 +6,7 @@ A fonte de verdade de negócio é [`docs/documento-mestre.md`](docs/documento-me
 
 ## Funcionalidades
 
-- Cadastro por email e senha (Better Auth). Cada usuário recebe uma operação (tenant) e um contexto vazio. Não há redefinição de senha por email: `/recuperar-senha` orienta o contato com o suporte.
+- Cadastro por email e senha (Better Auth). Cada usuário recebe uma operação (tenant) e um contexto vazio. Quem esquece a senha recebe em `/recuperar-senha` um link por e-mail (Resend), válido por 1 hora e de uso único; sem Resend configurado, a tela orienta o contato com o suporte.
 - Uma tela só: a conversa com o Estrategista (`/chat`). Antes da primeira mensagem ela mostra novidades (vídeos em análise, integrações com erro, leva com resultados) e as próximas ações sugeridas pelo servidor, sem chamar o modelo. Não há barra lateral: o topo tem nova conversa, histórico (Ctrl/⌘ + K, com renomear, arquivar e excluir) e o menu da conta. Tema claro e escuro.
 - Levas (`/levas`), Resultados (`/criativos`), Minha oferta (`/configuracoes`), Integrações e Perfil abrem como painéis sobre a conversa (rotas interceptadas no slot `@panel`); acessados direto pelo endereço, abrem como página inteira. O assistente mostra atalhos para esses painéis na conversa.
 - Arrastar um vídeo, áudio ou CSV para a conversa envia o arquivo; o CSV abre a importação já preenchida.
@@ -81,6 +81,8 @@ Referências: [`.env.example`](.env.example) (local) e [`.env.production.example
 | `DEEPSEEK_MODEL_VISION` | Descrição dos frames; precisa aceitar imagens |
 | `AI_PROVIDER` | Opcional. `fake` troca o modelo de texto por um roteiro fixo (`src/lib/ai/fake-model.ts`), sem chamar a DeepSeek; só em desenvolvimento e testes, recusado com `NODE_ENV=production` |
 | `GROQ_API_KEY`, `GROQ_WHISPER_MODEL` | Transcrição de áudio e da trilha dos vídeos |
+| `AI_MONTHLY_LIMIT_CENTS` | Opcional. Teto de gasto com IA por operação no mês (horário de São Paulo), em centavos; padrão `2000` (R$ 20). Ao chegar nele, chat, levas e análise de vídeo param até o mês virar |
+| `AI_PRICE_INPUT_CENTS_PER_MTOK`, `AI_PRICE_CACHED_INPUT_CENTS_PER_MTOK`, `AI_PRICE_OUTPUT_CENTS_PER_MTOK` | Opcionais. Preço do provedor em centavos de real por milhão de tokens (entrada, entrada em cache, saída), usado para medir o gasto; padrões `170`, `20` e `680` |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Recuperação de senha por e-mail (Resend). `EMAIL_FROM` usa um domínio verificado no Resend, por exemplo `Criativos Virais <nao-responda@mail.exemplo.com.br>`. Sem elas, a tela de recuperação mostra o contato do suporte |
 | `HOTMART_HOTTOK`, `HOTMART_PRODUCT_IDS` | Opcionais. Liberação automática pela Hotmart: o hottok da conta (Hotmart → Ferramentas → Webhook → Autenticação) e os IDs dos produtos que dão acesso, separados por vírgula. Sem elas, `/api/hotmart/access` responde 404 e o acesso é liberado só pelo painel |
 | `EMAIL_OUTBOX_DIR` | Opcional. Grava os e-mails como arquivos JSON nessa pasta em vez de enviar; só em desenvolvimento e testes, recusado com `NODE_ENV=production` |
@@ -202,7 +204,7 @@ A imagem do `Dockerfile` executa `node server.js` (app, porta 3000, healthcheck 
 
 ## Limites conhecidos
 
-- Sem verificação de email, redefinição de senha por email, quotas de uso de IA ou limite de webhook compartilhado entre réplicas.
+- Sem verificação de email ou limite de webhook compartilhado entre réplicas.
 - Dados permanecem enquanto a operação existir. Excluir uma operação exige remover o tenant (cascade no banco), o prefixo correspondente no bucket e os backups.
 - Uploads: vídeo até 250 MB, áudio até 25 MB, duração máxima de 15 minutos.
 

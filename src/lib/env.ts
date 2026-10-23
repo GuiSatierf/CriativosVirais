@@ -2,6 +2,13 @@ import { z } from "zod";
 import { ConfigError } from "./errors";
 
 const filled = z.string().trim().min(1);
+// Compose files pass unset variables as "", and a stray space must not read as zero: both fall
+// back to the default.
+const centsOr = (fallback: number) =>
+  z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.coerce.number().int().nonnegative().default(fallback),
+  );
 const schemas = {
   db: z.object({ DATABASE_URL: z.url() }),
   auth: z.object({
@@ -30,6 +37,14 @@ const schemas = {
     })
     // The fake model exists only for development and automated tests.
     .refine((v) => v.AI_PROVIDER !== "fake" || v.NODE_ENV !== "production"),
+  aiBudget: z.object({
+    // Monthly AI spend allowed per operation, in BRL cents; the month follows São Paulo time.
+    AI_MONTHLY_LIMIT_CENTS: centsOr(2000),
+    // Provider prices in BRL cents per million tokens, copied from the provider's price table.
+    AI_PRICE_INPUT_CENTS_PER_MTOK: centsOr(170),
+    AI_PRICE_CACHED_INPUT_CENTS_PER_MTOK: centsOr(20),
+    AI_PRICE_OUTPUT_CENTS_PER_MTOK: centsOr(680),
+  }),
   transcribe: z.object({
     GROQ_API_KEY: filled,
     GROQ_WHISPER_MODEL: filled,
@@ -85,6 +100,7 @@ export const storageEnv = () => group("storage");
 export const cryptoEnv = () => group("crypto");
 export const aiEnv = () => optionalGroup("ai");
 export const aiProviderEnv = () => group("aiProvider");
+export const aiBudgetEnv = () => group("aiBudget");
 export const transcribeEnv = () => optionalGroup("transcribe");
 export const emailEnv = () => optionalGroup("email");
 export const emailOutboxEnv = () => optionalGroup("emailOutbox");
