@@ -30,9 +30,19 @@ export const csvImportSchema = z
 export type CsvInput = z.input<typeof csvImportSchema>;
 const maxRows = 5000;
 
+// A stored ratio goes stale once a re-import replaces one of its inputs, so it is rewritten too.
+const ratioInputs = {
+  ctr: ["clicks", "impressions"],
+  roas: ["spend_cents", "revenue_cents"],
+} as const;
+
 /** Metrics the user mapped to a column; the others are left untouched when a period is re-imported. */
 export function mappedMetrics(mapping: CsvInput["mapping"]) {
-  return metricNames.filter((metric) => Boolean(mapping[metric]));
+  return metricNames.filter((metric) => {
+    if (mapping[metric]) return true;
+    if (metric !== "ctr" && metric !== "roas") return false;
+    return ratioInputs[metric].some((input) => Boolean(mapping[input]));
+  });
 }
 function numeric(
   raw: string,
@@ -75,11 +85,11 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
   for (const metric of ["hook_rate", "body_rate"] as const)
     if (p.mapping[metric] && !p.metricDefinitions[metric])
       throw new DomainError("invalid_input", `Informe a fórmula de ${metricLabels[metric]} antes de importar.`);
-  // One row past the limit is enough to refuse the file without building millions of objects.
+  // No `preview` cap: Papa counts skipped blank lines toward it, so a file with blank lines would
+  // lose its last rows silently instead of being refused. The 5 MB limit already bounds the parse.
   const parsed = Papa.parse<Record<string, string>>(p.csv, {
     header: true,
     skipEmptyLines: "greedy",
-    preview: maxRows + 1,
     transformHeader: (h) => h.trim().replace(/^\uFEFF/, ""),
   });
   if (
