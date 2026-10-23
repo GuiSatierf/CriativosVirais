@@ -469,6 +469,23 @@ export const batches = pgTable(
   ],
 );
 
+export const aiPurpose = pgEnum("ai_purpose", ["chat", "batch", "video"]);
+// One row per model call, for the monthly AI budget of each operation.
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    purpose: aiPurpose("purpose").notNull(),
+    inputTokens: integer("input_tokens").notNull(),
+    cachedInputTokens: integer("cached_input_tokens").notNull(),
+    outputTokens: integer("output_tokens").notNull(),
+    // Thousandths of a BRL cent: a single call usually costs a fraction of a cent.
+    costMillicents: int64("cost_millicents").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("ai_usage_tenant_created_idx").on(t.tenantId, t.createdAt)],
+);
 export const batchGenerationStatus = pgEnum("batch_generation_status", [
   "queued",
   "running",

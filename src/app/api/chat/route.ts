@@ -18,6 +18,7 @@ import {
   providerOptions,
   onModelError,
 } from "@/lib/ai/model";
+import { assertAiBudget } from "@/lib/ai/budget";
 import {
   attachmentsSchema,
   buildSystemPrompt,
@@ -48,6 +49,8 @@ export function POST(request: Request) {
   return handle(async () => {
     const { tenantId } = await apiTenant(request);
     assertModelConfigured();
+    // Refused up front with its own message; the model wrapper checks again on every step.
+    await assertAiBudget(tenantId);
     const input = await readJson(request, inputSchema);
     const incoming = input.messages.at(-1)!;
     const attachments = attachmentsSchema.optional().safeParse(incoming.metadata);
@@ -181,7 +184,7 @@ export function POST(request: Request) {
         execute: async ({ writer }) => {
           const tools = chatTools(tenantId, input.conversationId, writer);
           const result = streamText({
-            model: textModel(),
+            model: textModel({ tenantId, purpose: "chat" }),
             providerOptions,
             onError: onModelError,
             instructions: system,

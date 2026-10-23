@@ -52,12 +52,13 @@ const qualitySchema = z.object({
     .max(12),
 });
 async function quality(
+  tenantId: string,
   items: z.infer<typeof batchItemSchema>[],
   system: string,
   signal?: AbortSignal,
 ) {
   const { output: object } = await generateText({
-    model: textModel(),
+    model: textModel({ tenantId, purpose: "batch" }),
     providerOptions,
     output: Output.object({ schema: qualitySchema }),
     maxOutputTokens: 4000,
@@ -85,7 +86,7 @@ export async function generateBatch(
   if (!contextReady(context)) throw new DomainError("invalid_input", missingContext);
   const system = await buildSystemPrompt(tenantId, conversationId);
   const { output: object } = await generateText({
-    model: textModel(),
+    model: textModel({ tenantId, purpose: "batch" }),
     providerOptions,
     output: Output.object({ schema: batchSchema }),
     maxOutputTokens: 24000,
@@ -96,10 +97,10 @@ export async function generateBatch(
   });
   if (object.items.length !== quantity)
     throw new Error("Unexpected batch size");
-  const checks = await quality(object.items, system, signal);
+  const checks = await quality(tenantId, object.items, system, signal);
   for (const check of checks.filter((c) => !c.passed)) {
     const regenerated = await generateText({
-      model: textModel(),
+      model: textModel({ tenantId, purpose: "batch" }),
       providerOptions,
       output: Output.object({ schema: batchItemSchema }),
       maxOutputTokens: 5000,
@@ -109,7 +110,7 @@ export async function generateBatch(
       abortSignal: deadline(90_000, signal),
     });
     object.items[check.index] = regenerated.output;
-    const [verified] = await quality([regenerated.output], system, signal);
+    const [verified] = await quality(tenantId, [regenerated.output], system, signal);
     if (!verified.passed)
       throw new Error(
         "A copy não passou na revisão de qualidade. Ajuste o contexto e tente novamente.",

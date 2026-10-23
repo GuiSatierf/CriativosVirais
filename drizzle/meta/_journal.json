@@ -57,6 +57,13 @@
       "when": 1792700355002,
       "tag": "0007_admin-access",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792718868211,
+      "tag": "0008_ai-usage",
+      "breakpoints": true
     }
   ]
 }

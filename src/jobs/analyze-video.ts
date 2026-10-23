@@ -229,7 +229,7 @@ export async function analyzeVideo(data: unknown) {
         );
       }
       const { output: object } = await generateText({
-        model: textModel(true),
+        model: textModel({ tenantId, purpose: "video", vision: true }),
         providerOptions,
         output: Output.object({ schema: framesSchema }),
         maxOutputTokens: 4000,
@@ -244,7 +244,7 @@ export async function analyzeVideo(data: unknown) {
       descriptions.push(...object.frames);
     }
     const { output: object } = await generateText({
-      model: textModel(),
+      model: textModel({ tenantId, purpose: "video" }),
       providerOptions,
       output: Output.object({ schema: analysisSchema }),
       maxOutputTokens: 18000,
@@ -307,7 +307,9 @@ export async function analyzeVideo(data: unknown) {
         .where(where);
     });
   } catch (error) {
-    const actionable = error instanceof DomainError && error.code === "invalid_input";
+    // A file to replace or a spent monthly budget: retrying the job cannot fix either.
+    const actionable =
+      error instanceof DomainError && (error.code === "invalid_input" || error.code === "limit_reached");
     await db
       .update(assets)
       .set({
@@ -319,7 +321,7 @@ export async function analyzeVideo(data: unknown) {
             : "Não foi possível analisar o vídeo. Tente novamente em alguns minutos.",
       })
       .where(where);
-    // Retrying cannot fix a file the user must replace.
+    // Retrying cannot fix either case.
     if (!actionable) throw error;
   } finally {
     storage?.client.destroy();
