@@ -40,7 +40,7 @@ export function TwoFactorSetup() {
     return "Senha incorreta.";
   }
 
-  async function begin(event: React.FormEvent<HTMLFormElement>) {
+  async function begin(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     password.current = String(form.get("password") ?? "");
@@ -66,7 +66,7 @@ export function TwoFactorSetup() {
     }
   }
 
-  async function confirm(event: React.FormEvent<HTMLFormElement>) {
+  async function confirm(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (step.name !== "scan") return;
     const code = String(new FormData(event.currentTarget).get("code") ?? "").replace(/\s/g, "");

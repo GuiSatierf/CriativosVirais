@@ -45,7 +45,7 @@ const filters: { value: Filter; label: string }[] = [
   { value: "blocked", label: statusLabel.blocked },
 ];
 const dayFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
-const doneSchema = z.object({}).passthrough();
+const doneSchema = z.object({}).loose();
 
 function origin(row: AccessRow) {
   const source = row.source === "hotmart" ? "Hotmart" : "Manual";

@@ -17,7 +17,7 @@ export function TwoFactorStep() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const code = String(new FormData(event.currentTarget).get("code") ?? "").replace(/\s/g, "");
     if (!recovery && !appCode.test(code)) return setError("Digite os 6 números do app autenticador.");
