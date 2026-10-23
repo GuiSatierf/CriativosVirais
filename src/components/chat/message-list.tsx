@@ -34,6 +34,7 @@ export const maxAttachedVideos = 5;
 const replyMarkdown: Components = {
   img: ({ alt }) => (alt ? <span>{alt}</span> : null),
 };
+
 export const messageMetadataSchema = z.object({
   assetIds: z.array(z.uuid()).max(maxAttachedVideos).optional(),
 });
