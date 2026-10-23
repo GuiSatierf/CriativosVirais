@@ -42,7 +42,7 @@ function creativeKey(origin: { src?: string; sck?: string; xcod?: string } | und
   return code ?? undefined;
 }
 
-/** Reais as Hotmart sends them (a double) to whole cents, through text so 1.005 is not 100.49. */
+/** Reais as Hotmart sends them (a double) to whole cents via the 2-decimal text, and null past the safe range. */
 function reaisToCents(value: number) {
   if (value > Number.MAX_SAFE_INTEGER / 100) return null;
   const [whole, fraction = ""] = value.toFixed(2).split(".");
