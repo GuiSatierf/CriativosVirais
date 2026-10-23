@@ -2,9 +2,13 @@ import { z } from "zod";
 import { ConfigError } from "./errors";
 
 const filled = z.string().trim().min(1);
-// Compose files pass unset variables as "", which falls back to the default.
+// Compose files pass unset variables as "", and a stray space must not read as zero: both fall
+// back to the default.
 const centsOr = (fallback: number) =>
-  z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().nonnegative().default(fallback));
+  z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.coerce.number().int().nonnegative().default(fallback),
+  );
 const schemas = {
   db: z.object({ DATABASE_URL: z.url() }),
   auth: z.object({
