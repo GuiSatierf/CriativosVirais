@@ -91,6 +91,8 @@ services:
       - GROQ_WHISPER_MODEL=${GROQ_WHISPER_MODEL:-}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-}
+      - HOTMART_HOTTOK=${HOTMART_HOTTOK:-}
+      - HOTMART_PRODUCT_IDS=${HOTMART_PRODUCT_IDS:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -123,6 +125,8 @@ services:
       - GROQ_WHISPER_MODEL=${GROQ_WHISPER_MODEL:-}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-}
+      - HOTMART_HOTTOK=${HOTMART_HOTTOK:-}
+      - HOTMART_PRODUCT_IDS=${HOTMART_PRODUCT_IDS:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
