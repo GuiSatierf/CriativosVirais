@@ -94,7 +94,7 @@ export async function BatchesView({
         <EmptyState
           icon={Layers}
           title="Nenhuma leva ainda"
-          description="Uma leva é um conjunto de roteiros gerados na conversa a partir da sua oferta."
+          description="Peça a primeira na conversa: o Estrategista monta os roteiros a partir da sua oferta."
           action={
             <Link className={buttonVariants()} href="/chat">
               <Plus aria-hidden />
