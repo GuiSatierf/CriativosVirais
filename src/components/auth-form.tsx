@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { LoaderCircle, LogIn, UserPlus } from "@/components/icons";
+import { LoaderCircle } from "@/components/icons";
 import { authClient } from "@/lib/auth-client";
 import { newPasswordSchema } from "@/lib/password-rules";
 import { Button } from "@/components/ui/button";
@@ -155,6 +155,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           <div className="space-y-2">
             <Label htmlFor="name">Nome</Label>
             <Input
+              className="min-h-11"
               id="name"
               name="name"
               required
@@ -170,6 +171,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         <div className="space-y-2">
           <Label htmlFor="email">E-mail</Label>
           <Input
+            className="min-h-11"
             id="email"
             name="email"
             type="email"
@@ -199,6 +201,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             )}
           </div>
           <PasswordInput
+            className="min-h-11"
             id="password"
             name="password"
             required
@@ -224,13 +227,9 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             <AlertDescription>{formError}</AlertDescription>
           </Alert>
         )}
-        <Button className="mt-2 w-full" type="submit" disabled={pending}>
-          {pending ? (
+        <Button className="mt-2 w-full" size="lg" type="submit" disabled={pending}>
+          {pending && (
             <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden />
-          ) : signup ? (
-            <UserPlus aria-hidden />
-          ) : (
-            <LogIn aria-hidden />
           )}
           {pending
             ? signup
