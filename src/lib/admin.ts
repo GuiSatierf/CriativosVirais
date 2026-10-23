@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { accessGrants, adminAuditLog, user } from "@/db/schema";
 import { normalizeEmail } from "./access";
+import { sendAccessInvite } from "./access-invite-email";
 import { accessStatus, blockRefusal } from "./admin-rules";
 import { getAuth } from "./auth";
 import { HttpError } from "./errors";
@@ -91,6 +92,8 @@ export async function grantAccess(actor: AdminActor, email: string, note: string
     .returning({ id: accessGrants.id });
   if (created == null) throw new HttpError(409, "Este e-mail já tem acesso.");
   await audit(actor, "access.granted", normalized, note == null ? {} : { note });
+  // Not awaited: a slow email must not hold the panel; the sender logs its own failures.
+  void sendAccessInvite(normalized);
 }
 
 export async function removeAccess(actor: AdminActor, grantId: string) {
