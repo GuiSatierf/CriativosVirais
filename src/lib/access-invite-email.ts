@@ -18,11 +18,11 @@ export function accessInviteEmail(email: string, teamRole?: string) {
             `Crie sua conta com este e-mail (${email}) para conversar com o Estrategista, gerar levas de roteiros e ver quais criativos mais vendem.`,
           ]
         : [
-            `Você foi adicionado à equipe do Criativos Virais como ${teamRole}.`,
-            `Crie sua conta com este e-mail (${email}). Depois, peça o código de ativação a quem te convidou para abrir o painel com a verificação em duas etapas.`,
+            `Seu acesso à equipe do Criativos Virais foi liberado, com o papel de ${teamRole}.`,
+            `Crie sua conta com este e-mail (${email}). No primeiro acesso ao painel, use o código de ativação que a pessoa que convidou você vai passar.`,
           ],
     action: { label: "Criar minha conta", url: signup.toString() },
-    note: "Se você não esperava este e-mail, pode ignorar. Ninguém cria conta sem acesso a este endereço.",
+    note: "Se não foi você, ignore este e-mail. A conta só pode ser criada por quem acessa esta caixa de entrada.",
   };
   return {
     to: email,
