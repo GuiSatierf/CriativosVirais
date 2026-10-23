@@ -57,8 +57,9 @@ export class UtmifyConnector {
       const now = Date.now();
       const requested = Number.isFinite(seconds) && seconds > 0
         ? now + seconds * 1000 : Date.parse(header ?? "");
+      // At least a minute, at most a day: a huge Retry-After must not silence syncing for weeks.
       const retryAt = Number.isFinite(requested) && requested <= 8.64e15
-        ? Math.max(now + 60_000, requested) : now + 60_000;
+        ? Math.min(Math.max(now + 60_000, requested), now + 86_400_000) : now + 60_000;
       throw new RetryLaterError("UTMify", new Date(retryAt).toISOString());
     }
     const refused = await rejection(response);

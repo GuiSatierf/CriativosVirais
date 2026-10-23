@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProviderRejectedError } from "../errors";
+import { ProviderRejectedError, RetryLaterError } from "../errors";
 import { UtmifyConnector } from "./utmify";
 
 const connector = new UtmifyConnector({ apiKey: "chave-de-teste-123", dashboardId: "6adabde42df49187df7c276e" });
 
-function answer(status: number, body: unknown = {}) {
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status })));
+function answer(status: number, body: unknown = {}, headers: Record<string, string> = {}) {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status, headers })));
 }
 
 async function refusal() {
@@ -43,5 +43,16 @@ describe("UTMify refusals", () => {
     expect(await refusal()).toContain("não tem acesso a este dashboard");
     answer(404);
     expect(await refusal()).toContain("Confira o ID");
+  });
+});
+
+describe("UTMify pause", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("waits at most a day even when UTMify asks for a month", async () => {
+    answer(429, {}, { "retry-after": "2592000" });
+    const error = await connector.sync("2026-10-01", "2026-10-23").catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(RetryLaterError);
+    expect(Date.parse((error as RetryLaterError).retryAt) - Date.now()).toBeLessThanOrEqual(86_400_000);
   });
 });
