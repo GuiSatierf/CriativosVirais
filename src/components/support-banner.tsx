@@ -39,7 +39,7 @@ export function SupportBanner({ clientName, endsAt }: { clientName: string; ends
         type="button"
         onClick={leave}
         disabled={pending}
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-background/30 px-2.5 py-1 font-medium hover:bg-background/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-background disabled:opacity-60"
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-background/30 px-2.5 py-1 font-medium pointer-coarse:min-h-11 hover:bg-background/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-background disabled:opacity-60"
       >
         {pending ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden /> : <LogOut className="size-4" aria-hidden />}
         <span className="hidden sm:inline">Sair da conta</span>
