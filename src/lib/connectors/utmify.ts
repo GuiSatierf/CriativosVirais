@@ -4,17 +4,19 @@ export const utmifyCredentials = z.object({
   apiKey: z.string().trim().min(10).max(500),
   dashboardId: z.string().trim().regex(/^[a-fA-F0-9]{24}$/),
 });
-const n = z.number().int().nullable().optional();
+// The documentation lists the fields but not every value; an unexpected one becomes "unknown"
+// (NULL) instead of failing the whole sync, and a missing group reads as all unknown.
+const n = z.number().int().nullable().optional().catch(null);
 const summarySchema = z.object({
-  currency: z.literal("BRL"),
-  viewType: z.enum(["Total", "Normal"]),
-  orders: z.object({ approved: n, refunded: n, chargedback: n }),
-  revenue: z.object({ gross: n, net: n }),
-  ads: z.object({ spend: n, clicks: n, leads: n, initiateCheckouts: n }),
-  result: z.object({
-    profit: n,
-    roas: z.number().nullable().optional(),
-  }),
+  currency: z.string(),
+  viewType: z.string().optional().catch(undefined),
+  orders: z.object({ approved: n, refunded: n, chargedback: n }).default({}).catch({}),
+  revenue: z.object({ gross: n, net: n }).default({}).catch({}),
+  ads: z.object({ spend: n, clicks: n, leads: n, initiateCheckouts: n }).default({}).catch({}),
+  result: z
+    .object({ profit: n, roas: z.number().nullable().optional().catch(null) })
+    .default({})
+    .catch({}),
 });
 const newTokenHint = "Crie um token em Avançado → API Oficial → Novo Token e conecte de novo.";
 
@@ -66,6 +68,9 @@ export class UtmifyConnector {
         statusCode: response.status,
       });
     const summary = summarySchema.parse(await response.json());
+    // Reports are in reais; another currency would mix units with the client's other data.
+    if (summary.currency !== "BRL")
+      throw new ProviderRejectedError("Este dashboard da UTMify não está em reais. Use um dashboard em real brasileiro (R$).");
     return {
       records: [],
       summary: { ...summary, period: { from, to } },

@@ -14,6 +14,23 @@ async function refusal() {
   return (error as Error).message;
 }
 
+describe("UTMify summary", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("keeps the known totals when the answer has unexpected or missing values", async () => {
+    answer(200, { currency: "BRL", viewType: "Faturamento Normal", revenue: { gross: 12345, net: "?" }, ads: { spend: 5000 } });
+    const { summary } = await connector.sync("2026-10-01", "2026-10-23");
+    expect(summary.revenue).toEqual({ gross: 12345, net: null });
+    expect(summary.ads.spend).toBe(5000);
+    expect(summary.result).toEqual({});
+  });
+
+  it("refuses a dashboard that is not in reais with a clear message", async () => {
+    answer(200, { currency: "USD" });
+    expect(await refusal()).toContain("não está em reais");
+  });
+});
+
 describe("UTMify refusals", () => {
   afterEach(() => vi.unstubAllGlobals());
 
