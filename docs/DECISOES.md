@@ -11,7 +11,7 @@ Uma entrada por decisão de arquitetura ou de biblioteca: data, o que foi decidi
 **Equivalência.** A configuração reproduz as 86 regras que o `eslint-config-next` (core-web-vitals + typescript) ligava, com a mesma severidade e as mesmas pastas ignoradas; 80 têm equivalente nativo no Oxlint 1.88. As seis que ficaram de fora:
 
 - `react/jsx-uses-react` e `react/jsx-uses-vars`: só marcavam variáveis como usadas para outra regra do ESLint; o `no-unused-vars` do Oxlint já entende JSX.
-- `react/no-deprecated`: avisava de APIs antigas do React. As de função (`ReactDOM.render`, `findDOMNode`...) saíram do React 19 e dos tipos, então o `tsc` acusa o uso; as de componente de classe (`componentWillMount`...) não se aplicam, porque o projeto não tem componente de classe. O substituto do Oxlint, `typescript/no-deprecated`, cobre toda biblioteca e hoje acusa 25 usos de APIs marcadas como obsoletas (zod, ai); ligá-lo é trabalho separado.
+- `react/no-deprecated`: avisava de APIs antigas do React. As de função (`ReactDOM.render`, `findDOMNode`...) saíram do React 19 e dos tipos, então o `tsc` acusa o uso; as de componente de classe (`componentWillMount`...) não se aplicam, porque o projeto não tem componente de classe. O substituto do Oxlint, `typescript/no-deprecated`, cobre toda biblioteca e hoje acusa 34 usos de APIs marcadas como obsoletas (zod, AI SDK e o `FormEvent` do React); ligá-lo é trabalho separado.
 - `react-hooks/config` e `react-hooks/gating`: validam opções do React Compiler, que o projeto não configura.
 - `@next/next/no-location-assign-relative-destination`: ainda não existe no Oxlint. O código não usa `location.assign` nem `location.href =`.
 
