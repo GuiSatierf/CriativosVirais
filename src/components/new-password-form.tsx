@@ -48,7 +48,7 @@ export function NewPasswordForm({ token }: { token: string }) {
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const input = event.currentTarget.elements.namedItem("password");
     const parsed = newPasswordSchema.safeParse(new FormData(event.currentTarget).get("password"));

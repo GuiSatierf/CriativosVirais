@@ -3,21 +3,25 @@ import { sql } from "drizzle-orm";
 import { db, pool } from "../src/db";
 import { accessGrants, adminAuditLog, session, twoFactor, user } from "../src/db/schema";
 import { issueEnrollmentCode } from "../src/lib/admin-enrollment";
+import { staffRoleLabel, type StaffRole } from "../src/lib/staff";
 
 /**
- * Operator commands on the server, the only way to create the first admins:
+ * Operator commands on the server, the only way to create the first owner (later owners manage the
+ * team from the panel's Equipe tab):
  *   node dist/tools/scripts/admin-access.js grant <email> [note]
- *   node dist/tools/scripts/admin-access.js make-admin <email>
- *   node dist/tools/scripts/admin-access.js remove-admin <email>
+ *   node dist/tools/scripts/admin-access.js make-owner|make-admin|make-support <email>
+ *   node dist/tools/scripts/admin-access.js remove-staff <email>
  *   node dist/tools/scripts/admin-access.js reset-two-factor <email>
- * make-admin needs an existing account (grant, then sign up, then make-admin). reset-two-factor is
- * for an admin who lost both the authenticator and the recovery codes: they enroll again.
+ * make-* needs an existing account (grant, then sign up, then make-*). reset-two-factor is for a
+ * team member who lost both the authenticator and the recovery codes: they enroll again.
  */
 const [command, rawEmail, ...noteParts] = process.argv.slice(2);
 const operator = "linha de comando do servidor";
 
 function usage(): never {
-  throw new Error("Use: grant <email> [observação] | make-admin <email> | remove-admin <email> | reset-two-factor <email>");
+  throw new Error(
+    "Use: grant <email> [observação] | make-owner|make-admin|make-support <email> | remove-staff <email> | reset-two-factor <email>",
+  );
 }
 
 async function audit(action: string, email: string, details: Record<string, string> = {}) {
@@ -36,16 +40,16 @@ async function grant(email: string) {
   console.info(`Acesso liberado para ${email}.`);
 }
 
-async function setRole(email: string, role: "admin" | "user") {
+async function setRole(email: string, role: StaffRole | null) {
   const updated = await db
     .update(user)
     .set({ role })
     .where(sql`lower(${user.email}) = ${email}`)
     .returning({ id: user.id });
   if (updated.length === 0) throw new Error(`Nenhuma conta com ${email}. Libere o acesso e crie a conta antes.`);
-  await audit(role === "admin" ? "admin.granted" : "admin.removed", email);
-  if (role === "user") return console.info(`${email} não é mais admin.`);
-  await printEnrollmentCode(updated[0].id, `${email} agora é admin.`);
+  await audit(role == null ? "team.removed" : "team.added", email, role == null ? {} : { role });
+  if (role == null) return console.info(`${email} não faz mais parte da equipe.`);
+  await printEnrollmentCode(updated[0].id, `${email} agora é ${staffRoleLabel[role]}.`);
 }
 
 /** The code goes to the new admin by a private channel; enrolling two-factor asks for it. */
@@ -71,8 +75,10 @@ async function main() {
   const email = rawEmail.trim().toLowerCase();
   try {
     if (command === "grant") return await grant(email);
+    if (command === "make-owner") return await setRole(email, "owner");
     if (command === "make-admin") return await setRole(email, "admin");
-    if (command === "remove-admin") return await setRole(email, "user");
+    if (command === "make-support") return await setRole(email, "support");
+    if (command === "remove-staff" || command === "remove-admin") return await setRole(email, null);
     if (command === "reset-two-factor") return await resetTwoFactor(email);
     usage();
   } finally {

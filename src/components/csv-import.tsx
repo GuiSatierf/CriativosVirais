@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { z } from "zod";
 import { toast } from "sonner";
-import { CircleAlert, FileUp, Loader2 } from "@/components/icons";
+import { CircleAlert, FileUp, Loader2, TriangleAlert } from "@/components/icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,6 +112,22 @@ function holdsBatchCodes(column: string, rows: CsvRow[], pattern: RegExp) {
   return codes >= values.length * batchCodeShare;
 }
 
+/** Batch codes as the server stores them: the match with the batch's script is case-sensitive. */
+const storedBatchCode = /^L\d{2,}-C\d{2,}$/;
+
+/**
+ * Names that start with a batch code but are not exactly one ("L01-C02 | dor", "l01-c02"). They
+ * are kept as typed, so their results never reach the batch's script; the import warns first.
+ */
+function nearMissCodes(rows: CsvRow[], column: string | undefined) {
+  if (!column) return [];
+
+  const names = rows.map((row) => row[column]?.trim() ?? "");
+  return [...new Set(names)].filter(
+    (name) => prefixedBatchCode.test(name) && !storedBatchCode.test(name),
+  );
+}
+
 function guessMapping(columns: string[], rows: CsvRow[]) {
   const mapping: Partial<Record<Field, string>> = {};
   const used = new Set<string>();
@@ -206,6 +222,7 @@ export function CsvImport({
   const router = useRouter();
   const [csv, setCsv] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
+  const [rows, setRows] = useState<CsvRow[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [period, setPeriod] = useState(recentPeriod);
   const [decimal, setDecimal] = useState<"comma" | "dot">("comma");
@@ -218,6 +235,7 @@ export function CsvImport({
   async function readFile(file: File | undefined) {
     setFileError(undefined);
     setHeaders([]);
+    setRows([]);
     setCsv("");
     setMapping({});
     setFileName(file?.name);
@@ -243,6 +261,7 @@ export function CsvImport({
     }
     setCsv(text);
     setHeaders(columns);
+    setRows(parsed.data as CsvRow[]);
     setMapping(guessMapping(columns, parsed.data as CsvRow[]));
   }
 
@@ -254,6 +273,7 @@ export function CsvImport({
 
   const ready = headers.length > 0;
   const guessedExtra = extraFields.some((f) => mapping[f]);
+  const nearMisses = nearMissCodes(rows, mapping.creative_key);
 
   function fieldRow(field: Field) {
     const required = field === "creative_key";
@@ -428,6 +448,20 @@ export function CsvImport({
                   faltar o dado.
                 </p>
                 <div className="space-y-3">{mainFields.map(fieldRow)}</div>
+                {nearMisses.length > 0 && (
+                  <Alert role="status" className="border-warning/40 text-warning">
+                    <TriangleAlert aria-hidden />
+                    <AlertDescription className="text-warning">
+                      {nearMisses.length === 1
+                        ? "1 nome não é"
+                        : `${nearMisses.length} nomes não são`}{" "}
+                      exatamente o código da leva, como{" "}
+                      <span className="whitespace-nowrap">“{nearMisses[0]}”</span>.
+                      Esses resultados não vão para o roteiro da leva: o nome
+                      do anúncio precisa ser só o código, em maiúsculas (L01-C01).
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <Details
                   label="Outras colunas (opcional)"
                   defaultOpen={guessedExtra}

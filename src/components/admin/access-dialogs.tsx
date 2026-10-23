@@ -19,12 +19,12 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/lib/client";
 import type { AccessRow } from "./access-panel";
 
-const doneSchema = z.object({}).passthrough();
+const doneSchema = z.object({}).loose();
 const emailSchema = z.email();
 const minimumReason = 3;
 
 /** Shared submit flow: one request, a success toast, a fresh list, or the server's pt-BR error inline. */
-function useAction(onDone: () => void) {
+export function useAction(onDone: () => void) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,14 +45,14 @@ function useAction(onDone: () => void) {
   return { pending, error, setError, run };
 }
 
-function Spinner({ pending }: { pending: boolean }) {
+export function Spinner({ pending }: { pending: boolean }) {
   if (!pending) return null;
   return <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden />;
 }
 
 export function GrantDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { pending, error, setError, run } = useAction(() => onOpenChange(false));
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email") ?? "").trim();
@@ -89,7 +89,7 @@ export function GrantDialog({ open, onOpenChange }: { open: boolean; onOpenChang
 
 export function BlockDialog({ row, onClose }: { row: AccessRow | null; onClose: () => void }) {
   const { pending, error, setError, run } = useAction(onClose);
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (row?.userId == null) return;
     const userId = row.userId;

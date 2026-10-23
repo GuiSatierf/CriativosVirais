@@ -5,7 +5,7 @@ import { missingOptionalConfiguration } from "./env";
 describe("missing AI configuration", () => {
   // No provider keys: the state of a fresh install. Values must never appear in what is reported.
   beforeAll(() => {
-    for (const name of ["AI_PROVIDER", "DEEPSEEK_API_KEY", "DEEPSEEK_MODEL_TEXT", "GROQ_API_KEY", "GROQ_WHISPER_MODEL", "RESEND_API_KEY", "EMAIL_FROM", "EMAIL_OUTBOX_DIR"])
+    for (const name of ["AI_PROVIDER", "DEEPSEEK_API_KEY", "DEEPSEEK_MODEL_TEXT", "GROQ_API_KEY", "GROQ_WHISPER_MODEL", "RESEND_API_KEY", "EMAIL_FROM", "EMAIL_OUTBOX_DIR", "HOTMART_HOTTOK", "HOTMART_PRODUCT_IDS"])
       vi.stubEnv(name, "");
   });
   afterAll(() => {
@@ -22,6 +22,8 @@ describe("missing AI configuration", () => {
       "GROQ_WHISPER_MODEL",
       "RESEND_API_KEY",
       "EMAIL_FROM",
+      "HOTMART_HOTTOK",
+      "HOTMART_PRODUCT_IDS",
     ]);
   });
 

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, LoaderCircle, Trash2 } from "@/components/icons";
+import { LoaderCircle, Trash2 } from "@/components/icons";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -28,7 +28,7 @@ export function ChangePassword() {
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!current) return setError("Digite a sua senha atual.");
     if (next.length < minPassword)
@@ -113,7 +113,7 @@ export function ChangePassword() {
         </p>
       )}
       <Button type="submit" className="w-fit" disabled={pending}>
-        {pending ? <LoaderCircle className={spin} aria-hidden /> : <KeyRound aria-hidden />}
+        {pending && <LoaderCircle className={spin} aria-hidden />}
         {pending ? "Salvando…" : "Trocar senha"}
       </Button>
     </form>
@@ -128,7 +128,7 @@ export function DeleteAccount() {
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!password || pending) return;
     setPending(true);
