@@ -46,9 +46,12 @@ test("a failed video analysis does not block sending messages", async ({ page })
   await expect(composer).toHaveValue("Analise o vídeo que enviei.");
   await expect(page.getByRole("button", { name: "Enviar mensagem" })).toBeDisabled();
 
-  // Discarding the video leaves nothing to wait for.
+  // Discarding the video leaves nothing to wait for. The second failure clears the
+  // auto-filled prompt again, so the person types a message of their own.
   status = "error";
   await page.getByRole("button", { name: "Descartar" }).click();
   await expect(page.getByRole("list", { name: "Vídeos anexados" })).toBeHidden();
+  await expect(composer).toHaveValue("");
+  await composer.fill("Quero te contar sobre a minha oferta.");
   await expect(page.getByRole("button", { name: "Enviar mensagem" })).toBeEnabled();
 });
