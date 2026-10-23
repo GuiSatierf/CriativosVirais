@@ -56,6 +56,11 @@ test("support enters a client's account without the password, changes its email 
   });
   expect(changePassword.status()).toBe(403);
   expect((await page.request.get("/admin")).status()).toBe(404);
+  // Even if the client joins the team during the visit, the visit never opens the panel as them.
+  await testDatabase(`update "user" set role = 'admin', two_factor_enabled = true where email = $1`, [clientEmail]);
+  expect((await page.request.get("/admin")).status()).toBe(404);
+  expect((await page.request.get("/api/admin/access")).status()).toBe(404);
+  await testDatabase(`update "user" set role = null, two_factor_enabled = false where email = $1`, [clientEmail]);
 
   // 4. Leaving puts the support member's own session back in the panel.
   await page.goto("/chat");

@@ -24,6 +24,9 @@ export type AdminGate =
 export async function adminGate(requestHeaders: Headers): Promise<AdminGate> {
   const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (session == null) return { status: "not-admin" };
+  // A support visit is the client's session: it never opens the panel, even if the client later joins the team.
+  const { impersonatedBy } = session.session as { impersonatedBy?: string | null };
+  if (impersonatedBy != null) return { status: "not-admin" };
   const { id, email, name, role, twoFactorEnabled } = session.user;
   if (!isStaffRole(role)) return { status: "not-admin" };
   const actor = { id, email, name, role };
