@@ -56,4 +56,18 @@ describe("tenant benchmark interpretation", () => {
     ).toBe(false);
     expect(result.top.profit_cents[0].value).toBe("9007199254740993");
   });
+
+  it("never presents a zero as what worked, except for refund and chargeback rates", () => {
+    const result = summarizeRankings([
+      { creative_key: "sold", metric: "approved_sales", value: "3", rank: 1, percentile: 0 },
+      { creative_key: "silent", metric: "approved_sales", value: "0", rank: 2, percentile: 1 },
+      { creative_key: "silent", metric: "ctr", value: "4", rank: 1, percentile: 0 },
+      { creative_key: "clean", metric: "refund_rate", value: "0", rank: 1, percentile: 0 },
+    ]);
+    expect(result.top.approved_sales.map((r) => r.creative_key)).toEqual(["sold"]);
+    expect(result.top.refund_rate.map((r) => r.creative_key)).toEqual(["clean"]);
+    const silent = result.intersections.find((r) => r.creative_key === "silent");
+    expect(silent?.groups).toEqual(["ctr"]);
+    expect(silent?.attentionStrongSalesWeak).toBe(true);
+  });
 });
