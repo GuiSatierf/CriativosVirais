@@ -494,10 +494,18 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
                 Voltar
               </Button>
             )}
-            <Button type="submit" size="lg" className="sm:ml-auto">
-              {last ? "Ver resumo" : answered ? "Continuar" : "Pular por agora"}
-              <ArrowRight aria-hidden />
-            </Button>
+            <div className="flex flex-col-reverse gap-2 sm:ml-auto sm:flex-row sm:items-center">
+              {/* Skipping stays possible, but the main action is always moving on with an answer. */}
+              {!last && !answered && (
+                <Button type="button" variant="ghost" onClick={() => go(step + 1)}>
+                  Pular por agora
+                </Button>
+              )}
+              <Button type="submit" size="lg" disabled={!last && !answered}>
+                {last ? "Ver resumo" : "Continuar"}
+                <ArrowRight aria-hidden />
+              </Button>
+            </div>
           </div>
         </form>
       ) : (
