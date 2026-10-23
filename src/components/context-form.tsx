@@ -68,7 +68,7 @@ const sections: Section[] = [
   {
     id: "produto",
     title: "Seu produto",
-    description: "O básico para o assistente saber o que você vende.",
+    description: "O básico para o Estrategista saber o que você vende.",
     fields: [
       {
         key: "produtoNome",
@@ -517,8 +517,8 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
             </h2>
             <p className="text-sm text-muted-foreground">
               {done === total
-                ? "O assistente já tem o que precisa para escrever seus roteiros."
-                : "Você já pode usar o assistente. Quanto mais respostas, melhores os roteiros."}
+                ? "O Estrategista já tem o que precisa para escrever seus roteiros."
+                : "Você já pode usar o Estrategista. Quanto mais respostas, melhores os roteiros."}
             </p>
             <div className="flex justify-center pt-1">
               <SaveIndicator status={status} onRetry={() => void flush()} />
@@ -593,7 +593,7 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
           >
             Responda na conversa
           </Link>{" "}
-          e o assistente preenche para você.
+          e o Estrategista preenche para você.
         </p>
       )}
     </div>
