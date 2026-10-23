@@ -23,7 +23,7 @@ import { Spinner, useAction } from "./access-dialogs";
 
 export type TeamRow = { id: string; name: string; email: string; role: StaffRole; twoFactorEnabled: boolean };
 
-const doneSchema = z.object({}).passthrough();
+const doneSchema = z.object({}).loose();
 const codeSchema = z.object({ code: z.string().nullable() });
 const emailSchema = z.email();
 

@@ -32,7 +32,7 @@ const accountsSchema = z.object({
     z.object({ id: z.string(), name: z.string(), email: z.string(), blocked: z.boolean(), lastAccess: z.string().nullable() }),
   ),
 });
-const doneSchema = z.object({}).passthrough();
+const doneSchema = z.object({}).loose();
 const searchDelayMs = 300;
 const minimumReason = 3;
 const zone = "America/Sao_Paulo";

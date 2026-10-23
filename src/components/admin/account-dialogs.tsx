@@ -19,7 +19,7 @@ import { Spinner, useAction } from "./access-dialogs";
 
 type Account = { id: string; name: string; email: string };
 
-const doneSchema = z.object({}).passthrough();
+const doneSchema = z.object({}).loose();
 const emailSchema = z.email();
 
 export function ChangeEmailDialog({ row, onClose }: { row: Account | null; onClose: () => void }) {
