@@ -3,9 +3,9 @@ CREATE TABLE "ai_usage" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid NOT NULL,
 	"purpose" "ai_purpose" NOT NULL,
-	"input_tokens" integer NOT NULL,
-	"cached_input_tokens" integer NOT NULL,
-	"output_tokens" integer NOT NULL,
+	"input_tokens" integer,
+	"cached_input_tokens" integer,
+	"output_tokens" integer,
 	"cost_millicents" bigint NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );

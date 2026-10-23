@@ -477,9 +477,10 @@ export const aiUsage = pgTable(
     id: id(),
     tenantId: tenantId(),
     purpose: aiPurpose("purpose").notNull(),
-    inputTokens: integer("input_tokens").notNull(),
-    cachedInputTokens: integer("cached_input_tokens").notNull(),
-    outputTokens: integer("output_tokens").notNull(),
+    // NULL when the provider did not report the count.
+    inputTokens: integer("input_tokens"),
+    cachedInputTokens: integer("cached_input_tokens"),
+    outputTokens: integer("output_tokens"),
     // Thousandths of a BRL cent: a single call usually costs a fraction of a cent.
     costMillicents: int64("cost_millicents").notNull(),
     createdAt: createdAt(),

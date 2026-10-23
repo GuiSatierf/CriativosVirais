@@ -339,19 +339,19 @@
           "name": "input_tokens",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "cached_input_tokens": {
           "name": "cached_input_tokens",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "output_tokens": {
           "name": "output_tokens",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "cost_millicents": {
           "name": "cost_millicents",

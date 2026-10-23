@@ -12,7 +12,7 @@ export type AiPurpose = (typeof aiPurpose.enumValues)[number];
 /** Who pays for a model call, and what it was for. */
 export type MeteredCall = { tenantId: string; purpose: AiPurpose };
 
-type TokenCounts = { input: number; cachedInput: number; output: number };
+type TokenCounts = { input: number | null; cachedInput: number | null; output: number | null };
 type ModelUsage = {
   inputTokens: { total: number | undefined; cacheRead: number | undefined };
   outputTokens: { total: number | undefined };
@@ -22,20 +22,23 @@ const monthName = new Intl.DateTimeFormat("pt-BR", { month: "long", timeZone: "U
 const monthStart = sql`date_trunc('month', now() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo'`;
 
 /** Cost in thousandths of a cent, rounded up so many small calls never add up to less than was spent. */
+// A count the provider did not report adds nothing to the cost; the record keeps it as NULL.
 export function costMillicents(tokens: TokenCounts, prices = aiBudgetEnv()) {
   const millicents =
-    (tokens.input * prices.AI_PRICE_INPUT_CENTS_PER_MTOK +
-      tokens.cachedInput * prices.AI_PRICE_CACHED_INPUT_CENTS_PER_MTOK +
-      tokens.output * prices.AI_PRICE_OUTPUT_CENTS_PER_MTOK) /
+    ((tokens.input ?? 0) * prices.AI_PRICE_INPUT_CENTS_PER_MTOK +
+      (tokens.cachedInput ?? 0) * prices.AI_PRICE_CACHED_INPUT_CENTS_PER_MTOK +
+      (tokens.output ?? 0) * prices.AI_PRICE_OUTPUT_CENTS_PER_MTOK) /
     1000;
   return BigInt(Math.ceil(millicents));
 }
 
-// Providers may omit a count; an unknown count is billed as zero rather than blocking the reply.
+// Providers may omit a count; it stays unknown (NULL) instead of blocking the reply.
 function tokenCounts(usage: ModelUsage): TokenCounts {
-  const total = usage.inputTokens.total ?? 0;
+  const total = usage.inputTokens.total;
+  const output = usage.outputTokens.total ?? null;
+  if (total == null) return { input: null, cachedInput: null, output };
   const cachedInput = Math.min(usage.inputTokens.cacheRead ?? 0, total);
-  return { input: total - cachedInput, cachedInput, output: usage.outputTokens.total ?? 0 };
+  return { input: total - cachedInput, cachedInput, output };
 }
 
 /** "1º de novembro": the day the São Paulo month turns and the budget starts over. */
