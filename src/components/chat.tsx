@@ -101,6 +101,11 @@ export function Chat({
       new DefaultChatTransport<ChatMessage>({
         api: "/api/chat",
         body: { conversationId },
+        // The server rebuilds the history from the database, so only the new message travels;
+        // sending the whole conversation grew every request and broke long conversations.
+        prepareSendMessagesRequest: ({ messages, body }) => ({
+          body: { ...body, conversationId, messages: messages.slice(-1) },
+        }),
       }),
     [conversationId],
   );

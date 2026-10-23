@@ -8,9 +8,9 @@ import { ChangePassword, DeleteAccount } from "@/components/account-settings";
 export async function ProfileView() {
   const { user } = await requireTenant();
   return (
-    <div className="max-w-5xl space-y-5">
+    <div className="max-w-2xl space-y-5">
       <PageHeader title="Perfil" description="Sua foto e seus dados de acesso." />
-      <div className="grid items-start gap-4 lg:grid-cols-2">
+      <div className="space-y-4">
         <section
           aria-labelledby="perfil-foto"
           className="space-y-4 rounded-xl border bg-card p-4 sm:p-5"
