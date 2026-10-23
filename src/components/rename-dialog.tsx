@@ -37,7 +37,7 @@ export function RenameDialog({
   const [pending, setPending] = useState(false);
   const trimmed = name.trim();
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!trimmed || pending) return;
     if (trimmed === value) return onOpenChange(false);

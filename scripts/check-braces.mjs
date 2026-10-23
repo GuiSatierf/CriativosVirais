@@ -62,17 +62,14 @@ assert.throws(() => braces.expand("{1..1001}"), /range limit/);
 assert.throws(() => braces.parse("abc", { maxLength: 2 }), /max characters/);
 assert.deepEqual(braces("{a,a}", { expand: true, nodupes: true }), ["a"]);
 
-// Exercise both fast-glob versions and the ts-morph consumer shipped with shadcn.
+// Exercise the fast-glob and ts-morph consumers shipped with shadcn.
 const shadcnRequire = createRequire(require.resolve("shadcn"));
-const nextRequire = createRequire(require.resolve("@next/eslint-plugin-next"));
-for (const consumer of [shadcnRequire, nextRequire]) {
-  const glob = consumer("fast-glob");
-  assert.ok(glob.sync("src/**/*.{ts,tsx}").length > 0);
-  const match = createRequire(consumer.resolve("fast-glob"))("micromatch");
-  const resolved = createRequire(consumer.resolve("fast-glob"));
-  assert.equal(createRequire(resolved.resolve("micromatch"))("braces/package.json").name, metadata.name);
-  assert.ok(match.isMatch("src/page.tsx", "src/**/*.{ts,tsx}"));
-}
+const glob = shadcnRequire("fast-glob");
+assert.ok((await glob("src/**/*.{ts,tsx}")).length > 0);
+const globRequire = createRequire(shadcnRequire.resolve("fast-glob"));
+const micromatch = globRequire("micromatch");
+assert.equal(createRequire(globRequire.resolve("micromatch"))("braces/package.json").name, metadata.name);
+assert.ok(micromatch.isMatch("src/page.tsx", "src/**/*.{ts,tsx}"));
 const { Project } = shadcnRequire("ts-morph");
 const project = new Project({ skipAddingFilesFromTsConfig: true });
 assert.ok(project.addSourceFilesAtPaths("src/**/*.{ts,tsx}").length > 0);

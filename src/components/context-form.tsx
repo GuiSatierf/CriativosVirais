@@ -399,7 +399,7 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
     queue({ [key]: items }, 0);
   }
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+  function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (
       current?.field.key === "price" &&

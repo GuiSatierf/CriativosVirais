@@ -65,7 +65,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [twoFactor, setTwoFactor] = useState(false);
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const fields = Object.fromEntries(new FormData(form));

@@ -99,7 +99,7 @@ Sem DeepSeek ou Groq, chat e análise ficam indisponíveis com mensagem ao usuá
 | `db:generate`, `db:migrate` | Gera migration a partir do schema; aplica as pendentes |
 | `storage:init` | Cria o bucket privado e o CORS de upload para a origem do app |
 | `setup:env`, `doctor` | Cria `.env` local; diagnostica configuração (`--connections`, `--strict-providers`, `--production`, `--file`) |
-| `lint`, `typecheck`, `test` | ESLint, TypeScript e Vitest (benchmark, CSV e HMAC do webhook) |
+| `lint`, `typecheck`, `test` | Oxlint com checagem de tipos (`.oxlintrc.json`), TypeScript e Vitest (benchmark, CSV e HMAC do webhook) |
 | `test:attribution` | Migração e atribuição por campanha contra `TEST_DATABASE_URL` |
 | `seed:demo` | Cria uma operação demo (oferta, leva, CSV e vendas do webhook) só em banco cujo nome termina em `_test`; login `demo@criativosvirais.test`, senha em `DEMO_PASSWORD` ou o padrão do script |
 | `check:security` | Valida o fork local de `braces` ([detalhes](docs/dependencias-seguranca.md)) |

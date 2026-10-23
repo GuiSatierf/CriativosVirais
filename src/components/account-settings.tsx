@@ -28,7 +28,7 @@ export function ChangePassword() {
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!current) return setError("Digite a sua senha atual.");
     if (next.length < minPassword)
@@ -128,7 +128,7 @@ export function DeleteAccount() {
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!password || pending) return;
     setPending(true);
