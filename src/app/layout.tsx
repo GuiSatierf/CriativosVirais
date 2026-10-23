@@ -14,7 +14,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Criativos Virais",
+  // Each page names itself; the template adds the product so tabs and history stay distinguishable.
+  title: { default: "Criativos Virais", template: "%s · Criativos Virais" },
   description:
     "Crie roteiros de anúncio em vídeo a partir da sua oferta e dos resultados dos seus criativos.",
 };

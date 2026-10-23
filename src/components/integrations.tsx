@@ -54,6 +54,7 @@ const rowsSchema = z.array(
     lastSyncAt: z.string().nullable(),
     metadata: z
       .object({
+        warning: z.string().optional(),
         summary: z
           .object({
             ads: z.object({ spend: z.number().nullable().optional() }),
@@ -242,7 +243,7 @@ export function Integrations({
             <IntegrationCard
               title="Passo 1 · Vendas de cada criativo"
               tag={<Badge>Necessário</Badge>}
-              description="Cada venda chega com o código do criativo. Configure no seu checkout ou na UTMify, colando a URL e o token desta conexão."
+              description="Cada venda chega com o código do criativo. Configure no seu checkout, colando a URL e o token desta conexão."
               brings="Traz vendas e receita por criativo. Não traz o gasto com anúncio."
               badge={hook && <StatusBadge status={hookStatus} />}
               meta={
@@ -428,7 +429,8 @@ function UtmifyPanel({
       <Steps>
         <Step number={1} title="Abra a UTMify">
           <p className="text-xs text-muted-foreground">
-            Na sua conta, abra a área de API e crie uma chave.
+            Na sua conta, abra Avançado → API Oficial → Novo Token. A API Oficial
+            só existe nos planos Monster, Scale e Enterprise.
           </p>
         </Step>
         <Step number={2} title="Cole a chave de API">
@@ -529,7 +531,7 @@ function UtmifyPanel({
             <CircleAlert aria-hidden />
             <AlertTitle>A última sincronização falhou.</AlertTitle>
             <AlertDescription>
-              Confira a chave e o ID do dashboard abaixo e conecte de novo.
+              {utm.metadata?.warning ?? "Confira a chave e o ID do dashboard abaixo e conecte de novo."}
             </AlertDescription>
           </Alert>
         )}

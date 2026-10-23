@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { z } from "zod";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
@@ -8,6 +9,9 @@ import { requireTenant, tenantWhere } from "@/lib/tenant";
 import { Chat } from "@/components/chat";
 import { getHome } from "@/lib/home";
 import { isModelConfigured } from "@/lib/ai/model";
+
+export const metadata: Metadata = { title: "Conversa" };
+
 export default async function Page({
   params,
 }: {
