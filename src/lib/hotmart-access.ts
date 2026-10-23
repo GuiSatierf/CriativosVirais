@@ -68,7 +68,7 @@ async function wasReversed(tx: Transaction, email: string, transaction: string) 
       and(
         eq(adminAuditLog.actorEmail, actor),
         eq(adminAuditLog.targetEmail, email),
-        inArray(adminAuditLog.action, ["account.blocked", "access.removed"]),
+        inArray(adminAuditLog.action, ["account.blocked", "access.removed", "access.revoked"]),
         sql`${adminAuditLog.details}->>'transaction' = ${transaction}`,
       ),
     )
@@ -99,7 +99,10 @@ async function revoke(tx: Transaction, email: string, reason: string, transactio
   // Any role other than a plain client is the team (admin today, owner and support later).
   const onTeam = account.role != null && account.role !== "user";
   if (onTeam) return audit(tx, "access.revoke_skipped", email, { reason, transaction });
-  await tx.update(user).set({ banned: true, banReason: reason }).where(eq(user.id, account.id));
+  // A block the team put on the account keeps its reason, so a later purchase cannot lift it.
+  const blockedByTeam = account.banned === true && (account.banReason == null || !hotmartBlocks.includes(account.banReason));
+  if (blockedByTeam) return audit(tx, "access.revoked", email, { reason, transaction });
+  await tx.update(user).set({ banned: true, banReason: reason, banExpires: null }).where(eq(user.id, account.id));
   await tx.delete(session).where(eq(session.userId, account.id));
   await audit(tx, "account.blocked", email, { reason, transaction });
 }
