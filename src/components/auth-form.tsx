@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { TwoFactorStep } from "@/components/two-factor-step";
 
 const loginSchema = z.object({
   email: z.email({ error: "Informe um email válido." }),
@@ -30,6 +31,20 @@ const signupSchema = z.object({
 });
 
 type Field = "name" | "email" | "password";
+type AuthResult = { data?: unknown; error?: { code?: string; message?: string } | null };
+// Server refusals that already carry the plain pt-BR reason the person must read.
+const explainedRefusals = new Set(["NO_ACCESS_GRANT", "BANNED_USER"]);
+
+function refusalMessage(error: { code?: string; message?: string }, signup: boolean) {
+  if (error.code !== undefined && explainedRefusals.has(error.code) && error.message !== undefined)
+    return error.message;
+  if (signup) return "Não foi possível criar a conta. Se você já tem cadastro, entre com seu e-mail e senha.";
+  return "E-mail ou senha incorretos.";
+}
+
+function needsTwoFactor(data: unknown) {
+  return typeof data === "object" && data !== null && "twoFactorRedirect" in data && data.twoFactorRedirect === true;
+}
 type FieldErrors = Partial<Record<Field, string>>;
 
 function toFieldErrors(error: z.ZodError) {
@@ -48,6 +63,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [pending, setPending] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [twoFactor, setTwoFactor] = useState(false);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,17 +90,18 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     }
   }
 
-  async function run(call: () => Promise<{ error: unknown }>) {
+  async function run(call: () => Promise<AuthResult>) {
     setFieldErrors({});
     setPending(true);
     try {
       const result = await call();
       if (result.error) {
-        setFormError(
-          signup
-            ? "Não foi possível criar a conta. Se você já tem cadastro, entre com seu e-mail e senha."
-            : "E-mail ou senha incorretos.",
-        );
+        setFormError(refusalMessage(result.error, signup));
+        return;
+      }
+      // Admin accounts confirm with the authenticator code before the session starts.
+      if (needsTwoFactor(result.data)) {
+        setTwoFactor(true);
         return;
       }
       router.replace("/chat");
@@ -114,6 +131,8 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     ) : null;
   }
 
+  if (twoFactor) return <TwoFactorStep />;
+
   return (
     <div className="space-y-8">
       <header className="space-y-1.5">
@@ -122,7 +141,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         </h1>
         <p className="text-sm text-muted-foreground">
           {signup
-            ? "Leva um minuto. Depois, conte sobre a sua oferta."
+            ? "Leva um minuto. Use o mesmo e-mail da sua compra."
             : "Acesse seus criativos e roteiros."}
         </p>
       </header>
