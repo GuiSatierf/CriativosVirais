@@ -204,7 +204,7 @@ A imagem do `Dockerfile` executa `node server.js` (app, porta 3000, healthcheck 
 
 ## Limites conhecidos
 
-- Sem verificação de email, redefinição de senha por email, quotas de uso de IA ou limite de webhook compartilhado entre réplicas.
+- Sem verificação de email, redefinição de senha por email ou limite de webhook compartilhado entre réplicas.
 - Dados permanecem enquanto a operação existir. Excluir uma operação exige remover o tenant (cascade no banco), o prefixo correspondente no bucket e os backups.
 - Uploads: vídeo até 250 MB, áudio até 25 MB, duração máxima de 15 minutos.
 
