@@ -112,16 +112,19 @@ function holdsBatchCodes(column: string, rows: CsvRow[], pattern: RegExp) {
   return codes >= values.length * batchCodeShare;
 }
 
+/** Batch codes as the server stores them: the match with the batch's script is case-sensitive. */
+const storedBatchCode = /^L\d{2,}-C\d{2,}$/;
+
 /**
- * Names that start with a batch code but carry more text ("L01-C02 | dor"). They are kept as
- * typed, so their results never reach the batch's script; the import warns before it happens.
+ * Names that start with a batch code but are not exactly one ("L01-C02 | dor", "l01-c02"). They
+ * are kept as typed, so their results never reach the batch's script; the import warns first.
  */
 function nearMissCodes(rows: CsvRow[], column: string | undefined) {
   if (!column) return [];
 
   const names = rows.map((row) => row[column]?.trim() ?? "");
   return [...new Set(names)].filter(
-    (name) => prefixedBatchCode.test(name) && !exactBatchCode.test(name),
+    (name) => prefixedBatchCode.test(name) && !storedBatchCode.test(name),
   );
 }
 
@@ -450,12 +453,12 @@ export function CsvImport({
                     <TriangleAlert aria-hidden />
                     <AlertDescription className="text-warning">
                       {nearMisses.length === 1
-                        ? "1 nome tem"
-                        : `${nearMisses.length} nomes têm`}{" "}
-                      texto além do código da leva, como{" "}
+                        ? "1 nome não é"
+                        : `${nearMisses.length} nomes não são`}{" "}
+                      exatamente o código da leva, como{" "}
                       <span className="whitespace-nowrap">“{nearMisses[0]}”</span>.
                       Esses resultados não vão para o roteiro da leva: o nome
-                      do anúncio precisa ser só o código.
+                      do anúncio precisa ser só o código, em maiúsculas (L01-C01).
                     </AlertDescription>
                   </Alert>
                 )}
