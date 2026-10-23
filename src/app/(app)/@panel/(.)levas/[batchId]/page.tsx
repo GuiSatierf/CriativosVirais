@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { Panel } from "@/components/panel";
 import { BatchView } from "@/components/views/batch";
+
+export const metadata: Metadata = { title: "Leva" };
 
 export default function Page(props: { params: Promise<{ batchId: string }> }) {
   return (
