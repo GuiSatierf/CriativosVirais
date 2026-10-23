@@ -7,7 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { canSendEmail } from "@/lib/email";
 
 export const metadata: Metadata = {
-  title: "Recuperar senha · Criativos Virais",
+  title: "Recuperar senha",
 };
 
 // Installations without an email sender keep the support message instead of a form that cannot deliver.
