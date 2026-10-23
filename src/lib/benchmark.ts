@@ -11,12 +11,12 @@ export type RankedMetric = {
   rank: number;
   percentile: number;
 };
-// For rates where less is better, zero is the best result; for everything else zero won nothing.
+// For rates where less is better, zero is the best result; for everything else zero or less won nothing.
 const lowerIsBetter = new Set(["refund_rate", "chargeback_rate"]);
 
-/** Top five of a metric, never a zero: no sales, clicks or revenue is not "what worked". */
+/** Top five of a metric, only when positive: no sales, clicks or revenue (or a loss) is not "what worked". */
 function isWinner(r: RankedMetric) {
-  return r.rank <= 5 && (lowerIsBetter.has(r.metric) || Number(r.value) !== 0);
+  return r.rank <= 5 && (lowerIsBetter.has(r.metric) || Number(r.value) > 0);
 }
 
 export function summarizeRankings(rows: RankedMetric[]) {
