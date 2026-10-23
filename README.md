@@ -172,7 +172,7 @@ Importado em Integrações. Até 5 MB e 5000 linhas, uma linha por criativo e ca
 
 ### UTMify
 
-Usa `POST https://query-api.utmify.com.br/public-api/v1/dashboards/{dashboardId}/summary` com a chave oficial, configurada em Integrações. A API devolve métricas consolidadas sem divisão por criativo, por isso o resumo nunca é distribuído entre anúncios. Quando a UTMify pede uma pausa (429), a próxima consulta espera o `Retry-After`. Consulte a [documentação oficial](https://docs.utmify.com.br/consulta-de-dados) para planos e limites.
+Usa `POST https://query-api.utmify.com.br/public-api/v1/dashboards/{dashboardId}/summary` com o token da API Oficial (na UTMify: Avançado → API Oficial → Novo Token; só nos planos Monster, Scale e Enterprise, em beta fechado), configurado em Integrações. As "Credenciais de API" da aba Integrações da UTMify são de envio de pedidos e não servem para a consulta. Chave recusada (401), conta sem a API (403) e dashboard inexistente (404) aparecem para o cliente com o que fazer, sem novas tentativas. A API devolve métricas consolidadas sem divisão por criativo, por isso o resumo nunca é distribuído entre anúncios. Quando a UTMify pede uma pausa (429), a próxima consulta espera o `Retry-After`. Consulte a [documentação oficial](https://docs.utmify.com.br/consulta-de-dados) para planos e limites.
 
 ## Isolamento e privacidade
 
