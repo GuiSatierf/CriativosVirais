@@ -1,7 +1,7 @@
 "use client";
 import { memo, useEffect, useState } from "react";
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import type { UIMessage } from "ai";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -28,6 +28,12 @@ import { cn } from "@/lib/utils";
 import { StrategistAvatar, strategistName } from "./strategist";
 
 export const maxAttachedVideos = 5;
+
+// Replies can echo client copy and the model's own text, so a markdown image would make the
+// browser fetch an address someone else chose. Only its alt text is shown.
+const replyMarkdown: Components = {
+  img: ({ alt }) => (alt ? <span>{alt}</span> : null),
+};
 export const messageMetadataSchema = z.object({
   assetIds: z.array(z.uuid()).max(maxAttachedVideos).optional(),
 });
@@ -365,7 +371,7 @@ const AssistantMessage = memo(function AssistantMessage({
         if (part.type === "text")
           return (
             <div key={index} className="reading-copy text-base">
-              <ReactMarkdown>{part.text}</ReactMarkdown>
+              <ReactMarkdown components={replyMarkdown}>{part.text}</ReactMarkdown>
             </div>
           );
         if (part.type === "data-upload") {
