@@ -42,6 +42,13 @@ function creativeKey(origin: { src?: string; sck?: string; xcod?: string } | und
   return code ?? undefined;
 }
 
+/** Reais as Hotmart sends them (a double) to whole cents, through text so 1.005 is not 100.49. */
+function reaisToCents(value: number) {
+  if (value > Number.MAX_SAFE_INTEGER / 100) return null;
+  const [whole, fraction = ""] = value.toFixed(2).split(".");
+  return Number(whole) * 100 + Number(fraction);
+}
+
 /**
  * Maps a Hotmart purchase webhook (v2.0.0) to a sale, or null for events that are not one.
  * Reversals carry the reverted amount, which the ranking subtracts from the approved one.
@@ -53,15 +60,14 @@ export function hotmartSale(body: unknown): SalesEventInput | null {
   const status = statusOf[event];
   if (status == null) return null;
   const price = data.purchase.price;
-  // Only BRL sales enter the reports; other currencies would mix units.
-  if (price != null && price.currency_value !== "BRL") return null;
   const key = creativeKey(data.purchase.origin);
   return {
     event_id: `hotmart:${data.purchase.transaction}:${status}`,
     occurred_at: new Date(Math.min(createdAt, Date.now())).toISOString(),
     status,
     currency: "BRL",
-    revenue: price == null ? null : Math.round(price.value * 100),
+    // A sale in another currency still counts as a sale; its amount stays unknown so units never mix.
+    revenue: price?.currency_value === "BRL" ? reaisToCents(price.value) : null,
     profit: null,
     ...(key == null ? {} : { creative_key: key, utm_content: key }),
   };
