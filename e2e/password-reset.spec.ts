@@ -2,11 +2,10 @@ import { randomUUID } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { waitForSignUpSlot } from "./support";
+import { signUp } from "./support";
 
 // playwright.config.ts points the app's email outbox here, so no message is really sent.
 const outbox = "test-results/outbox";
-const oldPassword = "e2e-senha-antiga-1";
 const newPassword = "e2e-senha-nova-2026";
 
 async function resetLinkFor(email: string) {
@@ -28,13 +27,7 @@ async function signIn(page: Page, email: string, password: string) {
 
 test("a forgotten password is replaced through the emailed link, once", async ({ page, browser }) => {
   const email = `e2e-${randomUUID()}@exemplo.test`;
-  await waitForSignUpSlot();
-  await page.goto("/signup");
-  await page.getByLabel("Nome").fill("Conta E2E");
-  await page.getByLabel("E-mail").fill(email);
-  await page.getByRole("textbox", { name: "Senha" }).fill(oldPassword);
-  await page.getByRole("button", { name: "Criar conta" }).click();
-  await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
+  await signUp(page, email);
   // A second device that stays signed in with the old password.
   const otherDevice = await browser.newContext({ storageState: await page.context().storageState() });
   await page.context().clearCookies();

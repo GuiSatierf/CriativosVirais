@@ -71,8 +71,9 @@ export const saleStatus = pgEnum("sale_status", [
   "failed",
 ]);
 export const memberRole = pgEnum("member_role", ["owner", "member"]);
+export const accessSource = pgEnum("access_source", ["manual", "hotmart"]);
 
-// Better Auth owns these five tables; they are identity records, not tenant content.
+// Better Auth owns these six tables; they are identity records, not tenant content.
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -81,6 +82,13 @@ export const user = pgTable("user", {
   image: text("image"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
+  // Better Auth admin plugin: "admin" opens /admin; a banned user cannot start a session.
+  role: text("role"),
+  banned: boolean("banned").default(false),
+  banReason: text("ban_reason"),
+  banExpires: timestamp("ban_expires", { withTimezone: true }),
+  // Better Auth two-factor plugin; required for admins.
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
 });
 export const session = pgTable(
   "session",
@@ -95,6 +103,7 @@ export const session = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    impersonatedBy: text("impersonated_by"),
   },
   (t) => [index("session_user_idx").on(t.userId)],
 );
@@ -137,6 +146,21 @@ export const verification = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [index("verification_identifier_idx").on(t.identifier)],
+);
+export const twoFactor = pgTable(
+  "two_factor",
+  {
+    id: text("id").primaryKey(),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    verified: boolean("verified").default(true),
+    failedVerificationCount: integer("failed_verification_count").default(0),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  },
+  (t) => [index("two_factor_secret_idx").on(t.secret), index("two_factor_user_idx").on(t.userId)],
 );
 export const rateLimit = pgTable("rate_limit", {
   id: text("id").primaryKey(),
@@ -584,3 +608,29 @@ export const sharedPatterns = pgTable("shared_patterns", {
   evidenceLevel: evidenceLevel("evidence_level").notNull(),
   createdAt: createdAt(),
 });
+
+// Platform operation, outside any tenant: who may create an account, and what admins did.
+export const accessGrants = pgTable("access_grants", {
+  id: id(),
+  // Stored lowercased and trimmed; sign-up compares the same way.
+  email: text("email").notNull().unique(),
+  source: accessSource("source").default("manual").notNull(),
+  note: text("note"),
+  grantedBy: text("granted_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+});
+export const adminAuditLog = pgTable(
+  "admin_audit_log",
+  {
+    id: id(),
+    // The actor's email is copied so the record survives the actor's account.
+    actorUserId: text("actor_user_id").references(() => user.id, { onDelete: "set null" }),
+    actorEmail: text("actor_email").notNull(),
+    action: text("action").notNull(),
+    targetEmail: text("target_email"),
+    // Plain details for people (reason, note); never secrets.
+    details: jsonb("details").$type<Record<string, string>>().default({}).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("admin_audit_log_created_idx").on(t.createdAt)],
+);

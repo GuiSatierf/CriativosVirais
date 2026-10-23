@@ -5,6 +5,11 @@ import { z } from "zod";
 import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import {
+  ImportPeriodNotice,
+  isOutsideImports,
+  type ImportPeriod,
+} from "@/components/metrics/import-period-notice";
+import {
   CardMetrics,
   DataTable,
   type DataColumn,
@@ -96,6 +101,7 @@ export function BatchResults({
   defaultFilters,
   names = {},
   showSource = false,
+  csvPeriods = [],
 }: {
   batchId: string;
   defaultFilters?: MetricsFilters;
@@ -103,6 +109,8 @@ export function BatchResults({
   showSource?: boolean;
   /** Script idea per creative key, shown under the code. */
   names?: Record<string, string>;
+  /** Latest CSV import periods; a spreadsheet only answers for its exact period. */
+  csvPeriods?: ImportPeriod[];
 }) {
   const [initialFilters] = useState<MetricsFilters>(
     () => defaultFilters ?? recentPeriod(),
@@ -112,9 +120,20 @@ export function BatchResults({
     schema,
     initialFilters,
   });
+  // Remounts the filter toolbar when a period is applied from outside it.
+  const [filterVersion, setFilterVersion] = useState(0);
   const { data, loading, error } = query;
   const items = data?.items ?? [];
   const withResults = items.filter((item) => item.metrics !== null).length;
+  // Only the latest imports are offered, so an older imported period is
+  // recognised by its results rather than by the offered list.
+  const outsideImports =
+    !loading && withResults === 0 && isOutsideImports(query.filters, csvPeriods);
+
+  function showImportedPeriod(period: ImportPeriod) {
+    query.load({ ...query.filters, from: period.from, to: period.to });
+    setFilterVersion((version) => version + 1);
+  }
 
   const columns: DataColumn<Item>[] = [
     {
@@ -133,8 +152,9 @@ export function BatchResults({
         Resultados desta leva
       </h2>
       <MetricsFilter
+        key={filterVersion}
         idPrefix="results"
-        defaultValue={initialFilters}
+        defaultValue={query.filters}
         pending={loading}
         onChange={query.load}
         onRefresh={query.refresh}
@@ -155,6 +175,8 @@ export function BatchResults({
         </Alert>
       ) : !data ? (
         <MetricsLoading label="Carregando resultados" />
+      ) : outsideImports ? (
+        <ImportPeriodNotice periods={csvPeriods} onSelect={showImportedPeriod} />
       ) : withResults === 0 ? (
         <EmptyState
           icon={FileSpreadsheet}
