@@ -112,7 +112,7 @@ export async function BatchesView({
               >
                 <span className="flex items-start justify-between gap-3">
                   <span className="min-w-0 space-y-1">
-                    <span className="block truncate text-base font-semibold tracking-tight">
+                    <span className="line-clamp-2 text-base font-semibold tracking-tight" title={batch.title}>
                       {batch.title}
                     </span>
                     {!batch.title.includes(batch.product) && (
