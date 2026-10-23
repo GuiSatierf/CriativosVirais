@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Brand } from "@/components/brand";
+import { StrategistAvatar } from "@/components/chat/strategist";
 import { Hint } from "@/components/hint";
 import { ThemeMenuGroup } from "@/components/theme-toggle";
 import { ConversationActions } from "@/components/conversation-actions";
@@ -140,11 +141,16 @@ export function AppShell({
           aria-label="Criativos Virais — nova conversa"
           className="mr-2 inline-flex h-9 shrink-0 items-center rounded-md px-1"
         >
-          <Brand className="h-5" />
+          {/* Phones show the brand symbol so the shortcuts fit beside it. */}
+          <span className="hidden sm:inline-flex">
+            <Brand className="h-5" />
+          </span>
+          <StrategistAvatar className="size-7 sm:hidden" />
         </Link>
         <p className="invisible min-w-0 flex-1 truncate text-sm text-muted-foreground sm:visible">
           {chat && title ? title : ""}
         </p>
+        <PlaceShortcuts />
         <NewConversationButton />
         <Hint label="Histórico (Ctrl K)">
           <Button
@@ -250,6 +256,34 @@ function HistoryBody({
       </nav>
       <ConversationHistory conversations={conversations} onNavigate={onNavigate} />
     </div>
+  );
+}
+
+/** Levas and Resultados one click away: labelled on wider screens, icons on phones. */
+function PlaceShortcuts() {
+  const pathname = usePathname();
+  return (
+    <nav aria-label="Levas e resultados" className="flex shrink-0 items-center gap-1 sm:mr-1">
+      {places.map(({ href, label, icon: Icon }) => {
+        const active = isActive(pathname, href);
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              buttonVariants({ variant: "ghost" }),
+              quietButton,
+              "size-9 px-0 pointer-coarse:size-11 sm:size-auto sm:px-3 sm:pointer-coarse:size-auto",
+              active && "bg-accent text-foreground",
+            )}
+          >
+            <Icon aria-hidden weight={active ? "fill" : "duotone"} className="size-5" />
+            <span className="sr-only sm:not-sr-only">{label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
