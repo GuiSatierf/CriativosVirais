@@ -6,7 +6,7 @@ A fonte de verdade de negócio é [`docs/documento-mestre.md`](docs/documento-me
 
 ## Funcionalidades
 
-- Cadastro por email e senha (Better Auth). Cada usuário recebe uma operação (tenant) e um contexto vazio. Não há redefinição de senha por email: `/recuperar-senha` orienta o contato com o suporte.
+- Cadastro por email e senha (Better Auth). Cada usuário recebe uma operação (tenant) e um contexto vazio. Quem esquece a senha recebe em `/recuperar-senha` um link por e-mail (Resend), válido por 1 hora e de uso único; sem Resend configurado, a tela orienta o contato com o suporte.
 - Uma tela só: a conversa com o Estrategista (`/chat`). Antes da primeira mensagem ela mostra novidades (vídeos em análise, integrações com erro, leva com resultados) e as próximas ações sugeridas pelo servidor, sem chamar o modelo. Não há barra lateral: o topo tem nova conversa, histórico (Ctrl/⌘ + K, com renomear, arquivar e excluir) e o menu da conta. Tema claro e escuro.
 - Levas (`/levas`), Resultados (`/criativos`), Minha oferta (`/configuracoes`), Integrações e Perfil abrem como painéis sobre a conversa (rotas interceptadas no slot `@panel`); acessados direto pelo endereço, abrem como página inteira. O assistente mostra atalhos para esses painéis na conversa.
 - Arrastar um vídeo, áudio ou CSV para a conversa envia o arquivo; o CSV abre a importação já preenchida.
@@ -204,7 +204,7 @@ A imagem do `Dockerfile` executa `node server.js` (app, porta 3000, healthcheck 
 
 ## Limites conhecidos
 
-- Sem verificação de email, redefinição de senha por email ou limite de webhook compartilhado entre réplicas.
+- Sem verificação de email ou limite de webhook compartilhado entre réplicas.
 - Dados permanecem enquanto a operação existir. Excluir uma operação exige remover o tenant (cascade no banco), o prefixo correspondente no bucket e os backups.
 - Uploads: vídeo até 250 MB, áudio até 25 MB, duração máxima de 15 minutos.
 
