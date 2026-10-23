@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ExpiredResetLink, NewPasswordForm } from "@/components/new-password-form";
 
 export const metadata: Metadata = {
-  title: "Criar nova senha · Criativos Virais",
+  title: "Criar nova senha",
 };
 
 // Better Auth redirects here with ?token= for a live link, or ?error=INVALID_TOKEN otherwise.

@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { integrations } from "@/db/schema";
 import { decrypt } from "@/lib/crypto";
 import { spDay } from "@/lib/dates";
-import { RetryLaterError } from "@/lib/errors";
+import { ProviderRejectedError, RetryLaterError } from "@/lib/errors";
+import { logError } from "@/lib/log";
 import { UtmifyConnector, utmifyCredentials } from "@/lib/connectors/utmify";
 import { tenantWhere } from "@/lib/tenant-scope";
 const integrationJob = z
@@ -71,6 +72,7 @@ export async function syncMetrics(
       .where(where);
   } catch (error) {
     const retryLater = error instanceof RetryLaterError;
+    const rejected = error instanceof ProviderRejectedError;
     await db
       .update(integrations)
       .set({
@@ -78,12 +80,15 @@ export async function syncMetrics(
         metadata: retryLater
           ? { retryAt: error.retryAt, warning: error.message }
           : {
-              warning:
-                "Não foi possível sincronizar com a UTMify. Confira a chave e o ID do dashboard.",
+              warning: rejected
+                ? error.message
+                : "Não foi possível sincronizar com a UTMify. Confira a chave e o ID do dashboard.",
             },
       })
       .where(where);
-    // A provider-requested pause is not a failure; the next run resumes after retryAt.
-    if (!retryLater) throw error;
+    // A provider-requested pause is not a failure, and a refusal only changes when the user acts,
+    // so neither is retried; the refusal is still logged so operators can see it.
+    if (rejected) logError("sync-metrics", error);
+    if (!retryLater && !rejected) throw error;
   }
 }

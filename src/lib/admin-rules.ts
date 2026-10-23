@@ -1,3 +1,5 @@
+import { isStaffRole } from "./staff";
+
 export type AccessStatus = "waiting" | "active" | "blocked";
 
 /** Status shown in the list: no account yet, account in use, or account blocked. */
@@ -8,12 +10,12 @@ export function accessStatus(account: { userId: string | null; banned: boolean |
 }
 
 /**
- * Why the panel refuses to block an account, or null when it may. Admins are never blocked from the
- * panel, so a stolen admin session cannot lock the others out; removing an admin is a server command.
+ * Why the panel refuses to block an account, or null when it may. Team members are never blocked from
+ * the panel, so a stolen session cannot lock the others out; the owner removes them from the team instead.
  */
 export function blockRefusal(actorId: string, target: { id: string; role: string | null }) {
   if (target.id === actorId) return "Você não pode bloquear a própria conta.";
-  if (target.role === "admin")
-    return "Contas de admin não são bloqueadas pelo painel. Peça a quem tem acesso ao servidor para usar o comando remove-admin.";
+  if (isStaffRole(target.role))
+    return "Contas da equipe não são bloqueadas pelo painel. O dono tira a pessoa da equipe na aba Equipe.";
   return null;
 }

@@ -2,6 +2,8 @@ import { requireTenant } from "@/lib/tenant";
 import { getRecentConversations } from "@/lib/onboarding";
 import { AppShell } from "@/components/app-shell";
 import { avatarUrl } from "@/lib/avatar";
+import { describeSupportVisit } from "@/lib/admin-accounts";
+import { SupportBanner } from "@/components/support-banner";
 export const dynamic = "force-dynamic";
 export default async function AppLayout({
   children,
@@ -11,9 +13,12 @@ export default async function AppLayout({
   /** Intercepted pages (levas, resultados, oferta…) opened over the chat. */
   panel: React.ReactNode;
 }) {
-  const { tenantId, user } = await requireTenant();
+  const { tenantId, user, session } = await requireTenant();
   // The history drawer groups these by date and filters them client-side.
-  const conversations = await getRecentConversations(tenantId, 50);
+  const [conversations, supportVisit] = await Promise.all([
+    getRecentConversations(tenantId, 50),
+    describeSupportVisit({ session, user }),
+  ]);
   return (
     <AppShell
       user={{
@@ -23,6 +28,11 @@ export default async function AppLayout({
       }}
       conversations={conversations}
       panel={panel}
+      banner={
+        supportVisit && (
+          <SupportBanner clientName={supportVisit.clientName} endsAt={supportVisit.endsAt.toISOString()} />
+        )
+      }
     >
       {children}
     </AppShell>

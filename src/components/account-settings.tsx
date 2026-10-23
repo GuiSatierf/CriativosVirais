@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, LoaderCircle, Trash2 } from "@/components/icons";
+import { LoaderCircle, Trash2 } from "@/components/icons";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -113,7 +113,7 @@ export function ChangePassword() {
         </p>
       )}
       <Button type="submit" className="w-fit" disabled={pending}>
-        {pending ? <LoaderCircle className={spin} aria-hidden /> : <KeyRound aria-hidden />}
+        {pending && <LoaderCircle className={spin} aria-hidden />}
         {pending ? "Salvando…" : "Trocar senha"}
       </Button>
     </form>

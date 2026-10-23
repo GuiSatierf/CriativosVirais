@@ -41,6 +41,14 @@ export class RetryLaterError extends Error {
   }
 }
 
+/** The provider refused the credentials for good; retrying cannot help, the user must act. */
+export class ProviderRejectedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProviderRejectedError";
+  }
+}
+
 /** Server misconfiguration; names only the group, never values. */
 export class ConfigError extends Error {
   constructor(group: string) {
