@@ -1,7 +1,7 @@
 "use client";
 import { memo, useEffect, useState } from "react";
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import type { UIMessage } from "ai";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -9,8 +9,10 @@ import {
   ArrowRight,
   ChartColumn,
   Check,
+  CircleAlert,
   Copy,
   Layers,
+  Loader2,
   Plug,
   Storefront,
   UserRound,
@@ -21,10 +23,18 @@ import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
 import { UploadArea } from "@/components/upload-area";
 import { publicDataSchema } from "@/lib/ai/schemas";
+import { api } from "@/lib/client";
 import { cn } from "@/lib/utils";
 import { StrategistAvatar, strategistName } from "./strategist";
 
 export const maxAttachedVideos = 5;
+
+// Replies can echo client copy and the model's own text, so a markdown image would make the
+// browser fetch an address someone else chose. Only its alt text is shown.
+const replyMarkdown: Components = {
+  img: ({ alt }) => (alt ? <span>{alt}</span> : null),
+};
+
 export const messageMetadataSchema = z.object({
   assetIds: z.array(z.uuid()).max(maxAttachedVideos).optional(),
 });
@@ -170,6 +180,94 @@ function BatchCard({ id, title }: { id: string; title: string }) {
   );
 }
 
+const generationStatusSchema = z.object({
+  status: z.enum(["queued", "running", "done", "failed"]),
+  title: z.string(),
+  batchId: z.uuid().nullable(),
+  error: z.string().nullable(),
+});
+type GenerationStatus = z.infer<typeof generationStatusSchema>;
+const generationPollMs = 3_000;
+// Same tolerance as the upload card: a lasting error (the generation was deleted) ends the polling.
+const maxGenerationPollFailures = 3;
+
+/** Follows a batch the worker is generating until it is done or failed. */
+function useGenerationStatus(id: string, title: string) {
+  const [state, setState] = useState<GenerationStatus | null>(null);
+  useEffect(() => {
+    let stopped = false;
+    let failures = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    async function poll() {
+      try {
+        const next = await api(`/api/batch-generations/${id}`, generationStatusSchema);
+        if (stopped) return;
+        failures = 0;
+        setState(next);
+        if (next.status === "done" || next.status === "failed") return;
+      } catch {
+        // A network blip is retried on the next poll; the card keeps showing "Gerando".
+        failures += 1;
+        if (failures >= maxGenerationPollFailures) {
+          if (!stopped) setState({ status: "failed", title, batchId: null, error: null });
+          return;
+        }
+      }
+      if (!stopped) timer = setTimeout(poll, generationPollMs);
+    }
+    poll();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [id, title]);
+  return state;
+}
+
+/** Same look as BatchCard, without a link, for a batch that is not ready. */
+function BatchStatusCard({
+  icon,
+  title,
+  note,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  note: string;
+}) {
+  return (
+    <div role="status" className="flex items-center gap-3 rounded-xl border bg-card p-3">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{title}</span>
+        <span className="block text-xs text-muted-foreground">{note}</span>
+      </span>
+    </div>
+  );
+}
+
+function GenerationCard({ id, title }: { id: string; title: string }) {
+  const state = useGenerationStatus(id, title);
+  if (state?.status === "done" && state.batchId)
+    return <BatchCard id={state.batchId} title={state.title} />;
+  if (state?.status === "failed")
+    return (
+      <BatchStatusCard
+        icon={<CircleAlert className="size-4 text-destructive" aria-hidden />}
+        title={state.title}
+        note={state.error ?? "Não foi possível gerar. Peça de novo."}
+      />
+    );
+  return (
+    <BatchStatusCard
+      icon={<Loader2 className="size-4 motion-safe:animate-spin" aria-hidden />}
+      title={`Gerando a ${title}`}
+      note="Pode continuar conversando. A leva aparece aqui quando ficar pronta."
+    />
+  );
+}
+
 const panels: Record<
   z.infer<typeof publicDataSchema.shape.panel>["panel"],
   { href: string; title: string; description: string; icon: AppIcon }
@@ -274,7 +372,7 @@ const AssistantMessage = memo(function AssistantMessage({
         if (part.type === "text")
           return (
             <div key={index} className="reading-copy text-base">
-              <ReactMarkdown>{part.text}</ReactMarkdown>
+              <ReactMarkdown components={replyMarkdown}>{part.text}</ReactMarkdown>
             </div>
           );
         if (part.type === "data-upload") {
@@ -315,6 +413,12 @@ const AssistantMessage = memo(function AssistantMessage({
               icon={Storefront}
             />
           );
+        }
+        if (part.type === "data-generation") {
+          const parsed = publicDataSchema.shape.generation.safeParse(part.data);
+          return parsed.success ? (
+            <GenerationCard key={index} id={parsed.data.id} title={parsed.data.title} />
+          ) : null;
         }
         if (part.type === "data-batch") {
           const parsed = publicDataSchema.shape.batch.safeParse(part.data);

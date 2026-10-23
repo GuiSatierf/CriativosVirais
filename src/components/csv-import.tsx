@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { z } from "zod";
 import { toast } from "sonner";
-import { CircleAlert, FileUp, Loader2 } from "@/components/icons";
+import { CircleAlert, FileUp, Loader2, TriangleAlert } from "@/components/icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,8 +62,8 @@ const formulaMetrics = ["hook_rate", "body_rate"] as const;
  * unused header that matches. Specific rules come before generic ones so that
  * "Conjunto de anúncios" is not taken as the creative code.
  */
+const utmContentHeader = /utm_?content/;
 const guessRules: [Field, RegExp][] = [
-  ["creative_key", /utm_?content/],
   ["campaign_key", /campanha|campaign/],
   ["adset_key", /conjunto|adset|ad set|grupo de anuncio/],
   [
@@ -87,11 +87,48 @@ const guessRules: [Field, RegExp][] = [
   ["chargebacks", /chargeback|estorno/],
 ];
 
+/** Batch codes (L01-C01): a value that is exactly a code beats one that only starts with it. */
+const exactBatchCode = /^L\d{2,}-C\d{2,}$/i;
+const prefixedBatchCode = /^L\d{2,}-C\d{2,}\b/i;
+const sampleSize = 50;
+/** Share of filled values that must look like codes for a column to count as the code. */
+const batchCodeShare = 0.5;
+
+type CsvRow = Record<string, string | undefined>;
+
 function normalize(header: string) {
   return header.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }
 
-function guessMapping(columns: string[]) {
+/** A column where most filled values match the batch code pattern. */
+function holdsBatchCodes(column: string, rows: CsvRow[], pattern: RegExp) {
+  const values = rows
+    .slice(0, sampleSize)
+    .map((row) => row[column]?.trim() ?? "")
+    .filter((value) => value.length > 0);
+  if (values.length === 0) return false;
+
+  const codes = values.filter((value) => pattern.test(value)).length;
+  return codes >= values.length * batchCodeShare;
+}
+
+/** Batch codes as the server stores them: the match with the batch's script is case-sensitive. */
+const storedBatchCode = /^L\d{2,}-C\d{2,}$/;
+
+/**
+ * Names that start with a batch code but are not exactly one ("L01-C02 | dor", "l01-c02"). They
+ * are kept as typed, so their results never reach the batch's script; the import warns first.
+ */
+function nearMissCodes(rows: CsvRow[], column: string | undefined) {
+  if (!column) return [];
+
+  const names = rows.map((row) => row[column]?.trim() ?? "");
+  return [...new Set(names)].filter(
+    (name) => prefixedBatchCode.test(name) && !storedBatchCode.test(name),
+  );
+}
+
+function guessMapping(columns: string[], rows: CsvRow[]) {
   const mapping: Partial<Record<Field, string>> = {};
   const used = new Set<string>();
   const take = (field: Field, column: string | undefined) => {
@@ -104,12 +141,27 @@ function guessMapping(columns: string[]) {
       field,
       columns.find((c) => !used.has(c) && normalize(c) === field),
     );
+  // utm_content is the tracking field the codes are meant for, so it wins over ad names.
+  take(
+    "creative_key",
+    columns.find((c) => !used.has(c) && utmContentHeader.test(normalize(c))),
+  );
+  for (const pattern of [exactBatchCode, prefixedBatchCode])
+    take(
+      "creative_key",
+      columns.find((c) => !used.has(c) && holdsBatchCodes(c, rows, pattern)),
+    );
   for (const [field, rule] of guessRules)
     take(
       field,
       columns.find((c) => !used.has(c) && rule.test(normalize(c))),
     );
-  return mapping as Record<string, string>;
+  // Ads Manager exports have no code column: the ad name is what identifies each ad.
+  if (mapping.creative_key != null || mapping.creative_name == null)
+    return mapping as Record<string, string>;
+
+  const { creative_name: adName, ...rest } = mapping;
+  return { ...rest, creative_key: adName } as Record<string, string>;
 }
 
 function Segmented<T extends string>({
@@ -170,6 +222,7 @@ export function CsvImport({
   const router = useRouter();
   const [csv, setCsv] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
+  const [rows, setRows] = useState<CsvRow[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [period, setPeriod] = useState(recentPeriod);
   const [decimal, setDecimal] = useState<"comma" | "dot">("comma");
@@ -182,6 +235,7 @@ export function CsvImport({
   async function readFile(file: File | undefined) {
     setFileError(undefined);
     setHeaders([]);
+    setRows([]);
     setCsv("");
     setMapping({});
     setFileName(file?.name);
@@ -207,7 +261,8 @@ export function CsvImport({
     }
     setCsv(text);
     setHeaders(columns);
-    setMapping(guessMapping(columns));
+    setRows(parsed.data as CsvRow[]);
+    setMapping(guessMapping(columns, parsed.data as CsvRow[]));
   }
 
   const [loadedInitial, setLoadedInitial] = useState<File>();
@@ -218,6 +273,7 @@ export function CsvImport({
 
   const ready = headers.length > 0;
   const guessedExtra = extraFields.some((f) => mapping[f]);
+  const nearMisses = nearMissCodes(rows, mapping.creative_key);
 
   function fieldRow(field: Field) {
     const required = field === "creative_key";
@@ -276,7 +332,7 @@ export function CsvImport({
           const trigger = document.getElementById("csv-creative_key");
           trigger?.setAttribute("aria-invalid", "true");
           trigger?.focus();
-          toast.error("Escolha a coluna com o código do criativo.");
+          toast.error("Escolha a coluna do código do criativo.");
           return;
         }
         const invalid = e.currentTarget.querySelector<HTMLElement>(":invalid");
@@ -392,6 +448,20 @@ export function CsvImport({
                   faltar o dado.
                 </p>
                 <div className="space-y-3">{mainFields.map(fieldRow)}</div>
+                {nearMisses.length > 0 && (
+                  <Alert role="status" className="border-warning/40 text-warning">
+                    <TriangleAlert aria-hidden />
+                    <AlertDescription className="text-warning">
+                      {nearMisses.length === 1
+                        ? "1 nome não é"
+                        : `${nearMisses.length} nomes não são`}{" "}
+                      exatamente o código da leva, como{" "}
+                      <span className="whitespace-nowrap">“{nearMisses[0]}”</span>.
+                      Esses resultados não vão para o roteiro da leva: o nome
+                      do anúncio precisa ser só o código, em maiúsculas (L01-C01).
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <Details
                   label="Outras colunas (opcional)"
                   defaultOpen={guessedExtra}
@@ -503,11 +573,16 @@ export function CsvImport({
           </Step>
         </Steps>
       </div>
-      <div className="sticky bottom-0 flex justify-end border-t bg-background px-6 py-4">
+      <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t bg-background px-6 py-4">
+        {ready && !mapping.creative_key && (
+          <p className="text-sm text-muted-foreground">
+            Escolha a coluna do código do criativo.
+          </p>
+        )}
         <Button
           type="submit"
           className="w-full sm:w-auto"
-          disabled={pending || !ready || !mapping.creative_key}
+          disabled={pending || !ready}
         >
           {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
           {pending ? "Importando…" : "Importar"}

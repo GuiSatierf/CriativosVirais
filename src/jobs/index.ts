@@ -1,25 +1,33 @@
-import { PgBoss, type QueueOptions } from "pg-boss";
+import { PgBoss, type QueueOptions, type WorkOptions } from "pg-boss";
 import { pool } from "@/db";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "@/db/schema";
 import { dbEnv } from "@/lib/env";
 import { logError } from "@/lib/log";
-export const queues = ["analyze-video", "ingest-event", "sync-metrics", "backup"] as const;
+export const queues = ["analyze-video", "ingest-event", "sync-metrics", "generate-batch", "backup"] as const;
 export const queueOptions: QueueOptions = {
   retryLimit: 3,
   retryDelay: 60,
   retryBackoff: true,
   expireInSeconds: 1800,
 };
-// A first backup copies every stored video; later ones only what is new. One retry after 15
-// minutes: the queue holds one backup at a time, so a longer wait would also block a manual run.
-const backupQueueOptions: QueueOptions = {
-  ...queueOptions,
-  retryLimit: 1,
-  retryDelay: 900,
-  retryBackoff: false,
-  expireInSeconds: 3 * 3600,
+// A batch retried after a failure would pay the model again, and generation plus review can take
+// longer than the default expiry; a failure is shown on the chat card instead.
+const perQueue: Partial<Record<(typeof queues)[number], QueueOptions>> = {
+  "generate-batch": { retryLimit: 0, expireInSeconds: 3600 },
+  // A first backup copies every stored video; later ones only what is new. One retry after 15
+  // minutes: the queue holds one backup at a time, so a longer wait would also block a manual run.
+  backup: { retryLimit: 1, retryDelay: 900, retryBackoff: false, expireInSeconds: 3 * 3600 },
 };
+// A batch generation can hold its slot for up to 30 minutes; one at a time would make every
+// other tenant's batch wait behind it.
+const perQueueWork: Partial<Record<(typeof queues)[number], WorkOptions>> = {
+  "generate-batch": { localConcurrency: 4 },
+};
+/** Options for boss.work: one job per fetch, with more parallel slots for long queues. */
+export function workOptions(name: string): WorkOptions {
+  return { batchSize: 1, ...perQueueWork[name as (typeof queues)[number]] };
+}
 function createBoss(sendOnly: boolean) {
   const boss = new PgBoss({
     connectionString: dbEnv().DATABASE_URL,
@@ -33,7 +41,7 @@ export async function startWorkerJobs() {
   const boss = createBoss(false);
   await boss.start();
   for (const name of queues) {
-    const options = name === "backup" ? backupQueueOptions : queueOptions;
+    const options = { ...queueOptions, ...perQueue[name] };
     await boss.createQueue(name, {
       ...options,
       policy: name === "sync-metrics" ? "standard" : "exclusive",

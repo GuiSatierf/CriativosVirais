@@ -24,7 +24,8 @@ const schemas = {
   ai: z.object({
     DEEPSEEK_API_KEY: filled,
     DEEPSEEK_MODEL_TEXT: filled,
-    DEEPSEEK_MODEL_VISION: filled.optional(),
+    // Compose files pass unset variables as "", which means the vision model is not configured.
+    DEEPSEEK_MODEL_VISION: filled.optional().or(z.literal("").transform(() => undefined)),
   }),
   aiProvider: z
     .object({
@@ -36,6 +37,26 @@ const schemas = {
   transcribe: z.object({
     GROQ_API_KEY: filled,
     GROQ_WHISPER_MODEL: filled,
+  }),
+  email: z.object({
+    RESEND_API_KEY: filled,
+    EMAIL_FROM: filled,
+  }),
+  emailOutbox: z
+    .object({
+      EMAIL_OUTBOX_DIR: filled,
+      NODE_ENV: z.string().optional(),
+    })
+    // The file outbox exists only for development and automated tests.
+    .refine((v) => v.NODE_ENV !== "production"),
+  hotmart: z.object({
+    // The Hotmart account's hottok, sent in X-HOTMART-HOTTOK on every webhook call.
+    HOTMART_HOTTOK: filled,
+    // Comma-separated Hotmart product ids that grant access; other products on the account are ignored.
+    HOTMART_PRODUCT_IDS: filled
+      .transform((v) => v.split(",").map((id) => id.trim()).filter((id) => id.length > 0))
+      // "," alone would turn every purchase into "ignored" without any warning.
+      .refine((ids) => ids.length > 0),
   }),
   crypto: z.object({
     ENCRYPTION_KEY: z
@@ -79,5 +100,28 @@ export const cryptoEnv = () => group("crypto");
 export const aiEnv = () => optionalGroup("ai");
 export const aiProviderEnv = () => group("aiProvider");
 export const transcribeEnv = () => optionalGroup("transcribe");
+export const emailEnv = () => optionalGroup("email");
+export const emailOutboxEnv = () => optionalGroup("emailOutbox");
+export const hotmartEnv = () => optionalGroup("hotmart");
+
+const optionalProviders = {
+  ai: { feature: "chat and batch generation", variables: ["DEEPSEEK_API_KEY", "DEEPSEEK_MODEL_TEXT"] },
+  transcribe: { feature: "audio and video transcription", variables: ["GROQ_API_KEY", "GROQ_WHISPER_MODEL"] },
+  email: { feature: "password reset by email", variables: ["RESEND_API_KEY", "EMAIL_FROM"] },
+  hotmart: { feature: "automatic access from Hotmart purchases", variables: ["HOTMART_HOTTOK", "HOTMART_PRODUCT_IDS"] },
+} as const;
+
+/** Optional providers that are not configured, by variable name only; values are never read out. */
+export function missingOptionalConfiguration() {
+  // The scripted fake model replaces DeepSeek in development and tests.
+  const fakeModel = optionalGroup("aiProvider")?.AI_PROVIDER === "fake";
+  // The file outbox replaces Resend in development and tests.
+  const outbox = optionalGroup("emailOutbox") !== null;
+  return (Object.keys(optionalProviders) as (keyof typeof optionalProviders)[])
+    .filter((name) => !(name === "ai" && fakeModel))
+    .filter((name) => !(name === "email" && outbox))
+    .filter((name) => !optionalGroup(name))
+    .map((name) => optionalProviders[name]);
+}
 /** Off until a bucket is set; once it is, a missing or invalid field is an error, not a skip. */
 export const backupEnv = () => (process.env.BACKUP_S3_BUCKET ? group("backup") : null);

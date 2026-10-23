@@ -1,12 +1,15 @@
 import "dotenv/config";
-import { startWorkerJobs } from "./jobs";
+import { startWorkerJobs, workOptions } from "./jobs";
 import { analyzeVideo } from "./jobs/analyze-video";
 import { ingestEvent } from "./jobs/ingest-event";
 import { syncMetrics } from "./jobs/sync-metrics";
-import { runBackup } from "./jobs/backup";
+import { runBatchGeneration } from "./jobs/generate-batch";
 import { pool } from "./db";
 import { logError } from "./lib/log";
+import { logMissingConfiguration } from "./lib/configuration-report";
+import { runBackup } from "./jobs/backup";
 import { backupEnv } from "./lib/env";
+
 function backupConfigured() {
   try {
     return Boolean(backupEnv());
@@ -30,6 +33,7 @@ async function main() {
   const handlers: Record<string, (data: unknown) => Promise<void>> = {
     "analyze-video": analyzeVideo,
     "ingest-event": ingestEvent,
+    "generate-batch": runBatchGeneration,
     "sync-metrics": (data) =>
       syncMetrics(data, (job) =>
         boss.send("sync-metrics", job, { singletonKey: job.integrationId }),
@@ -39,7 +43,7 @@ async function main() {
     },
   };
   for (const [name, handler] of Object.entries(handlers))
-    await boss.work(name, { batchSize: 1 }, async ([job]) => {
+    await boss.work(name, workOptions(name), async ([job]) => {
       try {
         await handler(job.data);
       } catch (error) {
@@ -53,6 +57,7 @@ async function main() {
   console.info(
     "Worker ready: video analysis, sales ingestion and six-hour metrics sync.",
   );
+  logMissingConfiguration("worker");
   let stopping = false;
   async function stop() {
     if (stopping) return;

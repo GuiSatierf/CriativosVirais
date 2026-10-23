@@ -101,6 +101,11 @@ export function Chat({
       new DefaultChatTransport<ChatMessage>({
         api: "/api/chat",
         body: { conversationId },
+        // The server rebuilds the history from the database, so only the new message travels;
+        // sending the whole conversation grew every request and broke long conversations.
+        prepareSendMessagesRequest: ({ messages, body }) => ({
+          body: { ...body, conversationId, messages: messages.slice(-1) },
+        }),
       }),
     [conversationId],
   );
@@ -127,6 +132,8 @@ export function Chat({
   const [panelOpen, setPanelOpen] = useState(false);
   const [attached, setAttached] = useState<Attachment[]>([]);
   const [processing, setProcessing] = useState<Attachment[]>([]);
+  // Videos whose analysis failed stay listed for a retry but no longer hold the composer.
+  const [failedVideos, setFailedVideos] = useState<string[]>([]);
   const [audioUploading, setAudioUploading] = useState(false);
   const [audioAsset, setAudioAsset] = useState<string>();
   const [atBottom, setAtBottom] = useState(true);
@@ -147,12 +154,15 @@ export function Chat({
   const empty = messages.length === 0;
   const lastMessage = messages.at(-1);
   const videoSlots = maxAttachedVideos - attached.length - processing.length;
+  const analysing = processing.filter(
+    (video) => !failedVideos.includes(video.id),
+  );
   const canSend =
     !unavailable &&
     Boolean(input.trim()) &&
     !voice.recording &&
     !audioUploading &&
-    processing.length === 0;
+    analysing.length === 0;
 
   // Follows the reply only while the reader is already at the bottom.
   useEffect(() => {
@@ -205,6 +215,34 @@ export function Chat({
     );
     setInput((current) => (current.trim() ? current : videoPrompt));
     focusComposer();
+  }
+
+  function markVideoFailed(id: string, failed: boolean) {
+    setFailedVideos((current) => {
+      const others = current.filter((videoId) => videoId !== id);
+      return failed ? [...others, id] : others;
+    });
+    if (!failed) {
+      // A retry puts the video back on its way, so its prompt comes back too.
+      setInput((current) => (current.trim() ? current : videoPrompt));
+      return;
+    }
+
+    // Another video still on its way keeps the prompt filled in for it.
+    const otherVideos =
+      attached.length > 0 ||
+      processing.some(
+        (video) => video.id !== id && !failedVideos.includes(video.id),
+      );
+    if (otherVideos) return;
+
+    // The prompt filled in for the upload would now be sent without its video.
+    setInput((current) => (current.trim() === videoPrompt ? "" : current));
+  }
+
+  function discardVideo(id: string) {
+    setProcessing((current) => current.filter((video) => video.id !== id));
+    setFailedVideos((current) => current.filter((videoId) => videoId !== id));
   }
 
   function attachVideo(id: string, name?: string) {
@@ -388,17 +426,15 @@ export function Chat({
             <AttachmentChip
               key={video.id}
               name={video.name ?? "Vídeo"}
-              onRemove={() =>
-                setProcessing((current) =>
-                  current.filter((item) => item.id !== video.id),
-                )
-              }
+              onRemove={() => discardVideo(video.id)}
             >
               <UploadArea
                 kind="video"
                 compact
                 initialAssetId={video.id}
                 onVideoReady={(id) => attachVideo(id, video.name)}
+                onFailedChange={(failed) => markVideoFailed(video.id, failed)}
+                onDismiss={() => discardVideo(video.id)}
               />
             </AttachmentChip>
           ))}
@@ -551,7 +587,7 @@ export function Chat({
             </Hint>
             {unavailable && (
               <p className="min-w-0 px-1 text-xs leading-snug text-pretty text-muted-foreground">
-                O Estrategista está indisponível no momento.
+                O Estrategista ainda não foi configurado nesta instalação.
               </p>
             )}
           </>
@@ -571,7 +607,7 @@ export function Chat({
         ) : (
           <Hint
             label={
-              processing.length
+              analysing.length
                 ? "Aguarde a análise do vídeo"
                 : "Enviar mensagem"
             }

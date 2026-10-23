@@ -1,0 +1,135 @@
+# Coolify stack: Postgres, RustFS, migrations, app and worker (see docs/ativacao.md).
+# Coolify generates every SERVICE_* value on the first deploy and keeps it afterwards.
+# Only the DeepSeek, Groq and Resend values are filled in by hand, in Environment Variables.
+# The runtime variables repeat in migrate, app and worker on purpose: no YAML anchors.
+services:
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=creatives
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  rustfs:
+    image: rustfs/rustfs@sha256:1803faef57627e2d9c2e7d89d655d712ddded5389040054987163043fecb6a3c
+    environment:
+      - SERVICE_URL_RUSTFS_9000
+      - RUSTFS_ACCESS_KEY=${SERVICE_USER_RUSTFS}
+      - RUSTFS_SECRET_KEY=${SERVICE_PASSWORD_RUSTFS}
+      - RUSTFS_CORS_ALLOWED_ORIGINS=${SERVICE_URL_APP}
+      - RUSTFS_CONSOLE_ENABLE=true
+      - RUSTFS_CONSOLE_ADDRESS=0.0.0.0:9001
+    volumes:
+      - rustfs_data:/data
+      - rustfs_logs:/logs
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9001/rustfs/console/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    build: .
+    command: ["sh", "-c", "node dist/tools/src/db/migrate.js && node dist/tools/scripts/init-storage.js"]
+    environment:
+      - DATABASE_URL=postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/creatives
+      - BETTER_AUTH_SECRET=${SERVICE_PASSWORD_64_AUTH}
+      - BETTER_AUTH_URL=${SERVICE_URL_APP}
+      - ENCRYPTION_KEY=${SERVICE_REALBASE64_ENCRYPTION}
+      - S3_ENDPOINT=http://rustfs:9000
+      - S3_PUBLIC_ENDPOINT=${SERVICE_URL_RUSTFS}
+      - S3_REGION=us-east-1
+      - S3_ACCESS_KEY=${SERVICE_USER_RUSTFS}
+      - S3_SECRET_KEY=${SERVICE_PASSWORD_RUSTFS}
+      - S3_BUCKET=creatives
+      - S3_FORCE_PATH_STYLE=true
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_MODEL_TEXT=${DEEPSEEK_MODEL_TEXT:-}
+      - DEEPSEEK_MODEL_VISION=${DEEPSEEK_MODEL_VISION:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_WHISPER_MODEL=${GROQ_WHISPER_MODEL:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+      - HOTMART_HOTTOK=${HOTMART_HOTTOK:-}
+      - HOTMART_PRODUCT_IDS=${HOTMART_PRODUCT_IDS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+    restart: "no"
+    exclude_from_hc: true
+
+  app:
+    build: .
+    environment:
+      - SERVICE_URL_APP_3000
+      - DATABASE_URL=postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/creatives
+      - BETTER_AUTH_SECRET=${SERVICE_PASSWORD_64_AUTH}
+      - BETTER_AUTH_URL=${SERVICE_URL_APP}
+      - ENCRYPTION_KEY=${SERVICE_REALBASE64_ENCRYPTION}
+      - S3_ENDPOINT=http://rustfs:9000
+      - S3_PUBLIC_ENDPOINT=${SERVICE_URL_RUSTFS}
+      - S3_REGION=us-east-1
+      - S3_ACCESS_KEY=${SERVICE_USER_RUSTFS}
+      - S3_SECRET_KEY=${SERVICE_PASSWORD_RUSTFS}
+      - S3_BUCKET=creatives
+      - S3_FORCE_PATH_STYLE=true
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_MODEL_TEXT=${DEEPSEEK_MODEL_TEXT:-}
+      - DEEPSEEK_MODEL_VISION=${DEEPSEEK_MODEL_VISION:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_WHISPER_MODEL=${GROQ_WHISPER_MODEL:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["node", "dist/worker.js"]
+    environment:
+      - DATABASE_URL=postgresql://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/creatives
+      - BETTER_AUTH_SECRET=${SERVICE_PASSWORD_64_AUTH}
+      - BETTER_AUTH_URL=${SERVICE_URL_APP}
+      - ENCRYPTION_KEY=${SERVICE_REALBASE64_ENCRYPTION}
+      - S3_ENDPOINT=http://rustfs:9000
+      - S3_PUBLIC_ENDPOINT=${SERVICE_URL_RUSTFS}
+      - S3_REGION=us-east-1
+      - S3_ACCESS_KEY=${SERVICE_USER_RUSTFS}
+      - S3_SECRET_KEY=${SERVICE_PASSWORD_RUSTFS}
+      - S3_BUCKET=creatives
+      - S3_FORCE_PATH_STYLE=true
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_MODEL_TEXT=${DEEPSEEK_MODEL_TEXT:-}
+      - DEEPSEEK_MODEL_VISION=${DEEPSEEK_MODEL_VISION:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_WHISPER_MODEL=${GROQ_WHISPER_MODEL:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    stop_grace_period: 35s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  rustfs_data:
+  rustfs_logs:

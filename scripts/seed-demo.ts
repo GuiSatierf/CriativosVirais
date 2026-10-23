@@ -79,6 +79,8 @@ async function main() {
       console.log(`Demo already seeded: ${demoEmail}. Nothing changed.`);
       return;
     }
+    // Sign-up only accepts granted emails; the demo account grants itself first.
+    await db.insert(schema.accessGrants).values({ email: demoEmail, note: "Conta de demonstração" }).onConflictDoNothing();
     const { user } = await getAuth().api.signUpEmail({ body: { name: "Operação Demo", email: demoEmail, password: demoPassword } });
     const [member] = await db.select({ tenantId: schema.tenantMembers.tenantId }).from(schema.tenantMembers).where(eq(schema.tenantMembers.userId, user.id));
     assert.ok(member, "Signup did not provision a tenant.");

@@ -49,6 +49,16 @@ export function summarizeRankings(rows: RankedMetric[]) {
     warning: rows.length ? null : attributionWarning,
   };
 }
+// Section 18.4 of the master document: an extreme value from a tiny sample is not a winner.
+// Ratios compete only with a sample of at least this share of the period's median (spend for
+// ROAS, impressions for CTR), relative to the operation itself so small and large accounts fit.
+const minimumShareOfMedian = 0.2;
+const minimumImpressions = 1000;
+
+/**
+ * Internal top 5 per metric. Refunds and chargebacks rank as a rate over approved sales (lower is
+ * better, creatives without sales left out); ties go to the larger sample, then the key.
+ */
 export async function getBenchmark(tenantId: string, input: unknown) {
   const p = periodSchema.parse(input);
   const totals = sql.join(
@@ -63,9 +73,20 @@ export async function getBenchmark(tenantId: string, input: unknown) {
  FROM creatives c JOIN creative_metrics m ON m.tenant_id=c.tenant_id AND m.creative_id=c.id
  WHERE ${and(tenantWhere(c, tenantId), tenantWhere(m, tenantId), metricWindow(p), campaignFilter(p))}
  GROUP BY c.id,c.creative_key
+ ), medians AS (
+ SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY spend_cents) spend_median,
+ percentile_cont(0.5) WITHIN GROUP (ORDER BY impressions) impressions_median
+ FROM totals
  ), expanded AS (
- SELECT creative_key,metric,value FROM totals CROSS JOIN LATERAL (VALUES ('spend_cents',spend_cents),('impressions',impressions),('clicks',clicks),('leads',leads),('checkouts',checkouts),('refunds',refunds),('chargebacks',chargebacks),('approved_sales',approved_sales),('revenue_cents',revenue_cents),('profit_cents',profit_cents),('roas',roas::numeric),('ctr',ctr::numeric),('hook_rate',hook_rate::numeric),('body_rate',body_rate::numeric)) v(metric,value) WHERE value IS NOT NULL
- ) SELECT creative_key,metric,value::text,ROW_NUMBER() OVER(PARTITION BY metric ORDER BY CASE WHEN metric IN ('refunds','chargebacks') THEN -value ELSE value END DESC,creative_key)::int rank,PERCENT_RANK() OVER(PARTITION BY metric ORDER BY CASE WHEN metric IN ('refunds','chargebacks') THEN -value ELSE value END DESC) percentile FROM expanded ORDER BY metric,rank`);
+ SELECT t.creative_key,v.metric,v.value,v.sample FROM totals t CROSS JOIN medians md CROSS JOIN LATERAL (VALUES
+ ('spend_cents',t.spend_cents::numeric,NULL::numeric),('impressions',t.impressions::numeric,NULL),('clicks',t.clicks::numeric,NULL),('leads',t.leads::numeric,NULL),('checkouts',t.checkouts::numeric,NULL),
+ ('approved_sales',t.approved_sales::numeric,NULL),('revenue_cents',t.revenue_cents::numeric,NULL),('profit_cents',t.profit_cents::numeric,NULL),
+ ('roas',CASE WHEN md.spend_median IS NULL OR t.spend_cents>=${minimumShareOfMedian}*md.spend_median THEN t.roas::numeric END,t.spend_cents::numeric),
+ ('ctr',CASE WHEN md.impressions_median IS NULL OR (t.impressions>=${minimumImpressions} AND t.impressions>=${minimumShareOfMedian}*md.impressions_median) THEN t.ctr::numeric END,t.impressions::numeric),
+ ('refund_rate',CASE WHEN t.approved_sales>0 THEN t.refunds::numeric/t.approved_sales END,t.approved_sales::numeric),
+ ('chargeback_rate',CASE WHEN t.approved_sales>0 THEN t.chargebacks::numeric/t.approved_sales END,t.approved_sales::numeric),
+ ('hook_rate',t.hook_rate::numeric,NULL),('body_rate',t.body_rate::numeric,NULL)) v(metric,value,sample) WHERE v.value IS NOT NULL
+ ) SELECT creative_key,metric,value::text,ROW_NUMBER() OVER(PARTITION BY metric ORDER BY CASE WHEN metric IN ('refund_rate','chargeback_rate') THEN -value ELSE value END DESC,sample DESC NULLS LAST,creative_key)::int rank,PERCENT_RANK() OVER(PARTITION BY metric ORDER BY CASE WHEN metric IN ('refund_rate','chargeback_rate') THEN -value ELSE value END DESC) percentile FROM expanded ORDER BY metric,rank`);
   const summarized = summarizeRankings(result.rows as RankedMetric[]);
   if (!result.rows.length) {
     const [known] = await db

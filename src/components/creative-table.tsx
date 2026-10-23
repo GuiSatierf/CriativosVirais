@@ -4,6 +4,11 @@ import { useState } from "react";
 import { CircleAlert, Eye, EyeOff, FileUp, RotateCw, Film, Upload } from "@/components/icons";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
+import {
+  ImportPeriodNotice,
+  isOutsideImports,
+  type ImportPeriod,
+} from "@/components/metrics/import-period-notice";
 import { UploadArea } from "@/components/upload-area";
 import { CreativeActions } from "@/components/creative-actions";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +53,31 @@ const videoStatuses: Record<string, { label: string; dot: string }> = {
   error: { label: "Erro na análise", dot: "bg-destructive" },
 };
 const noVideo = { label: "Sem vídeo", dot: "bg-muted-foreground/40" };
+
+/** How many best sellers get the "1º em vendas" badge. */
+const rankedSellers = 3;
+
+/** Rank (1 to 3) of the creatives with the most approved sales among the listed rows. */
+function topSellerRanks(rows: CreativeRow[]) {
+  const totals = new Map<string, bigint>();
+  for (const row of rows) {
+    if (row.approved_sales == null) continue;
+    const current = totals.get(row.creative_key) ?? 0n;
+    totals.set(row.creative_key, current + BigInt(row.approved_sales));
+  }
+
+  const ranked = [...totals]
+    .filter(([, sales]) => sales > 0n)
+    .sort(([, a], [, b]) => Number(b - a))
+    .slice(0, rankedSellers);
+  return new Map(ranked.map(([key], index) => [key, index + 1]));
+}
+
+function SalesRank({ rank }: { rank: number | undefined }) {
+  if (rank == null) return null;
+
+  return <Badge>{rank}º em vendas</Badge>;
+}
 
 function VideoStatus({ status }: { status: string | null }) {
   const config = (status && videoStatuses[status]) || noVideo;
@@ -137,11 +167,14 @@ export function CreativeTable({
   initialFilters,
   initialData,
   showSource = false,
+  csvPeriods = [],
 }: {
   initialFilters: MetricsFilters;
   initialData?: CreativesResponse;
   /** Offer the "Planilha | Vendas do checkout" switch (tenant has webhook data). */
   showSource?: boolean;
+  /** Latest CSV import periods; a spreadsheet only answers for its exact period. */
+  csvPeriods?: ImportPeriod[];
 }) {
   const query = useMetricsQuery({
     endpoint: "/api/creatives",
@@ -153,12 +186,19 @@ export function CreativeTable({
   // The key stays set while the sheet animates closed so the title does not blank.
   const [upload, setUpload] = useState<{ key: string; open: boolean }>();
   const [showHidden, setShowHidden] = useState(false);
+  // Remounts the filter toolbar when a period is applied from outside it.
+  const [filterVersion, setFilterVersion] = useState(0);
 
   function applyFilters(next: MetricsFilters) {
     // Keeps the URL shareable and reload-safe without a server round trip.
     window.history.replaceState(null, "", `?${metricsQuery(next)}`);
     setUpload(undefined);
     query.load(next);
+  }
+
+  function showImportedPeriod(period: ImportPeriod) {
+    applyFilters({ ...filters, from: period.from, to: period.to });
+    setFilterVersion((version) => version + 1);
   }
 
   const openUpload = (key: string) => setUpload({ key, open: true });
@@ -187,6 +227,13 @@ export function CreativeTable({
     </div>
   );
 
+  const allRows = data?.rows ?? [];
+  const hiddenKeys = new Set(
+    allRows.filter((row) => row.hidden).map((row) => row.creative_key),
+  ).size;
+  const rows = showHidden ? allRows : allRows.filter((row) => !row.hidden);
+  const salesRank = topSellerRanks(rows);
+
   const columns: DataColumn<CreativeRow>[] = [
     {
       id: "creative_key",
@@ -197,6 +244,7 @@ export function CreativeTable({
           <div className="flex max-w-64 min-w-40 flex-col gap-1">
             <span className="flex items-center gap-1.5">
               <KeyChip>{row.creative_key}</KeyChip>
+              <SalesRank rank={salesRank.get(row.creative_key)} />
               {row.hidden && <Badge variant="outline">Oculto</Badge>}
             </span>
             {row.name && (
@@ -221,11 +269,6 @@ export function CreativeTable({
     ...mainMetrics.map(metricColumn),
   ];
 
-  const allRows = data?.rows ?? [];
-  const hiddenKeys = new Set(
-    allRows.filter((row) => row.hidden).map((row) => row.creative_key),
-  ).size;
-  const rows = showHidden ? allRows : allRows.filter((row) => !row.hidden);
   const hiddenToggle = hiddenKeys > 0 && (
     <Button
       variant="ghost"
@@ -239,17 +282,29 @@ export function CreativeTable({
     </Button>
   );
   const keys = new Set(rows.map((row) => row.creative_key)).size;
+  // Only the latest imports are offered, so an older imported period is
+  // recognised by its results rather than by the offered list.
+  const outsideImports =
+    !loading &&
+    !error &&
+    !allRows.some((row) => row.period_from) &&
+    isOutsideImports(filters, csvPeriods);
 
   return (
     <div className="space-y-6">
       <MetricsFilter
+        key={filterVersion}
         idPrefix="creatives"
-        defaultValue={initialFilters}
+        defaultValue={filters}
         pending={loading}
         onChange={applyFilters}
         onRefresh={query.refresh}
         showSource={showSource}
       />
+
+      {outsideImports && (
+        <ImportPeriodNotice periods={csvPeriods} onSelect={showImportedPeriod} />
+      )}
 
       {error ? (
         <Alert variant="destructive">
@@ -333,8 +388,9 @@ export function CreativeTable({
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 flex-col gap-1">
-                      <span className="flex items-center gap-1.5">
+                      <span className="flex flex-wrap items-center gap-1.5">
                         <KeyChip>{row.creative_key}</KeyChip>
+                        <SalesRank rank={salesRank.get(row.creative_key)} />
                         {row.hidden && <Badge variant="outline">Oculto</Badge>}
                       </span>
                       {row.name && (

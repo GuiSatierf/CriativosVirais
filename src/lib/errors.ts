@@ -41,6 +41,14 @@ export class RetryLaterError extends Error {
   }
 }
 
+/** The provider refused the credentials for good; retrying cannot help, the user must act. */
+export class ProviderRejectedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProviderRejectedError";
+  }
+}
+
 /** Backup failure with a fixed message: never echoes object keys, SQL or tool output. */
 export class BackupError extends Error {
   constructor(message: string) {

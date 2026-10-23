@@ -25,7 +25,7 @@ export function ProfileName({
   const changed = value !== saved;
   const empty = value === "";
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!changed || empty || pending) return;
     setPending(true);

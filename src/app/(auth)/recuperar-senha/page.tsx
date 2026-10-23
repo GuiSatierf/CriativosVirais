@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 import { ArrowLeft } from "@/components/icons";
+import { PasswordResetRequest } from "@/components/password-reset-request";
 import { buttonVariants } from "@/components/ui/button";
+import { canSendEmail } from "@/lib/email";
 
 export const metadata: Metadata = {
-  title: "Recuperar senha · Criativos Virais",
+  title: "Recuperar senha",
 };
 
-// Password reset by email is not configured yet (no email sender), so support resets it.
-export default function RecoverPasswordPage() {
+// Installations without an email sender keep the support message instead of a form that cannot deliver.
+function SupportNotice() {
   return (
     <div className="space-y-8">
       <header className="space-y-1.5">
@@ -30,4 +33,11 @@ export default function RecoverPasswordPage() {
       </Link>
     </div>
   );
+}
+
+export default async function RecoverPasswordPage() {
+  // The sender comes from runtime configuration, never from the build.
+  await connection();
+  if (!canSendEmail()) return <SupportNotice />;
+  return <PasswordResetRequest />;
 }

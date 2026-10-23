@@ -24,6 +24,7 @@ import {
   savedSchema,
   toastError,
 } from "@/lib/client";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -53,6 +54,7 @@ const rowsSchema = z.array(
     lastSyncAt: z.string().nullable(),
     metadata: z
       .object({
+        warning: z.string().optional(),
         summary: z
           .object({
             ads: z.object({ spend: z.number().nullable().optional() }),
@@ -222,34 +224,75 @@ export function Integrations({
         </Alert>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <IntegrationCard
-          title="Planilha CSV"
-          description="Importe resultados de uma planilha."
-          meta={csvDay ? `Dados até ${formatDay(csvDay)}` : undefined}
-        >
-          <Button
-            variant={csvDay ? "outline" : "default"}
-            onClick={() => openPanel("csv")}
-          >
-            <FileUp aria-hidden />
-            Importar planilha
-          </Button>
-        </IntegrationCard>
-
-        {rows === null ? (
-          <>
+      {/* In order of what the ranking needs: sales per creative, then spend per ad. */}
+      <p className="text-sm text-muted-foreground">
+        Para saber o que funcionou, o Estrategista precisa das vendas e do
+        gasto de cada criativo. Siga a ordem:
+      </p>
+      <ol className="space-y-3">
+        {rows === null && (
+          <li>
             <span role="status" className="sr-only">
               Carregando conexões…
             </span>
             <IntegrationCardSkeleton />
-            <IntegrationCardSkeleton />
-          </>
-        ) : (
-          <>
+          </li>
+        )}
+        {rows !== null && (
+          <li>
             <IntegrationCard
-              title="UTMify"
-              description="Receita e investimento do seu dashboard."
+              title="Passo 1 · Vendas de cada criativo"
+              tag={<Badge>Necessário</Badge>}
+              description="Cada venda chega com o código do criativo. Configure no seu checkout, colando a URL e o token desta conexão."
+              brings="Traz vendas e receita por criativo. Não traz o gasto com anúncio."
+              badge={hook && <StatusBadge status={hookStatus} />}
+              meta={
+                webhook
+                  ? "Copie o token e o secret antes de sair."
+                  : hook && "Pronta para receber vendas."
+              }
+            >
+              <Button
+                variant={hook ? "outline" : "default"}
+                onClick={() => openPanel("webhook")}
+              >
+                {hook ? <Settings2 aria-hidden /> : <Webhook aria-hidden />}
+                {hook ? "Gerenciar" : "Configurar"}
+              </Button>
+            </IntegrationCard>
+          </li>
+        )}
+
+        <li>
+          <IntegrationCard
+            title="Passo 2 · Gasto de cada anúncio"
+            tag={<Badge>Necessário para o retorno</Badge>}
+            description="Exporte do Gerenciador de Anúncios o mesmo período e importe aqui. Sem ela não há investimento, retorno nem custo por venda."
+            brings="Traz investimento, cliques e impressões por anúncio."
+            meta={csvDay ? `Dados até ${formatDay(csvDay)}` : undefined}
+          >
+            <Button
+              variant={csvDay ? "outline" : "default"}
+              onClick={() => openPanel("csv")}
+            >
+              <FileUp aria-hidden />
+              Importar planilha
+            </Button>
+          </IntegrationCard>
+        </li>
+
+        {rows === null && (
+          <li>
+            <IntegrationCardSkeleton />
+          </li>
+        )}
+        {rows !== null && (
+          <li>
+            <IntegrationCard
+              title="Opcional · Totais da UTMify"
+              tag={<Badge variant="outline">Opcional</Badge>}
+              description="Mostra o total do seu dashboard. Não separa por criativo, então não entra no ranking."
+              brings="Traz receita e investimento somados."
               badge={
                 utm && (
                   <StatusBadge
@@ -276,28 +319,9 @@ export function Integrations({
               </Button>
               {utm && syncButton}
             </IntegrationCard>
-
-            <IntegrationCard
-              title="Webhook de vendas"
-              description="Vendas do seu checkout em tempo real."
-              badge={hook && <StatusBadge status={hookStatus} />}
-              meta={
-                webhook
-                  ? "Copie o token e o secret antes de sair."
-                  : hook && "Pronta para receber vendas."
-              }
-            >
-              <Button
-                variant={hook ? "outline" : "default"}
-                onClick={() => openPanel("webhook")}
-              >
-                {hook ? <Settings2 aria-hidden /> : <Webhook aria-hidden />}
-                {hook ? "Gerenciar" : "Configurar"}
-              </Button>
-            </IntegrationCard>
-          </>
+          </li>
         )}
-      </div>
+      </ol>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         {panel === "csv" && (
@@ -405,7 +429,8 @@ function UtmifyPanel({
       <Steps>
         <Step number={1} title="Abra a UTMify">
           <p className="text-xs text-muted-foreground">
-            Na sua conta, abra a área de API e crie uma chave.
+            Na sua conta, abra Avançado → API Oficial → Novo Token. A API Oficial
+            só existe nos planos Monster, Scale e Enterprise.
           </p>
         </Step>
         <Step number={2} title="Cole a chave de API">
@@ -506,7 +531,7 @@ function UtmifyPanel({
             <CircleAlert aria-hidden />
             <AlertTitle>A última sincronização falhou.</AlertTitle>
             <AlertDescription>
-              Confira a chave e o ID do dashboard abaixo e conecte de novo.
+              {utm.metadata?.warning ?? "Confira a chave e o ID do dashboard abaixo e conecte de novo."}
             </AlertDescription>
           </Alert>
         )}

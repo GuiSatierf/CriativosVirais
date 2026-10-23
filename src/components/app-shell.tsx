@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Brand } from "@/components/brand";
+import { StrategistAvatar } from "@/components/chat/strategist";
 import { Hint } from "@/components/hint";
 import { ThemeMenuGroup } from "@/components/theme-toggle";
 import { ConversationActions } from "@/components/conversation-actions";
@@ -98,11 +99,14 @@ export function AppShell({
   panel,
   user,
   conversations,
+  banner,
 }: {
   children: React.ReactNode;
   panel: React.ReactNode;
   user: User;
   conversations: Conversation[];
+  /** Notice above the header, such as the support visit. */
+  banner?: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -131,6 +135,7 @@ export function AppShell({
         chat ? "h-dvh overflow-hidden" : "min-h-svh",
       )}
     >
+      {banner}
       <header
         data-print="hide"
         className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-1 bg-background/85 px-2 pt-[env(safe-area-inset-top)] backdrop-blur-md sm:px-4"
@@ -140,11 +145,16 @@ export function AppShell({
           aria-label="Criativos Virais — nova conversa"
           className="mr-2 inline-flex h-9 shrink-0 items-center rounded-md px-1"
         >
-          <Brand className="h-5" />
+          {/* Phones show the brand symbol so the shortcuts fit beside it. */}
+          <span className="hidden sm:inline-flex">
+            <Brand className="h-5" />
+          </span>
+          <StrategistAvatar className="size-7 sm:hidden" />
         </Link>
         <p className="invisible min-w-0 flex-1 truncate text-sm text-muted-foreground sm:visible">
           {chat && title ? title : ""}
         </p>
+        <PlaceShortcuts />
         <NewConversationButton />
         <Hint label="Histórico (Ctrl K)">
           <Button
@@ -157,7 +167,7 @@ export function AppShell({
             <History aria-hidden className="size-5" />
           </Button>
         </Hint>
-        <UserMenu user={user} />
+        <UserMenu user={user} supportVisit={Boolean(banner)} />
       </header>
 
       <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
@@ -250,6 +260,34 @@ function HistoryBody({
       </nav>
       <ConversationHistory conversations={conversations} onNavigate={onNavigate} />
     </div>
+  );
+}
+
+/** Levas and Resultados one click away: labelled on wider screens, icons on phones. */
+function PlaceShortcuts() {
+  const pathname = usePathname();
+  return (
+    <nav aria-label="Levas e resultados" className="flex shrink-0 items-center gap-1 sm:mr-1">
+      {places.map(({ href, label, icon: Icon }) => {
+        const active = isActive(pathname, href);
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              buttonVariants({ variant: "ghost" }),
+              quietButton,
+              "size-9 px-0 pointer-coarse:size-11 sm:size-auto sm:px-3 sm:pointer-coarse:size-auto",
+              active && "bg-accent text-foreground",
+            )}
+          >
+            <Icon aria-hidden weight={active ? "fill" : "duotone"} className="size-5" />
+            <span className="sr-only sm:not-sr-only">{label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -498,12 +536,19 @@ const menuLink =
   "flex h-8 items-center gap-2 rounded-md px-2.5 text-sm outline-hidden select-none pointer-coarse:h-10 data-highlighted:bg-accent data-highlighted:text-accent-foreground [&_svg]:size-4 [&_svg]:text-muted-foreground";
 
 /** Account menu in the top bar: identity, places, theme and sign out. */
-function UserMenu({ user }: { user: User }) {
+function UserMenu({ user, supportVisit }: { user: User; supportVisit: boolean }) {
   const router = useRouter();
   const initial = user.name.trim().charAt(0).toUpperCase() || "?";
 
   async function logout() {
     try {
+      // Inside a client's account, signing out ends the visit and goes back to the panel.
+      if (supportVisit) {
+        await api("/api/support-visit", z.object({ left: z.boolean() }), {}, "DELETE");
+        router.replace("/admin?aba=contas");
+        router.refresh();
+        return;
+      }
       const result = await authClient.signOut();
       if (result.error) throw new Error();
       router.replace("/login");
