@@ -39,10 +39,11 @@ export function Panel({
         className={`gap-0 ${panelWidth}`}
       >
         <SheetTitle className="sr-only">{label}</SheetTitle>
+        {/* The scroll area starts below the close button, so header actions and scrolled content never sit under it. */}
         <div
           ref={body}
           tabIndex={-1}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 outline-none pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8">
+          className="mt-12 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 outline-none pt-2 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8">
           {children}
         </div>
       </SheetContent>

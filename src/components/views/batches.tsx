@@ -103,7 +103,7 @@ export async function BatchesView({
           }
         />
       ) : (
-        <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {rows.map((batch) => (
             <li key={batch.id} className="flex">
               <Link

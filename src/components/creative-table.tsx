@@ -1,9 +1,14 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { CalendarDays, CircleAlert, Eye, EyeOff, FileUp, RotateCw, Film, Upload } from "@/components/icons";
+import { CircleAlert, Eye, EyeOff, FileUp, RotateCw, Film, Upload } from "@/components/icons";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
+import {
+  ImportPeriodNotice,
+  isOutsideImports,
+  type ImportPeriod,
+} from "@/components/metrics/import-period-notice";
 import { UploadArea } from "@/components/upload-area";
 import { CreativeActions } from "@/components/creative-actions";
 import { Badge } from "@/components/ui/badge";
@@ -48,8 +53,6 @@ const videoStatuses: Record<string, { label: string; dot: string }> = {
   error: { label: "Erro na análise", dot: "bg-destructive" },
 };
 const noVideo = { label: "Sem vídeo", dot: "bg-muted-foreground/40" };
-
-type ImportPeriod = { from: string; to: string };
 
 /** How many best sellers get the "1º em vendas" badge. */
 const rankedSellers = 3;
@@ -282,14 +285,10 @@ export function CreativeTable({
   // Only the latest imports are offered, so an older imported period is
   // recognised by its results rather than by the offered list.
   const outsideImports =
-    filters.source === "csv" &&
-    csvPeriods.length > 0 &&
     !loading &&
     !error &&
     !allRows.some((row) => row.period_from) &&
-    !csvPeriods.some(
-      (period) => period.from === filters.from && period.to === filters.to,
-    );
+    isOutsideImports(filters, csvPeriods);
 
   return (
     <div className="space-y-6">
@@ -304,28 +303,7 @@ export function CreativeTable({
       />
 
       {outsideImports && (
-        <Alert>
-          <CalendarDays aria-hidden />
-          <AlertTitle>Não há planilha importada para este período</AlertTitle>
-          <AlertDescription>
-            <p>
-              A planilha vale só para as datas em que foi importada. Escolha um
-              período importado para ver os resultados.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {csvPeriods.map((period) => (
-                <Button
-                  key={`${period.from}|${period.to}`}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => showImportedPeriod(period)}
-                >
-                  Ver {formatPeriod(period.from, period.to)}
-                </Button>
-              ))}
-            </div>
-          </AlertDescription>
-        </Alert>
+        <ImportPeriodNotice periods={csvPeriods} onSelect={showImportedPeriod} />
       )}
 
       {error ? (
