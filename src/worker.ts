@@ -7,6 +7,7 @@ import { runBatchGeneration } from "./jobs/generate-batch";
 import { pool } from "./db";
 import { logError } from "./lib/log";
 import { logMissingConfiguration } from "./lib/configuration-report";
+import { purgeAccessLog } from "./jobs/purge-access-log";
 async function main() {
   const boss = await startWorkerJobs();
   const handlers: Record<string, (data: unknown) => Promise<void>> = {
@@ -17,6 +18,7 @@ async function main() {
       syncMetrics(data, (job) =>
         boss.send("sync-metrics", job, { singletonKey: job.integrationId }),
       ),
+    "purge-access-log": purgeAccessLog,
   };
   for (const [name, handler] of Object.entries(handlers))
     await boss.work(name, workOptions(name), async ([job]) => {
@@ -29,6 +31,8 @@ async function main() {
       }
     });
   await boss.schedule("sync-metrics", "0 */6 * * *", {});
+  // Access records past the six months the Marco Civil requires are deleted once a day.
+  await boss.schedule("purge-access-log", "30 4 * * *", {}, { tz: "America/Sao_Paulo" });
   console.info(
     "Worker ready: video analysis, sales ingestion and six-hour metrics sync.",
   );
