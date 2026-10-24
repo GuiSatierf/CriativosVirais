@@ -46,10 +46,8 @@ export async function ingestEvent(data: unknown) {
     const campaignKey = event.utmCampaign?.trim() || "";
     // Counts and money are observed only once a settled (approved, refunded or
     // chargeback) event exists for the day; pending/cancelled/failed alone stay NULL.
-    // creative_key already holds coalesce(creative_key, utm_content), and the São Paulo day is a
-    // range on occurred_at, so the (tenant, creative_key, occurred_at) index serves the scan.
     const totals =
-      await tx.execute(sql`WITH s AS (SELECT status, revenue_cents, profit_cents FROM sales_events WHERE ${tenantWhere(salesEvents, tenantId)} AND creative_key=${key} AND coalesce(nullif(btrim(utm_campaign),''),'')=${campaignKey} AND occurred_at>=(${day}::date::timestamp AT TIME ZONE 'America/Sao_Paulo') AND occurred_at<((${day}::date+1)::timestamp AT TIME ZONE 'America/Sao_Paulo') AND status in ('approved','refunded','chargeback'))
+      await tx.execute(sql`WITH s AS (SELECT status, revenue_cents, profit_cents FROM sales_events WHERE ${tenantWhere(salesEvents, tenantId)} AND coalesce(creative_key,utm_content)=${key} AND coalesce(nullif(btrim(utm_campaign),''),'')=${campaignKey} AND (occurred_at AT TIME ZONE 'America/Sao_Paulo')::date=${day}::date AND status in ('approved','refunded','chargeback'))
  SELECT CASE WHEN count(*)>0 THEN count(*) FILTER(WHERE status='approved')::text END sales,
  CASE WHEN count(*)>0 THEN count(*) FILTER(WHERE status='refunded')::text END refunds,
  CASE WHEN count(*)>0 THEN count(*) FILTER(WHERE status='chargeback')::text END chargebacks,
@@ -57,9 +55,6 @@ export async function ingestEvent(data: unknown) {
  CASE WHEN count(*)=0 OR count(*) FILTER(WHERE profit_cents IS NULL)>0 THEN NULL ELSE sum(CASE WHEN status='approved' THEN profit_cents ELSE -profit_cents END)::text END profit
  FROM s`);
     const t = totalsSchema.parse(totals.rows[0]);
-    // A day with only pending, cancelled or failed sales has nothing observed: writing an all-NULL
-    // row would still make the screens say the creative "has results".
-    if (t.sales === null) return;
     await upsertCreativeMetrics(tx, [
       tenantValues(tenantId, {
         creativeId: creative.id,

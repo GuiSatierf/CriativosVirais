@@ -11,17 +11,9 @@ export type RankedMetric = {
   rank: number;
   percentile: number;
 };
-// For rates where less is better, zero is the best result; for everything else zero or less won nothing.
-const lowerIsBetter = new Set(["refund_rate", "chargeback_rate"]);
-
-/** Top five of a metric, only when positive: no sales, clicks or revenue (or a loss) is not "what worked". */
-function isWinner(r: RankedMetric) {
-  return r.rank <= 5 && (lowerIsBetter.has(r.metric) || Number(r.value) > 0);
-}
-
 export function summarizeRankings(rows: RankedMetric[]) {
   const top: Record<string, RankedMetric[]> = {};
-  for (const r of rows) if (isWinner(r)) (top[r.metric] ??= []).push(r);
+  for (const r of rows) if (r.rank <= 5) (top[r.metric] ??= []).push(r);
   const byCreative = new Map<string, RankedMetric[]>();
   for (const r of rows)
     (
@@ -30,7 +22,7 @@ export function summarizeRankings(rows: RankedMetric[]) {
     ).push(r);
   const intersections = [...byCreative]
     .map(([creative_key, metrics]) => {
-      const groups = metrics.filter(isWinner).map((r) => r.metric);
+      const groups = metrics.filter((r) => r.rank <= 5).map((r) => r.metric);
       const attention = metrics.filter((r) =>
         ["ctr", "hook_rate", "body_rate"].includes(r.metric),
       );
@@ -43,10 +35,10 @@ export function summarizeRankings(rows: RankedMetric[]) {
         creative_key,
         groups,
         attentionStrongSalesWeak:
-          attention.some(isWinner) &&
+          attention.some((r) => r.rank <= 5) &&
           sales.some((r) => r.percentile > 0.5),
         salesStrongAttentionMedian:
-          sales.some(isWinner) &&
+          sales.some((r) => r.rank <= 5) &&
           attention.some((r) => r.percentile >= 0.5),
       };
     })
@@ -60,7 +52,6 @@ export function summarizeRankings(rows: RankedMetric[]) {
 // Section 18.4 of the master document: an extreme value from a tiny sample is not a winner.
 // Ratios compete only with a sample of at least this share of the period's median (spend for
 // ROAS, impressions for CTR), relative to the operation itself so small and large accounts fit.
-// Without that sample (a file with ROAS but no spend) the ratio does not compete at all.
 const minimumShareOfMedian = 0.2;
 const minimumImpressions = 1000;
 
@@ -90,8 +81,8 @@ export async function getBenchmark(tenantId: string, input: unknown) {
  SELECT t.creative_key,v.metric,v.value,v.sample FROM totals t CROSS JOIN medians md CROSS JOIN LATERAL (VALUES
  ('spend_cents',t.spend_cents::numeric,NULL::numeric),('impressions',t.impressions::numeric,NULL),('clicks',t.clicks::numeric,NULL),('leads',t.leads::numeric,NULL),('checkouts',t.checkouts::numeric,NULL),
  ('approved_sales',t.approved_sales::numeric,NULL),('revenue_cents',t.revenue_cents::numeric,NULL),('profit_cents',t.profit_cents::numeric,NULL),
- ('roas',CASE WHEN t.spend_cents>=${minimumShareOfMedian}*md.spend_median THEN t.roas::numeric END,t.spend_cents::numeric),
- ('ctr',CASE WHEN t.impressions>=${minimumImpressions} AND t.impressions>=${minimumShareOfMedian}*md.impressions_median THEN t.ctr::numeric END,t.impressions::numeric),
+ ('roas',CASE WHEN md.spend_median IS NULL OR t.spend_cents>=${minimumShareOfMedian}*md.spend_median THEN t.roas::numeric END,t.spend_cents::numeric),
+ ('ctr',CASE WHEN md.impressions_median IS NULL OR (t.impressions>=${minimumImpressions} AND t.impressions>=${minimumShareOfMedian}*md.impressions_median) THEN t.ctr::numeric END,t.impressions::numeric),
  ('refund_rate',CASE WHEN t.approved_sales>0 THEN t.refunds::numeric/t.approved_sales END,t.approved_sales::numeric),
  ('chargeback_rate',CASE WHEN t.approved_sales>0 THEN t.chargebacks::numeric/t.approved_sales END,t.approved_sales::numeric),
  ('hook_rate',t.hook_rate::numeric,NULL),('body_rate',t.body_rate::numeric,NULL)) v(metric,value,sample) WHERE v.value IS NOT NULL
@@ -105,9 +96,7 @@ export async function getBenchmark(tenantId: string, input: unknown) {
       .limit(1);
     if (known)
       summarized.warning =
-        p.source === "webhook"
-          ? "Nenhuma venda com código de criativo neste período."
-          : "Nenhuma métrica comparável neste período. A planilha precisa ser do período exato da importação.";
+        "Nenhuma métrica comparável neste período e fonte. CSV exige o período exato da importação.";
   }
   return summarized;
 }
