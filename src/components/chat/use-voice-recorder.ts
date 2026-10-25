@@ -62,10 +62,14 @@ export function useVoiceRecorder() {
   const recorder = useRef<MediaRecorder | null>(null);
   const ticker = useRef<ReturnType<typeof setInterval> | null>(null);
   const audio = useRef<AudioContext | null>(null);
+  // Set from the click until the recorder runs, so a second click cannot open a second microphone.
+  const starting = useRef(false);
 
-  function clearTicker() {
-    if (ticker.current) clearInterval(ticker.current);
-    ticker.current = null;
+  /** Stops one recording's clock; a newer recording keeps its own. */
+  function clearTicker(interval?: ReturnType<typeof setInterval>) {
+    if (interval == null) return;
+    clearInterval(interval);
+    if (ticker.current === interval) ticker.current = null;
   }
 
   function closeMeter() {
@@ -107,7 +111,10 @@ export function useVoiceRecorder() {
   }
 
   async function start(onFile: (file: File) => void) {
+    if (starting.current || recorder.current?.state === "recording") return;
+    starting.current = true;
     let activeStream: MediaStream | undefined;
+    let interval: ReturnType<typeof setInterval> | undefined;
     try {
       if (
         !navigator.mediaDevices?.getUserMedia ||
@@ -144,7 +151,7 @@ export function useVoiceRecorder() {
       media.onerror = () => {
         failed = true;
         stream.getTracks().forEach((track) => track.stop());
-        clearTicker();
+        clearTicker(interval);
         closeMeter();
         setRecording(false);
         toast.error(
@@ -156,7 +163,7 @@ export function useVoiceRecorder() {
       };
       media.onstop = () => {
         stream.getTracks().forEach((track) => track.stop());
-        clearTicker();
+        clearTicker(interval);
         closeMeter();
         setRecording(false);
         if (failed || !chunks.length) return;
@@ -173,7 +180,7 @@ export function useVoiceRecorder() {
       media.start();
       setElapsed(0);
       setRecording(true);
-      ticker.current = setInterval(() => {
+      interval = setInterval(() => {
         const now = Date.now();
         if (now - lastSample >= loudnessSampleMs) {
           loudest = Math.max(loudest, readLoudness(meter, samples));
@@ -188,9 +195,10 @@ export function useVoiceRecorder() {
           );
         }
       }, loudnessSampleMs);
+      ticker.current = interval;
     } catch (e) {
       activeStream?.getTracks().forEach((track) => track.stop());
-      clearTicker();
+      clearTicker(interval);
       closeMeter();
       setRecording(false);
       // Browser permission errors are English DOMExceptions; show our own copy.
@@ -198,6 +206,8 @@ export function useVoiceRecorder() {
         e instanceof DOMException ? null : e,
         "Permita acesso ao microfone para gravar.",
       );
+    } finally {
+      starting.current = false;
     }
   }
 
