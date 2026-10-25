@@ -63,6 +63,11 @@ function isCsv(file: File) {
 /** Distance from the bottom (px) that still counts as following the reply. */
 const stickThreshold = 96;
 
+/** Whether the element is bounded and has content past its height. */
+function isScrollable(element: HTMLElement) {
+  return element.scrollHeight > element.clientHeight;
+}
+
 type Attachment = { id: string; name?: string };
 
 function AttachmentChip({
@@ -164,6 +169,8 @@ export function Chat({
   const attachButton = useRef<HTMLButtonElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const following = useRef(true);
+  // Kept while the scroller loses its bounded height (a panel route lays the page out differently).
+  const distanceFromBottom = useRef(0);
   const busy = status === "submitted" || status === "streaming";
   const unavailable = !configured;
   const transcribing = audioUploading || Boolean(audioAsset);
@@ -186,6 +193,20 @@ export function Chat({
     if (!element || empty || !following.current) return;
     element.scrollTop = element.scrollHeight;
   }, [messages, status, empty]);
+
+  // Opening a panel lets the scroller grow to its content, which resets its position to the top;
+  // when it is bounded again, the reader goes back to where they were.
+  useEffect(() => {
+    const element = scroller.current;
+    if (element == null) return;
+    const observer = new ResizeObserver(() => {
+      if (isScrollable(element) === false) return;
+      element.scrollTop =
+        element.scrollHeight - element.clientHeight - distanceFromBottom.current;
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   function scrollToBottom() {
     const element = scroller.current;
@@ -752,9 +773,11 @@ export function Chat({
           ref={scroller}
           onScroll={(event) => {
             const element = event.currentTarget;
-            const near =
-              element.scrollHeight - element.scrollTop - element.clientHeight <
-              stickThreshold;
+            if (isScrollable(element) === false) return;
+            const distance =
+              element.scrollHeight - element.scrollTop - element.clientHeight;
+            distanceFromBottom.current = distance;
+            const near = distance < stickThreshold;
             following.current = near;
             setAtBottom(near);
           }}
