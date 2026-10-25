@@ -5,8 +5,10 @@ import { toastError } from "@/lib/client";
 
 export const recordingLimitSeconds = 120;
 
-/** How often the recording clock ticks, in ms. */
-const tickMs = 250;
+/** Loudest moment (RMS, 0–1) below which a whole recording counts as silence. */
+const silenceThreshold = 0.01;
+/** How often the recording's loudness is sampled for the silence check, in ms. */
+const loudnessSampleMs = 100;
 /** Browser storage key for the chosen microphone; remembered per browser only. */
 const microphoneKey = "criativos-virais:microfone";
 
@@ -48,7 +50,7 @@ async function openMicrophone(id: string) {
 
 /**
  * Records microphone audio up to the limit and hands the file to `onFile`. While recording it
- * exposes an analyser for a live level meter.
+ * exposes an analyser for a live level meter, and a recording that stayed silent is dropped.
  */
 export function useVoiceRecorder() {
   const [recording, setRecording] = useState(false);
@@ -134,6 +136,8 @@ export function useVoiceRecorder() {
       meter.fftSize = 512;
       context.createMediaStreamSource(stream).connect(meter);
       setAnalyser(meter);
+      const samples = new Float32Array(meter.fftSize);
+      let loudest = 0;
 
       const chunks: Blob[] = [];
       let failed = false;
@@ -156,15 +160,26 @@ export function useVoiceRecorder() {
         closeMeter();
         setRecording(false);
         if (failed || !chunks.length) return;
+        // A silent take only makes the transcription invent words, so it never leaves the browser.
+        if (loudest < silenceThreshold) {
+          toast.warning("Não ouvimos nada. Confira o microfone.");
+          return;
+        }
         const type = media.mimeType.split(";")[0];
         onFile(new File(chunks, "mensagem-audio", { type }));
       };
       const startedAt = Date.now();
+      let lastSample = 0;
       media.start();
       setElapsed(0);
       setRecording(true);
       ticker.current = setInterval(() => {
-        const seconds = Math.floor((Date.now() - startedAt) / 1000);
+        const now = Date.now();
+        if (now - lastSample >= loudnessSampleMs) {
+          loudest = Math.max(loudest, readLoudness(meter, samples));
+          lastSample = now;
+        }
+        const seconds = Math.floor((now - startedAt) / 1000);
         setElapsed(Math.min(seconds, recordingLimitSeconds));
         if (seconds >= recordingLimitSeconds && media.state === "recording") {
           media.stop();
@@ -172,7 +187,7 @@ export function useVoiceRecorder() {
             "A gravação chegou ao limite de 2 minutos e foi encerrada.",
           );
         }
-      }, tickMs);
+      }, loudnessSampleMs);
     } catch (e) {
       activeStream?.getTracks().forEach((track) => track.stop());
       clearTicker();
