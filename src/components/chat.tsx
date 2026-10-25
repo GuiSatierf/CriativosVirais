@@ -27,6 +27,7 @@ import { CsvImport } from "./csv-import";
 import { SetupSheetContent } from "./integrations/shared";
 import { UploadArea, uploadFile } from "./upload-area";
 import { formatElapsed, useVoiceRecorder } from "./chat/use-voice-recorder";
+import { LevelMeter, MicrophonePicker } from "./chat/voice-controls";
 import {
   MessageList,
   PendingAssistant,
@@ -562,6 +563,7 @@ export function Chat({
                 aria-hidden
               />
               <span className="font-medium">Gravando</span>
+              <LevelMeter analyser={voice.analyser} />
               <span className="text-muted-foreground tabular-nums" aria-hidden>
                 {formatElapsed(voice.elapsed)}
               </span>
@@ -622,6 +624,13 @@ export function Chat({
                 <Mic aria-hidden />
               </Button>
             </Hint>
+            <MicrophonePicker
+              microphones={voice.microphones}
+              value={voice.microphoneId}
+              disabled={unavailable || transcribing}
+              onOpen={() => void voice.listMicrophones()}
+              onChange={voice.chooseMicrophone}
+            />
             {unavailable && (
               <p className="min-w-0 px-1 text-xs leading-snug text-pretty text-muted-foreground">
                 O Estrategista ainda não foi configurado nesta instalação.
