@@ -158,6 +158,8 @@ export function Chat({
   const [failedVideos, setFailedVideos] = useState<string[]>([]);
   const [audioUploading, setAudioUploading] = useState(false);
   const [audioAsset, setAudioAsset] = useState<string>();
+  // Bumped on every send and cancel: an audio upload from an earlier round never fills the composer.
+  const audioRound = useRef(0);
   const [atBottom, setAtBottom] = useState(true);
   const [secretBlocked, setSecretBlocked] = useState(false);
   const [csv, setCsv] = useState<{ file?: File; open: boolean }>({
@@ -297,15 +299,30 @@ export function Chat({
     });
   }
 
-  async function sendRecording(file: File) {
+  async function uploadAudio(file: File) {
+    const round = audioRound.current;
     setAudioUploading(true);
     try {
-      setAudioAsset(await uploadFile(file, "audio"));
-    } catch (e) {
-      toastError(e, "Não foi possível enviar o áudio.");
+      const assetId = await uploadFile(file, "audio");
+      if (round !== audioRound.current) return;
+      setAudioAsset(assetId);
     } finally {
       setAudioUploading(false);
     }
+  }
+
+  async function sendRecording(file: File) {
+    try {
+      await uploadAudio(file);
+    } catch (e) {
+      toastError(e, "Não foi possível enviar o áudio.");
+    }
+  }
+
+  /** Drops the audio on its way to transcription, so its text never lands in the composer. */
+  function discardAudio() {
+    audioRound.current += 1;
+    setAudioAsset(undefined);
   }
 
   function submit() {
@@ -317,6 +334,8 @@ export function Chat({
       return;
     }
     const assetIds = attached.map((video) => video.id);
+    // A transcription still on its way belongs to the message just sent, not to the next one.
+    discardAudio();
     following.current = true;
     setAnnouncement("Respondendo…");
     void sendMessage({
@@ -354,16 +373,13 @@ export function Chat({
       }
       try {
         if (kind === "audio") {
-          setAudioUploading(true);
-          setAudioAsset(await uploadFile(file, "audio"));
+          await uploadAudio(file);
         } else {
           toast.info(`Enviando ${file.name}…`);
           trackVideo(await uploadFile(file, "video"), file.name);
         }
       } catch (e) {
         toastError(e, "Não foi possível enviar o arquivo.");
-      } finally {
-        if (kind === "audio") setAudioUploading(false);
       }
     }
   }
@@ -497,7 +513,7 @@ export function Chat({
             compact
             initialAssetId={audioAsset}
             onTranscript={applyTranscript}
-            onDismiss={() => setAudioAsset(undefined)}
+            onDismiss={discardAudio}
           />
         </div>
       )}
