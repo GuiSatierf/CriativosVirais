@@ -15,6 +15,8 @@ import { maxPasswordLength, minPasswordLength, resetLinkLifetimeSeconds } from "
 import { hasAccessGrant, removeAccessGrant } from "./access";
 import { enrollmentHeader, isValidEnrollmentCode } from "./admin-enrollment";
 import { isClientOnlyPath, isStaffRole, staffRoles } from "./staff";
+import { legalVersion, legalVersionHeader } from "./legal";
+import { recordAccess, recordTermsAcceptance } from "./legal-records";
 
 const noAccessMessage =
   "Este e-mail ainda não tem acesso. Use o e-mail da compra na Hotmart. Se já comprou, fale com o suporte.";
@@ -22,6 +24,7 @@ const noAccessMessage =
 /** Only granted emails sign up; the plugin's admin endpoints are reachable only from server code. */
 const accessRules = createAuthMiddleware(async (ctx) => {
   if (ctx.path === "/sign-up/email") {
+    requireTermsAcceptance(ctx);
     const email: unknown = ctx.body?.email;
     if (typeof email === "string" && (await hasAccessGrant(email))) return;
     throw new APIError("FORBIDDEN", { message: noAccessMessage, code: "NO_ACCESS_GRANT" });
@@ -33,6 +36,13 @@ const accessRules = createAuthMiddleware(async (ctx) => {
   if (isClientOnlyPath(ctx.path)) await refuseWhileInsideClientAccount(ctx);
   if (ctx.path === "/delete-user") requireDeletionPassword(ctx.body?.password);
 });
+
+// Browser sign-ups must carry the accepted terms version; server code (the demo seed) signs up directly.
+function requireTermsAcceptance(ctx: { request?: Request; headers?: Headers }) {
+  if (ctx.request == null) return;
+  if (ctx.headers?.get(legalVersionHeader) === String(legalVersion)) return;
+  throw new APIError("BAD_REQUEST", { message: "Aceite os termos para continuar.", code: "TERMS_NOT_ACCEPTED" });
+}
 
 // Better Auth deletes a fresh session's account without a password; this app always
 // demands it, so a session left open on another device cannot erase the account.
@@ -109,6 +119,15 @@ function createAuth() {
         create: {
           after: async (user) => {
             await provisionTenant(user);
+            // Sign-up was refused above unless the person accepted the current terms.
+            await recordTermsAcceptance(user.id);
+          },
+        },
+      },
+      session: {
+        create: {
+          after: async (session) => {
+            await recordAccess(session);
           },
         },
       },
