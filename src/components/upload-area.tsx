@@ -292,6 +292,13 @@ export function UploadArea({
           Tentar novamente
         </Button>
       )}
+      {/* A transcription can be dropped while it runs, so a bad take never fills the composer. */}
+      {(phase === "waiting" || phase === "processing") && compact && onDismiss && (
+        <Button type="button" variant="ghost" size="sm" onClick={onDismiss}>
+          <X aria-hidden />
+          Cancelar
+        </Button>
+      )}
       {problem && compact && onDismiss && (
         <Button type="button" variant="ghost" size="sm" onClick={onDismiss}>
           <X aria-hidden />
