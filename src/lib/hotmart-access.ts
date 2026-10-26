@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { accessGrants, adminAuditLog, session, user } from "@/db/schema";
 import { normalizeEmail } from "./access";
+import { sendAccessInvite } from "./access-invite-email";
 import { hotmartEnv } from "./env";
 import { HttpError } from "./errors";
 
@@ -77,16 +78,23 @@ async function wasReversed(tx: Transaction, email: string, transaction: string) 
 }
 
 /** A purchase frees the email to sign up and lifts a block that a past refund put on it. */
+/** Records the grant; true when a new buyer without an account should get the invite email. */
 async function grant(tx: Transaction, email: string, transaction: string) {
-  if (await wasReversed(tx, email, transaction)) return audit(tx, "access.grant_skipped", email, { transaction });
-  await tx
+  if (await wasReversed(tx, email, transaction)) {
+    await audit(tx, "access.grant_skipped", email, { transaction });
+    return false;
+  }
+  const [created] = await tx
     .insert(accessGrants)
     .values({ email, source: "hotmart", note: `Hotmart ${transaction}` })
-    .onConflictDoNothing({ target: accessGrants.email });
+    .onConflictDoNothing({ target: accessGrants.email })
+    .returning({ id: accessGrants.id });
   const account = await findAccount(tx, email);
   if (account?.banned === true && account.banReason != null && hotmartBlocks.includes(account.banReason))
     await tx.update(user).set({ banned: false, banReason: null, banExpires: null }).where(eq(user.id, account.id));
   await audit(tx, "access.granted", email, { transaction });
+  // Repeated deliveries and existing accounts get nothing; only a new buyer learns where to sign up.
+  return created != null && account == null;
 }
 
 /** A refund or chargeback takes access away; a team account is never touched from outside. */
@@ -115,14 +123,14 @@ export async function applyPurchaseEvent(event: HotmartPurchaseEvent | null, pro
   const transaction = event.data.purchase.transaction;
   const reason = event.event in blockReasons ? blockReasons[event.event as keyof typeof blockReasons] : null;
   if (!grantingEvents.has(event.event) && reason == null) return "ignored";
-  return db.transaction(async (tx) => {
+  const outcome = await db.transaction(async (tx) => {
     // Hotmart may deliver an approval and its refund at the same time; one buyer's events run one at a time.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${email}, 3))`);
-    if (reason == null) {
-      await grant(tx, email, transaction);
-      return "granted" as const;
-    }
+    if (reason == null) return { result: "granted" as const, invite: await grant(tx, email, transaction) };
     await revoke(tx, email, reason, transaction);
-    return "revoked" as const;
+    return { result: "revoked" as const, invite: false };
   });
+  // Sent only after the grant is committed, and not awaited: the sender logs its own failures.
+  if (outcome.invite) void sendAccessInvite(email);
+  return outcome.result;
 }

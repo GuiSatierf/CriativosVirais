@@ -17,6 +17,7 @@ import { enrollmentHeader, isValidEnrollmentCode } from "./admin-enrollment";
 import { isClientOnlyPath, isStaffRole, staffRoles } from "./staff";
 import { legalVersion, legalVersionHeader } from "./legal";
 import { recordAccess, recordTermsAcceptance } from "./legal-records";
+import { applyTeamInvite } from "./team-invites";
 
 const noAccessMessage =
   "Este e-mail ainda não tem acesso. Use o e-mail da compra na Hotmart. Se já comprou, fale com o suporte.";
@@ -121,6 +122,8 @@ function createAuth() {
             await provisionTenant(user);
             // Sign-up was refused above unless the person accepted the current terms.
             await recordTermsAcceptance(user.id);
+            // Someone the owner added to the team before they had an account.
+            await applyTeamInvite(user);
           },
         },
       },

@@ -60,7 +60,8 @@ function toFieldErrors(error: z.ZodError) {
   return errors;
 }
 
-export function AuthForm({ mode }: { mode: "login" | "signup" }) {
+/** defaultEmail comes from the invite link, so the invited person only picks a name and a password. */
+export function AuthForm({ mode, defaultEmail }: { mode: "login" | "signup"; defaultEmail?: string }) {
   const signup = mode === "signup";
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -188,6 +189,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             spellCheck={false}
             enterKeyHint="next"
             placeholder="voce@exemplo.com"
+            defaultValue={defaultEmail}
             disabled={pending}
             aria-describedby={describedBy("email")}
             aria-invalid={fieldErrors.email ? true : undefined}
