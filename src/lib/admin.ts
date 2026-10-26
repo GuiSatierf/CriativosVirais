@@ -76,10 +76,12 @@ function statusCondition(status: AccessStatus | null) {
  * The most recent grants matching the search and status, and how many match in all. Hotmart buyers
  * can be thousands, so the page shows one slice and the search finds the rest on the server.
  */
-export async function listAccess(query = "", status: AccessStatus | null = null) {
+export async function listAccess(query = "", status: AccessStatus | null = null, clientsOnly = false) {
   const term = query.trim().toLowerCase();
   const search = term.length === 0 ? undefined : ilike(accessGrants.email, containsPattern(term));
-  const where = and(search, statusCondition(status));
+  // Support manages clients only; team accounts stay out of its list.
+  const clients = clientsOnly ? or(isNull(user.role), eq(user.role, "user")) : undefined;
+  const where = and(search, statusCondition(status), clients);
   const [rows, [matching]] = await Promise.all([
     db
       .select({

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, toastError } from "@/lib/client";
-import { staffRoleLabel, staffRoles, type StaffRole } from "@/lib/staff";
+import { can, staffRoleLabel, staffRoles, type StaffRole } from "@/lib/staff";
 import { cn } from "@/lib/utils";
 import { BlockDialog, GrantDialog, RemoveDialog } from "./access-dialogs";
 import { AdminHeading, type AdminNavigation } from "./admin-heading";
@@ -101,7 +101,7 @@ function StatusPill({ row }: { row: AccessRow }) {
   );
 }
 
-/** Admin list of who may create an account, with block, unblock and remove. */
+/** Who may create an account: support frees and removes emails, admins and owners also block and unblock. */
 export function AccessPanel({
   list: initial,
   actorId,
@@ -132,9 +132,13 @@ export function AccessPanel({
     }
   }
 
+  // Support frees and removes unused emails; blocking and unblocking stay with admins and owners.
+  const canBlock = can(navigation.role, "manage-access");
+
   function action(row: AccessRow) {
     if (row.status === "waiting")
       return <Button variant="ghost" size="sm" onClick={() => setRemoving(row)}>Remover</Button>;
+    if (canBlock === false) return null;
     if (row.status === "blocked")
       return <Button variant="ghost" size="sm" onClick={() => unblock(row)}>Desbloquear</Button>;
     // Team members are not blocked from the panel; the owner removes them in the Equipe tab.
