@@ -25,9 +25,13 @@ describe("admin panel rules", () => {
     expect(can("support", "enter-accounts")).toBe(true);
     expect(can("user", "enter-accounts")).toBe(false);
     expect(can(null, "enter-accounts")).toBe(false);
-    expect(adminTabsFor("owner")).toEqual(["acessos", "contas", "equipe"]);
+    expect(can("support", "grant-access")).toBe(true);
+    expect(can("owner", "manage-settings")).toBe(true);
+    expect(can("admin", "manage-settings")).toBe(false);
+    expect(can("support", "manage-settings")).toBe(false);
+    expect(adminTabsFor("owner")).toEqual(["acessos", "contas", "equipe", "configuracoes"]);
     expect(adminTabsFor("admin")).toEqual(["acessos", "contas"]);
-    expect(adminTabsFor("support")).toEqual(["contas"]);
+    expect(adminTabsFor("support")).toEqual(["acessos", "contas"]);
   });
 
   it("keeps the client's own credentials out of reach inside the account", () => {
