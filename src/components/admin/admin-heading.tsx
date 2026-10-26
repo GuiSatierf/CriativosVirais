@@ -5,11 +5,17 @@ import type { AdminTab, StaffRole } from "@/lib/staff";
 
 export type AdminNavigation = { role: StaffRole; tabs: AdminTab[] };
 
-const tabLabel: Record<AdminTab, string> = { acessos: "Acessos", contas: "Contas", equipe: "Equipe" };
+const tabLabel: Record<AdminTab, string> = {
+  acessos: "Acessos",
+  contas: "Contas",
+  equipe: "Equipe",
+  configuracoes: "Configurações",
+};
 const tabDescription: Record<AdminTab, string> = {
   acessos: "Quem pode criar conta e usar o Criativos Virais.",
   contas: "Encontre o cliente e entre na conta dele para ajudar.",
   equipe: "Quem da equipe usa o painel e o que cada um pode fazer.",
+  configuracoes: "Hotmart, limite de IA e fim do acesso.",
 };
 const trigger = "h-full flex-none rounded-none border-0 px-0.5";
 

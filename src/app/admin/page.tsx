@@ -2,9 +2,11 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { AccessPanel } from "@/components/admin/access-panel";
 import { AccountsPanel } from "@/components/admin/accounts-panel";
+import { SettingsPanel } from "@/components/admin/settings-panel";
 import { TeamPanel } from "@/components/admin/team-panel";
 import { adminGate, listAccess, type AdminActor } from "@/lib/admin";
 import { listAccounts } from "@/lib/admin-accounts";
+import { settingsForPanel } from "@/lib/app-settings";
 import { listTeam } from "@/lib/admin-team";
 import { listTeamInvites } from "@/lib/team-invites";
 import { adminTabsFor, can, type AdminTab } from "@/lib/staff";
@@ -50,6 +52,7 @@ async function AdminTabPanel({
       />
     );
   }
+  if (tab === "configuracoes") return <SettingsPanel settings={await settingsForPanel()} navigation={navigation} />;
   const { access, total } = await listAccess("", null, can(actor.role, "manage-access") === false);
   return (
     <AccessPanel
