@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/client";
 import { cn } from "@/lib/utils";
 import { Spinner, useAction } from "./access-dialogs";
@@ -80,7 +81,15 @@ function WebhookAddress({ url }: { url: string }) {
     <div className="grid gap-1.5">
       <Label htmlFor="hotmart-webhook">Endereço para cadastrar na Hotmart</Label>
       <div className="flex items-start gap-2">
-        <Input id="hotmart-webhook" readOnly value={url} className="min-w-0 flex-1" onFocus={(event) => event.currentTarget.select()} />
+        {/* A textarea so the long address wraps on a phone instead of being cut off. */}
+        <Textarea
+          id="hotmart-webhook"
+          readOnly
+          rows={1}
+          value={url}
+          className="min-h-0 min-w-0 flex-1 resize-none break-all"
+          onFocus={(event) => event.currentTarget.select()}
+        />
         <Button type="button" variant="outline" onClick={copy}>
           <Copy aria-hidden />
           Copiar
@@ -123,7 +132,7 @@ function HotmartCard({ hotmart }: { hotmart: PanelSettings["hotmart"] }) {
             id="hotmart-hottok"
             name="hottok"
             autoComplete="off"
-            placeholder={hotmart.hasHottok ? "Salvo. Deixe em branco para manter." : "Cole aqui o hottok da Hotmart"}
+            placeholder={hotmart.hasHottok ? "Já salvo. Deixe em branco." : "Cole aqui o hottok da Hotmart"}
           />
           <p className="text-xs text-muted-foreground">
             Na Hotmart: Ferramentas → Webhook → Autenticação. Depois de salvo, ele não aparece de novo.
