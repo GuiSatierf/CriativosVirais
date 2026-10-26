@@ -28,7 +28,7 @@ Fora do escopo: edição ou renderização de vídeo, publicação de anúncios 
 | Processo | Responsabilidade |
 | --- | --- |
 | App (Next.js 16, standalone) | Páginas, APIs, chat em streaming, envio de jobs |
-| Worker (`dist/worker.js`) | Filas `analyze-video`, `ingest-event` e `sync-metrics`; sincronização UTMify a cada seis horas, com um job por integração |
+| Worker (`dist/worker.js`) | Filas `analyze-video` (vídeos, 2 por vez), `transcribe-audio` (áudios do chat, 4 por vez), `ingest-event`, `sync-metrics`, `generate-batch` e `purge-access-log`; sincronização UTMify a cada seis horas, com um job por integração, e limpeza diária do registro de acesso |
 | PostgreSQL 17 | Dados, sessões, rate limit de autenticação e filas pg-boss |
 | RustFS (S3) | Áudios e vídeos em bucket privado, enviados pelo navegador com URL assinada |
 
