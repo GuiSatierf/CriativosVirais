@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -10,10 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, toastError } from "@/lib/client";
-import { staffRoleLabel, type StaffRole } from "@/lib/staff";
+import { staffRoleLabel, staffRoles, type StaffRole } from "@/lib/staff";
 import { cn } from "@/lib/utils";
 import { BlockDialog, GrantDialog, RemoveDialog } from "./access-dialogs";
 import { AdminHeading, type AdminNavigation } from "./admin-heading";
+import { useServerSearch } from "./use-server-search";
 
 export type AccessRow = {
   id: string;
@@ -27,6 +28,7 @@ export type AccessRow = {
   teamRole: StaffRole | null;
   status: "waiting" | "active" | "blocked";
 };
+export type AccessList = { access: AccessRow[]; total: number };
 type Filter = "all" | AccessRow["status"];
 
 const statusLabel: Record<AccessRow["status"], string> = {
@@ -47,6 +49,36 @@ const filters: { value: Filter; label: string }[] = [
 ];
 const dayFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 const doneSchema = z.object({}).loose();
+const accessListSchema = z.object({
+  total: z.number(),
+  access: z.array(
+    z.object({
+      id: z.string(),
+      email: z.string(),
+      source: z.enum(["manual", "hotmart"]),
+      note: z.string().nullable(),
+      createdAt: z.string(),
+      grantedBy: z.string().nullable(),
+      userId: z.string().nullable(),
+      banReason: z.string().nullable(),
+      teamRole: z.enum(staffRoles).nullable(),
+      status: z.enum(["waiting", "active", "blocked"]),
+    }),
+  ),
+});
+
+function loadAccess(search: string): Promise<AccessList> {
+  return api(`/api/admin/access?${search}`, accessListSchema);
+}
+
+/** The request's query string; "" asks for the unfiltered list the server already rendered. */
+function accessSearch(query: string, filter: Filter) {
+  const params = new URLSearchParams();
+  const term = query.trim();
+  if (term.length > 0) params.set("q", term);
+  if (filter !== "all") params.set("situacao", filter);
+  return params.toString();
+}
 
 function origin(row: AccessRow) {
   const source = row.source === "hotmart" ? "Hotmart" : "Manual";
@@ -71,11 +103,11 @@ function StatusPill({ row }: { row: AccessRow }) {
 
 /** Admin list of who may create an account, with block, unblock and remove. */
 export function AccessPanel({
-  access,
+  list: initial,
   actorId,
   navigation,
 }: {
-  access: AccessRow[];
+  list: AccessList;
   actorId: string;
   navigation: AdminNavigation;
 }) {
@@ -86,10 +118,8 @@ export function AccessPanel({
   const [blocking, setBlocking] = useState<AccessRow | null>(null);
   const [removing, setRemoving] = useState<AccessRow | null>(null);
 
-  const visible = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    return access.filter((row) => (filter === "all" || row.status === filter) && row.email.includes(term));
-  }, [access, query, filter]);
+  const search = accessSearch(query, filter);
+  const { access, total } = useServerSearch(initial, search, loadAccess);
 
   async function unblock(row: AccessRow) {
     if (row.userId == null) return;
@@ -152,9 +182,9 @@ export function AccessPanel({
         </Select>
       </div>
 
-      {visible.length === 0 ? (
+      {access.length === 0 ? (
         <p className="rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">
-          {access.length === 0 ? "Nenhum e-mail liberado ainda. Use “Liberar e-mail”." : "Nenhum e-mail encontrado com esse filtro."}
+          {search.length === 0 ? "Nenhum e-mail liberado ainda. Use “Liberar e-mail”." : "Nenhum e-mail encontrado com esse filtro."}
         </p>
       ) : (
         <>
@@ -170,9 +200,9 @@ export function AccessPanel({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.map((row) => (
+                {access.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell className="font-medium">{row.email}</TableCell>
+                    <TableCell className="font-medium break-all whitespace-normal">{row.email}</TableCell>
                     <TableCell className="text-muted-foreground">{origin(row)}</TableCell>
                     <TableCell><StatusPill row={row} /></TableCell>
                     <TableCell className="tabular-nums">{dayFormat.format(new Date(row.createdAt))}</TableCell>
@@ -183,9 +213,9 @@ export function AccessPanel({
             </Table>
           </div>
           <ul className="grid gap-2.5 sm:hidden">
-            {visible.map((row) => (
+            {access.map((row) => (
               <li key={row.id} className="space-y-2 rounded-xl border bg-card p-4">
-                <p className="truncate font-medium">{row.email}</p>
+                <p className="font-medium break-all">{row.email}</p>
                 <p className="text-xs text-muted-foreground">{origin(row)} · {dayFormat.format(new Date(row.createdAt))}</p>
                 <div className="flex items-center justify-between gap-2">
                   <StatusPill row={row} />
@@ -195,6 +225,11 @@ export function AccessPanel({
             ))}
           </ul>
         </>
+      )}
+      {total > access.length && (
+        <p className="text-sm text-muted-foreground">
+          Mostrando os {access.length} mais recentes de {total.toLocaleString("pt-BR")}. Busque pelo e-mail para achar os outros.
+        </p>
       )}
       <p className="text-xs text-muted-foreground">Toda ação aqui fica registrada com quem fez e quando.</p>
 
