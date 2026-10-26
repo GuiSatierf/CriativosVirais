@@ -21,7 +21,10 @@ import {
 } from "./hotmart-blocks";
 
 const grantingEvents = new Set(["PURCHASE_APPROVED", "PURCHASE_COMPLETE"]);
-const reversingEvents = new Set(["PURCHASE_REFUNDED", "PURCHASE_CHARGEBACK"]);
+const reversalReasons: Record<string, string> = {
+  PURCHASE_REFUNDED: hotmartBlockReasons.PURCHASE_REFUNDED,
+  PURCHASE_CHARGEBACK: hotmartBlockReasons.PURCHASE_CHARGEBACK,
+};
 
 // Only the fields this app uses; Hotmart sends many more and adds new ones over time.
 const purchaseEventSchema = z.object({
@@ -105,7 +108,7 @@ export async function applyPurchaseEvent(event: HotmartPurchaseEvent | null, pro
   if (!productIds.includes(String(event.data.product.id))) return "ignored";
   const email = normalizeEmail(event.data.buyer.email);
   const transaction = event.data.purchase.transaction;
-  const reason = reversingEvents.has(event.event) ? hotmartBlockReasons[event.event as keyof typeof hotmartBlockReasons] : null;
+  const reason = reversalReasons[event.event] ?? null;
   if (!grantingEvents.has(event.event) && reason == null) return "ignored";
   const outcome = await db.transaction(async (tx) => {
     await lockBuyer(tx, email);
@@ -123,6 +126,18 @@ export function parseCancellationEvent(body: unknown) {
   return cancellationEventSchema.safeParse(body).data ?? null;
 }
 
+/** The worker blocks the account on the last paid day, unless the buyer subscribes again before it. */
+async function scheduleAccessEnd(email: string, subscription: string, endsAt: Date) {
+  const cancelledAt = new Date().toISOString();
+  await (await getJobs()).send("hotmart-access-end", { email, subscription, cancelledAt }, { startAfter: endsAt });
+  await db.insert(adminAuditLog).values({
+    actorEmail: hotmartActor,
+    action: "access.end_scheduled",
+    targetEmail: email,
+    details: { subscription, endsAt: endsAt.toISOString() },
+  });
+}
+
 /**
  * Takes access away now, or, when the owner chose to keep it until the paid period ends, has the
  * worker take it away on the last paid day. Refunds and chargebacks always block at once.
@@ -134,14 +149,7 @@ export async function applyCancellationEvent(event: HotmartCancellationEvent, pr
   const endsAt = event.data.date_next_charge == null ? null : new Date(event.data.date_next_charge);
   const keepsPaidPeriod = (await subscriptionEndPolicy()) === "end_of_period" && endsAt != null && endsAt > new Date();
   if (keepsPaidPeriod) {
-    const cancelledAt = new Date().toISOString();
-    await (await getJobs()).send("hotmart-access-end", { email, subscription, cancelledAt }, { startAfter: endsAt });
-    await db.insert(adminAuditLog).values({
-      actorEmail: hotmartActor,
-      action: "access.end_scheduled",
-      targetEmail: email,
-      details: { subscription, endsAt: endsAt.toISOString() },
-    });
+    await scheduleAccessEnd(email, subscription, endsAt);
     return "scheduled";
   }
   await db.transaction(async (tx) => {

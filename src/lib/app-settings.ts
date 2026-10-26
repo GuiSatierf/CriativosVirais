@@ -25,10 +25,15 @@ export async function hotmartAccessConfig() {
   return { hottok: fromServer.HOTMART_HOTTOK, productIds: fromServer.HOTMART_PRODUCT_IDS };
 }
 
+type SettingsRow = Awaited<ReturnType<typeof readSettings>>;
+
+function limitCentsOf(row: SettingsRow) {
+  return row?.aiMonthlyLimitCents ?? BigInt(aiBudgetEnv().AI_MONTHLY_LIMIT_CENTS);
+}
+
 /** Monthly AI spend allowed per client, in BRL cents. */
 export async function aiMonthlyLimitCents() {
-  const row = await readSettings();
-  return row?.aiMonthlyLimitCents ?? BigInt(aiBudgetEnv().AI_MONTHLY_LIMIT_CENTS);
+  return limitCentsOf(await readSettings());
 }
 
 export async function subscriptionEndPolicy(): Promise<AccessEndPolicy> {
@@ -47,7 +52,7 @@ export async function settingsForPanel() {
       productIds: row?.hotmartProductIds ?? fromServer?.HOTMART_PRODUCT_IDS ?? [],
       webhookUrl: new URL("/api/hotmart/access", authEnv().BETTER_AUTH_URL).toString(),
     },
-    aiMonthlyLimitCents: Number(row?.aiMonthlyLimitCents ?? BigInt(aiBudgetEnv().AI_MONTHLY_LIMIT_CENTS)),
+    aiMonthlyLimitCents: Number(limitCentsOf(row)),
     accessEndPolicy: row?.accessEndPolicy ?? ("immediate" as const),
   };
 }

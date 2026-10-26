@@ -36,7 +36,7 @@ function reaisLabel(cents: number) {
 }
 
 /** Cents typed as reais, or null when the text is not an amount. */
-export function centsFromReais(text: string) {
+function centsFromReais(text: string) {
   const match = reaisPattern.exec(text.replace(/R\$|\s|\./g, ""));
   if (match == null) return null;
   return Number(match[1]) * 100 + Number((match[2] ?? "0").padEnd(2, "0"));
