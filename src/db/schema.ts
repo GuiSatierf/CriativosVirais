@@ -652,3 +652,33 @@ export const adminAuditLog = pgTable(
   },
   (t) => [index("admin_audit_log_created_idx").on(t.createdAt)],
 );
+
+// LGPD: who accepted which version of the terms and privacy policy, and when.
+export const legalAcceptances = pgTable(
+  "legal_acceptances",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique("legal_acceptances_user_version_unique").on(t.userId, t.version)],
+);
+
+// Marco Civil, art. 15: application access records (date, time and IP) kept for six months.
+// No foreign key: the record must outlive a deleted account until the purge removes it.
+export const accessLog = pgTable(
+  "access_log",
+  {
+    id: id(),
+    userId: text("user_id").notNull(),
+    // Set when a team member opened the session inside a client's account.
+    impersonatedBy: text("impersonated_by"),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("access_log_created_idx").on(t.createdAt)],
+);

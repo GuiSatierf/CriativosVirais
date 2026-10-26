@@ -4,7 +4,7 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "@/db/schema";
 import { dbEnv } from "@/lib/env";
 import { logError } from "@/lib/log";
-export const queues = ["analyze-video", "ingest-event", "sync-metrics", "generate-batch"] as const;
+export const queues = ["analyze-video", "ingest-event", "sync-metrics", "generate-batch", "purge-access-log"] as const;
 export const queueOptions: QueueOptions = {
   retryLimit: 3,
   retryDelay: 60,

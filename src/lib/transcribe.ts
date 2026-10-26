@@ -15,6 +15,10 @@ export const transcriptSchema = z.object({
     .max(1000)
     .default([]),
 });
+// Whisper's prompt nudges spelling toward words it would otherwise mishear: "roteiros" came out as
+// "votos" and "motivos" in production. It is a style hint, never an instruction to the model.
+export const transcriptionVocabulary =
+  "Conversa sobre anúncios em vídeo no Criativos Virais: roteiros, leva, criativos, ganchos, corpo do roteiro, Estrategista, oferta, Hotmart, UTMify, vendas, investimento, retorno, CTR, ROAS.";
 const unavailable =
   "Não foi possível transcrever o áudio. Tente novamente em alguns minutos.";
 export async function transcribe(
@@ -33,6 +37,7 @@ export async function transcribe(
   form.set("file", new Blob([new Uint8Array(bytes)], { type: mime }), name);
   form.set("model", env.GROQ_WHISPER_MODEL);
   form.set("language", "pt");
+  form.set("prompt", transcriptionVocabulary);
   form.set("response_format", "verbose_json");
   form.set("timestamp_granularities[]", "segment");
   const response = await fetch(

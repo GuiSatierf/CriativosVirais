@@ -172,8 +172,9 @@ export function Chat({
   const attachButton = useRef<HTMLButtonElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const following = useRef(true);
-  // Kept while the scroller loses its bounded height (a panel route lays the page out differently).
-  const distanceFromBottom = useRef(0);
+  // The reader's position, kept while the scroller loses its bounded height (a panel route lays
+  // the page out differently). A position from the top stays right when new messages arrive below.
+  const readingTop = useRef(0);
   const busy = status === "submitted" || status === "streaming";
   const unavailable = !configured;
   const transcribing = audioUploading || Boolean(audioAsset);
@@ -198,14 +199,13 @@ export function Chat({
   }, [messages, status, empty]);
 
   // Opening a panel lets the scroller grow to its content, which resets its position to the top;
-  // when it is bounded again, the reader goes back to where they were.
+  // when it is bounded again, the reader goes back to the latest messages or to where they were.
   useEffect(() => {
     const element = scroller.current;
     if (element == null) return;
     const observer = new ResizeObserver(() => {
       if (isScrollable(element) === false) return;
-      element.scrollTop =
-        element.scrollHeight - element.clientHeight - distanceFromBottom.current;
+      element.scrollTop = following.current ? element.scrollHeight : readingTop.current;
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -799,10 +799,10 @@ export function Chat({
           onScroll={(event) => {
             const element = event.currentTarget;
             if (isScrollable(element) === false) return;
-            const distance =
-              element.scrollHeight - element.scrollTop - element.clientHeight;
-            distanceFromBottom.current = distance;
-            const near = distance < stickThreshold;
+            readingTop.current = element.scrollTop;
+            const near =
+              element.scrollHeight - element.scrollTop - element.clientHeight <
+              stickThreshold;
             following.current = near;
             setAtBottom(near);
           }}
