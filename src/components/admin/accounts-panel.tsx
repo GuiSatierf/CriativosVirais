@@ -98,7 +98,7 @@ function EnterDialog({ row, onClose }: { row: AccountRow | null; onClose: () => 
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (row == null) return;
     const reason = String(new FormData(event.currentTarget).get("reason") ?? "").trim();

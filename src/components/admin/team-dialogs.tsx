@@ -90,7 +90,7 @@ export function AddMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
     setAdded(false);
   }
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const email = String(new FormData(event.currentTarget).get("email") ?? "").trim();
     if (!emailSchema.safeParse(email).success) return setError("Informe um e-mail válido.");
@@ -156,7 +156,7 @@ export function ChangeRoleDialog({ row, onClose }: { row: TeamRow | null; onClos
   const [role, setRole] = useState<StaffRole | null>(null);
   const { pending, error, setError, run } = useAction(() => { onClose(); setRole(null); });
   const selected = role ?? row?.role ?? "support";
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (row == null) return;
     const id = row.id;
