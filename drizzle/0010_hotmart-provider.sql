@@ -1,1 +1,1 @@
-ALTER TYPE "public"."integration_provider" ADD VALUE 'hotmart';
+ALTER TYPE "public"."integration_provider" ADD VALUE IF NOT EXISTS 'hotmart';
