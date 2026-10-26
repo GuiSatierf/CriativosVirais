@@ -152,7 +152,8 @@ test("support enters a client's account without the password, changes its email 
   expect(joined.role).toBe("support");
   await page.reload();
   await expect(page.getByRole("row").filter({ hasText: invited })).toContainText("Falta ativar");
-  await expect(page.getByRole("region", { name: "Convites aguardando cadastro" })).toHaveCount(0);
+  // Only this test's invite: an earlier run may have left another pending one in the shared database.
+  await expect(page.getByRole("region", { name: "Convites aguardando cadastro" }).getByText(invited)).toHaveCount(0);
 
   // 8. An invite that expires unused takes back the access it freed.
   const unused = `sem-uso-${randomUUID()}@exemplo.test`;
