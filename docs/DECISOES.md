@@ -11,7 +11,7 @@ Uma entrada por decisão de arquitetura ou de biblioteca: data, o que foi decidi
 **Equivalência.** A configuração reproduz as 86 regras que o `eslint-config-next` (core-web-vitals + typescript) ligava, com a mesma severidade e as mesmas pastas ignoradas; 80 têm equivalente nativo no Oxlint 1.88. As seis que ficaram de fora:
 
 - `react/jsx-uses-react` e `react/jsx-uses-vars`: só marcavam variáveis como usadas para outra regra do ESLint; o `no-unused-vars` do Oxlint já entende JSX.
-- `react/no-deprecated`: avisava de APIs antigas do React. As de função (`ReactDOM.render`, `findDOMNode`...) saíram do React 19 e dos tipos, então o `tsc` acusa o uso; as de componente de classe (`componentWillMount`...) não se aplicam, porque o projeto não tem componente de classe. O substituto do Oxlint, `typescript/no-deprecated`, cobre toda biblioteca e hoje acusa 34 usos de APIs marcadas como obsoletas (zod, AI SDK e o `FormEvent` do React); ligá-lo é trabalho separado.
+- `react/no-deprecated`: avisava de APIs antigas do React. As de função (`ReactDOM.render`, `findDOMNode`...) saíram do React 19 e dos tipos, então o `tsc` acusa o uso; as de componente de classe (`componentWillMount`...) não se aplicam, porque o projeto não tem componente de classe. O substituto do Oxlint, `typescript/no-deprecated`, cobre toda biblioteca e acusava 34 usos de APIs marcadas como obsoletas (zod, AI SDK e o `FormEvent` do React); foi ligado depois, em 2026-10-26 (entrada abaixo).
 - `react-hooks/config` e `react-hooks/gating`: validam opções do React Compiler, que o projeto não configura.
 - `@next/next/no-location-assign-relative-destination`: ainda não existe no Oxlint. O código não usa `location.assign` nem `location.href =`.
 
@@ -23,3 +23,11 @@ Os três comentários `eslint-disable-next-line` continuam valendo: o Oxlint lê
 - Ficar no ESLint e travar o TypeScript em 6.0.x até a API do TypeScript 7.1 sair.
 - Carregar plugins do ESLint pelo `jsPlugins` do Oxlint para cobrir as seis regras: o recurso ainda é alfa e manteria dependências do ESLint.
 - Ligar o `typescript/no-deprecated` e outras regras novas nesta troca: mexeria em código de várias áreas que outros PRs estão alterando.
+
+## 2026-10-26 — Regra de APIs obsoletas ligada no lint
+
+**Decisão.** O `.oxlintrc.json` liga `typescript/no-deprecated` como erro. Os usos que existiam foram trocados antes: 34 no PR das APIs obsoletas e os 5 `React.FormEvent` das telas de administração que entraram depois.
+
+**Por quê.** Sem a regra, código novo voltava a usar APIs marcadas como obsoletas (as telas de administração trouxeram 5 depois da primeira troca). Com ela, o lint acusa na hora, antes de a API sumir numa versão nova da biblioteca.
+
+**Descartado.** Ligar como aviso: aviso não reprova o lint e foi assim que os usos voltaram.
