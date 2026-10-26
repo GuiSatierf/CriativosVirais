@@ -469,6 +469,24 @@ export const batches = pgTable(
   ],
 );
 
+export const aiPurpose = pgEnum("ai_purpose", ["chat", "batch", "video"]);
+// One row per model call, for the monthly AI budget of each operation.
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    purpose: aiPurpose("purpose").notNull(),
+    // NULL when the provider did not report the count.
+    inputTokens: integer("input_tokens"),
+    cachedInputTokens: integer("cached_input_tokens"),
+    outputTokens: integer("output_tokens"),
+    // Thousandths of a BRL cent: a single call usually costs a fraction of a cent.
+    costMillicents: int64("cost_millicents").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("ai_usage_tenant_created_idx").on(t.tenantId, t.createdAt)],
+);
 export const batchGenerationStatus = pgEnum("batch_generation_status", [
   "queued",
   "running",
@@ -633,4 +651,34 @@ export const adminAuditLog = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("admin_audit_log_created_idx").on(t.createdAt)],
+);
+
+// LGPD: who accepted which version of the terms and privacy policy, and when.
+export const legalAcceptances = pgTable(
+  "legal_acceptances",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique("legal_acceptances_user_version_unique").on(t.userId, t.version)],
+);
+
+// Marco Civil, art. 15: application access records (date, time and IP) kept for six months.
+// No foreign key: the record must outlive a deleted account until the purge removes it.
+export const accessLog = pgTable(
+  "access_log",
+  {
+    id: id(),
+    userId: text("user_id").notNull(),
+    // Set when a team member opened the session inside a client's account.
+    impersonatedBy: text("impersonated_by"),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("access_log_created_idx").on(t.createdAt)],
 );

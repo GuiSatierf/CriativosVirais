@@ -12,6 +12,8 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TwoFactorStep } from "@/components/two-factor-step";
+import { TermsCheckbox } from "@/components/accept-terms-form";
+import { legalVersion, legalVersionHeader } from "@/lib/legal";
 
 const loginSchema = z.object({
   email: z.email({ error: "Informe um email válido." }),
@@ -28,12 +30,13 @@ const signupSchema = z.object({
     .max(100, { error: "Use no máximo 100 caracteres." }),
   email: loginSchema.shape.email,
   password: newPasswordSchema,
+  acceptedTerms: z.literal("on", { error: "Aceite os termos para continuar." }),
 });
 
-type Field = "name" | "email" | "password";
+type Field = "name" | "email" | "password" | "acceptedTerms";
 type AuthResult = { data?: unknown; error?: { code?: string; message?: string } | null };
 // Server refusals that already carry the plain pt-BR reason the person must read.
-const explainedRefusals = new Set(["NO_ACCESS_GRANT", "BANNED_USER"]);
+const explainedRefusals = new Set(["NO_ACCESS_GRANT", "BANNED_USER", "TERMS_NOT_ACCEPTED"]);
 
 function refusalMessage(error: { code?: string; message?: string }, signup: boolean) {
   if (error.code !== undefined && explainedRefusals.has(error.code) && error.message !== undefined)
@@ -51,7 +54,7 @@ function toFieldErrors(error: z.ZodError) {
   const errors: FieldErrors = {};
   for (const issue of error.issues) {
     const field = issue.path[0];
-    if (field === "name" || field === "email" || field === "password")
+    if (field === "name" || field === "email" || field === "password" || field === "acceptedTerms")
       errors[field] ??= issue.message;
   }
   return errors;
@@ -73,7 +76,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     function invalid(error: z.ZodError) {
       const errors = toFieldErrors(error);
       setFieldErrors(errors);
-      const first = (["name", "email", "password"] as const).find(
+      const first = (["name", "email", "password", "acceptedTerms"] as const).find(
         (field) => errors[field],
       );
       const input = first && form.elements.namedItem(first);
@@ -82,7 +85,10 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     if (signup) {
       const parsed = signupSchema.safeParse(fields);
       if (!parsed.success) return invalid(parsed.error);
-      await run(() => authClient.signUp.email(parsed.data));
+      const { name, email, password } = parsed.data;
+      // The server refuses a sign-up without the accepted version, even if this form is bypassed.
+      const fetchOptions = { headers: { [legalVersionHeader]: String(legalVersion) } };
+      await run(() => authClient.signUp.email({ name, email, password, fetchOptions }));
     } else {
       const parsed = loginSchema.safeParse(fields);
       if (!parsed.success) return invalid(parsed.error);
@@ -222,6 +228,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           )}
           {fieldError("password")}
         </div>
+        {signup && <TermsCheckbox disabled={pending} error={fieldErrors.acceptedTerms !== undefined} />}
         {formError && (
           <Alert variant="destructive">
             <AlertDescription>{formError}</AlertDescription>

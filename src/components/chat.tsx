@@ -42,6 +42,21 @@ import { cn } from "@/lib/utils";
 
 const videoPrompt = "Analise o vídeo que enviei.";
 
+/** The operation spent its monthly AI budget; trying again before the month turns cannot help. */
+class AiLimitError extends Error {}
+
+// The chat transport only sees a failed response, so the budget refusal is told apart here.
+async function chatFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const response = await fetch(input, init);
+  if (response.status !== 429) return response;
+  const body: unknown = await response.json().catch(() => null);
+  const message =
+    typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
+      ? body.error
+      : "Você usou todo o limite de IA deste mês.";
+  throw new AiLimitError(message);
+}
+
 function isCsv(file: File) {
   return /\.csv$/i.test(file.name) || file.type === "text/csv";
 }
@@ -101,6 +116,7 @@ export function Chat({
       new DefaultChatTransport<ChatMessage>({
         api: "/api/chat",
         body: { conversationId },
+        fetch: chatFetch,
         // The server rebuilds the history from the database, so only the new message travels;
         // sending the whole conversation grew every request and broke long conversations.
         prepareSendMessagesRequest: ({ messages, body }) => ({
@@ -627,7 +643,13 @@ export function Chat({
     </form>
   );
 
-  const errorAlert = error && !busy && (
+  const errorAlert = error instanceof AiLimitError && !busy ? (
+    <Alert variant="destructive">
+      <CircleAlert aria-hidden />
+      <AlertTitle>Limite de IA do mês atingido.</AlertTitle>
+      <AlertDescription>{error.message}</AlertDescription>
+    </Alert>
+  ) : error && !busy && (
     <Alert variant="destructive">
       <CircleAlert aria-hidden />
       <AlertTitle>Não foi possível gerar a resposta.</AlertTitle>

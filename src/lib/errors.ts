@@ -11,6 +11,7 @@ const domainStatus = {
   invalid_input: 400,
   not_found: 404,
   conflict: 409,
+  limit_reached: 429,
   unavailable: 503,
 } as const;
 export type DomainErrorCode = keyof typeof domainStatus;

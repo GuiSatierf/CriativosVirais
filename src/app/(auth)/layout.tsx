@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Brand } from "@/components/brand";
 import { StatCard } from "@/components/stat-card";
+import { legalPaths } from "@/lib/legal";
 
 /** Static illustration of a generated batch, drawn with plain elements. */
 function ProductPreview() {
@@ -89,7 +90,18 @@ export default function AuthLayout({
           <Brand className="h-5" />
         </Link>
         <div className="flex flex-1 items-center justify-center py-10">
-          <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-(--shadow-panel) sm:p-8">{children}</div>
+          <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-(--shadow-panel) sm:p-8">
+            {children}
+            <p className="mt-6 border-t pt-4 text-center text-xs text-muted-foreground">
+              <Link href={legalPaths.terms} className="rounded-sm underline underline-offset-4 hover:text-foreground">
+                Termos de uso
+              </Link>
+              {" · "}
+              <Link href={legalPaths.privacy} className="rounded-sm underline underline-offset-4 hover:text-foreground">
+                Privacidade
+              </Link>
+            </p>
+          </div>
         </div>
       </main>
     </div>
