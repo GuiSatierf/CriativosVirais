@@ -169,9 +169,10 @@ export function UploadArea({
     let stopped = false;
     let failures = 0;
     let timer: ReturnType<typeof setTimeout>;
-    const started = Date.now();
+    let started = Date.now();
     async function poll() {
-      await whenVisible();
+      // Back on the tab: poll at the fast interval again instead of where the back-off left off.
+      if (await whenVisible()) started = Date.now();
       if (stopped) return;
       try {
         const asset = await api(`/api/assets/${assetId}`, assetSchema);

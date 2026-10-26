@@ -7,14 +7,17 @@ export function pollDelay(elapsedMs: number, baseMs: number) {
   return Math.min(maxDelayMs, baseMs * 2 ** Math.floor(elapsedMs / slowAfterMs));
 }
 
-/** Resolves when the tab is visible, so a tab in the background stops asking the server. */
+/**
+ * Resolves when the tab is visible, so a tab in the background stops asking the server. Resolves
+ * true when it had to wait: the person just came back and is watching again.
+ */
 export function whenVisible() {
-  return new Promise<void>((resolve) => {
-    if (!document.hidden) return resolve();
+  return new Promise<boolean>((resolve) => {
+    if (!document.hidden) return resolve(false);
     const onChange = () => {
       if (document.hidden) return;
       document.removeEventListener("visibilitychange", onChange);
-      resolve();
+      resolve(true);
     };
     document.addEventListener("visibilitychange", onChange);
   });
