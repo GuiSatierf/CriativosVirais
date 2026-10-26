@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { assets } from "@/db/schema";
 import { handle, apiTenant, json, HttpError } from "@/lib/http";
-import { getJobs } from "@/jobs";
+import { analysisQueue, getJobs } from "@/jobs";
 import { tenantWhere } from "@/lib/tenant-scope";
 export function POST(
   request: Request,
@@ -22,7 +22,7 @@ export function POST(
       throw new HttpError(409, "O arquivo não está em erro.");
     const boss = await getJobs();
     await boss.send(
-      "analyze-video",
+      analysisQueue(asset.kind),
       { tenantId, assetId: id },
       { singletonKey: id },
     );

@@ -12,6 +12,7 @@ async function main() {
   const boss = await startWorkerJobs();
   const handlers: Record<string, (data: unknown) => Promise<void>> = {
     "analyze-video": analyzeVideo,
+    "transcribe-audio": analyzeVideo,
     "ingest-event": ingestEvent,
     "generate-batch": runBatchGeneration,
     "sync-metrics": (data) =>

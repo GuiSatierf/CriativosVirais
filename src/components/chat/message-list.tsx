@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { UploadArea } from "@/components/upload-area";
 import { publicDataSchema } from "@/lib/ai/schemas";
 import { api } from "@/lib/client";
+import { pollDelay, whenVisible } from "@/lib/polling";
 import { cn } from "@/lib/utils";
 import { StrategistAvatar, strategistName } from "./strategist";
 
@@ -198,7 +199,11 @@ function useGenerationStatus(id: string, title: string) {
     let stopped = false;
     let failures = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let started = Date.now();
     async function poll() {
+      // Back on the tab: poll at the fast interval again instead of where the back-off left off.
+      if (await whenVisible()) started = Date.now();
+      if (stopped) return;
       try {
         const next = await api(`/api/batch-generations/${id}`, generationStatusSchema);
         if (stopped) return;
@@ -213,7 +218,7 @@ function useGenerationStatus(id: string, title: string) {
           return;
         }
       }
-      if (!stopped) timer = setTimeout(poll, generationPollMs);
+      if (!stopped) timer = setTimeout(poll, pollDelay(Date.now() - started, generationPollMs));
     }
     poll();
     return () => {
