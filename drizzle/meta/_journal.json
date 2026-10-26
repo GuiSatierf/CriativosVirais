@@ -64,6 +64,13 @@
       "when": 1792718868211,
       "tag": "0008_ai-usage",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792786766973,
+      "tag": "0009_legal-terms",
+      "breakpoints": true
     }
   ]
 }

@@ -6,7 +6,7 @@ import { dbEnv } from "@/lib/env";
 import { logError } from "@/lib/log";
 export { analysisQueue } from "./queues";
 // Every queue the worker creates; analysisQueue picks between the two analysis queues.
-export const queues = ["analyze-video", "transcribe-audio", "ingest-event", "sync-metrics", "generate-batch"] as const;
+export const queues = ["analyze-video", "transcribe-audio", "ingest-event", "sync-metrics", "generate-batch", "purge-access-log"] as const;
 export const queueOptions: QueueOptions = {
   retryLimit: 3,
   retryDelay: 60,

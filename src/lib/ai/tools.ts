@@ -183,7 +183,8 @@ export function chatTools(
           input.evidence_level === "hipotese" ||
           (row?.metrics &&
             (input.evidence_level === "sinal_atencao"
-              ? row.metrics.ctr !== null || row.metrics.hook_rate !== null || row.metrics.body_rate !== null
+              ? // A zero rate is measured but shows no attention at all.
+                [row.metrics.ctr, row.metrics.hook_rate, row.metrics.body_rate].some((rate) => rate !== null && Number(rate) > 0)
               : input.evidence_level === "sinal_clique"
                 ? Number(row.metrics.clicks) > 0
                 : input.evidence_level === "sinal_lead"
