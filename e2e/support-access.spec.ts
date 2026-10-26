@@ -144,6 +144,7 @@ test("support enters a client's account without the password, changes its email 
   await guestPage.goto(link.pathname + link.search);
   await guestPage.getByLabel("Nome").fill("Pessoa Convidada");
   await guestPage.getByRole("textbox", { name: "Senha" }).fill(testPassword);
+  await guestPage.getByLabel(/Li e aceito os/).check();
   await guestPage.getByRole("button", { name: "Criar conta" }).click();
   await expect(guestPage).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
   await guest.close();
