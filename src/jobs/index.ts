@@ -4,7 +4,9 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "@/db/schema";
 import { dbEnv } from "@/lib/env";
 import { logError } from "@/lib/log";
-export const queues = ["analyze-video", "ingest-event", "sync-metrics", "generate-batch", "purge-access-log", "backup"] as const;
+export { analysisQueue } from "./queues";
+// Every queue the worker creates; analysisQueue picks between the two analysis queues.
+export const queues = ["analyze-video", "transcribe-audio", "ingest-event", "sync-metrics", "generate-batch", "purge-access-log", "backup"] as const;
 export const queueOptions: QueueOptions = {
   retryLimit: 3,
   retryDelay: 60,
@@ -20,9 +22,12 @@ const perQueue: Partial<Record<(typeof queues)[number], QueueOptions>> = {
   backup: { retryLimit: 1, retryDelay: 900, retryBackoff: false, expireInSeconds: 3 * 3600 },
 };
 // A batch generation can hold its slot for up to 30 minutes; one at a time would make every
-// other tenant's batch wait behind it.
+// other tenant's batch wait behind it. Videos are bounded by ffmpeg memory and disk; voice notes
+// are short and mostly wait on the transcription provider.
 const perQueueWork: Partial<Record<(typeof queues)[number], WorkOptions>> = {
   "generate-batch": { localConcurrency: 4 },
+  "analyze-video": { localConcurrency: 2 },
+  "transcribe-audio": { localConcurrency: 4 },
 };
 /** Options for boss.work: one job per fetch, with more parallel slots for long queues. */
 export function workOptions(name: string): WorkOptions {
