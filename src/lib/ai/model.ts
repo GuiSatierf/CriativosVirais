@@ -1,6 +1,8 @@
 import { createDeepSeek } from "@ai-sdk/deepseek";
+import { wrapLanguageModel } from "ai";
 import { DomainError } from "../errors";
 import { aiEnv, aiProviderEnv } from "../env";
+import { meteringMiddleware, type MeteredCall } from "./budget";
 import { fakeLanguageModel } from "./fake-model";
 // Missing keys are a setup problem, not an outage: waiting does not fix it. Provider failures
 // keep the "indisponível" message from the chat route.
@@ -23,10 +25,14 @@ export function assertModelConfigured(vision = false) {
   if (usesFakeModel()) return;
   deepSeekConfig(vision);
 }
-export function textModel(vision = false) {
+function baseModel(vision: boolean) {
   if (usesFakeModel()) return fakeLanguageModel();
   const { apiKey, model } = deepSeekConfig(vision);
   return createDeepSeek({ apiKey })(model);
+}
+/** Every call is checked against the operation's monthly AI budget and its cost is recorded. */
+export function textModel(call: MeteredCall & { vision?: boolean }) {
+  return wrapLanguageModel({ model: baseModel(call.vision ?? false), middleware: meteringMiddleware(call) });
 }
 export const providerOptions = {
   deepseek: { thinking: { type: "disabled" as const } },

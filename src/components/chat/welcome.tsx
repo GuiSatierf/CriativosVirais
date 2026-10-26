@@ -75,7 +75,7 @@ export function WelcomeIntro({
         {firstName ? `Oi, ${firstName}!` : "Oi!"}
       </h2>
       <p className="text-sm text-muted-foreground">
-        Aqui é o {strategistName}, seu parceiro para criativos que vendem.
+        Aqui é o {strategistName}.
       </p>
       <StatusLine status={status} />
       {/* Mandated opening sentence for the first contact: keep it verbatim. */}

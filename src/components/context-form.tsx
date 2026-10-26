@@ -68,7 +68,7 @@ const sections: Section[] = [
   {
     id: "produto",
     title: "Seu produto",
-    description: "O básico para o assistente saber o que você vende.",
+    description: "O básico para o Estrategista saber o que você vende.",
     fields: [
       {
         key: "produtoNome",
@@ -494,10 +494,18 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
                 Voltar
               </Button>
             )}
-            <Button type="submit" size="lg" className="sm:ml-auto">
-              {last ? "Ver resumo" : answered ? "Continuar" : "Pular por agora"}
-              <ArrowRight aria-hidden />
-            </Button>
+            <div className="flex flex-col-reverse gap-2 sm:ml-auto sm:flex-row sm:items-center">
+              {/* Skipping stays possible, but the main action is always moving on with an answer. */}
+              {!last && !answered && (
+                <Button type="button" variant="ghost" onClick={() => go(step + 1)}>
+                  Pular por agora
+                </Button>
+              )}
+              <Button type="submit" size="lg" disabled={!last && !answered}>
+                {last ? "Ver resumo" : "Continuar"}
+                <ArrowRight aria-hidden />
+              </Button>
+            </div>
           </div>
         </form>
       ) : (
@@ -517,8 +525,8 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
             </h2>
             <p className="text-sm text-muted-foreground">
               {done === total
-                ? "O assistente já tem o que precisa para escrever seus roteiros."
-                : "Você já pode usar o assistente. Quanto mais respostas, melhores os roteiros."}
+                ? "O Estrategista já tem o que precisa para escrever seus roteiros."
+                : "Você já pode usar o Estrategista. Quanto mais respostas, melhores os roteiros."}
             </p>
             <div className="flex justify-center pt-1">
               <SaveIndicator status={status} onRetry={() => void flush()} />
@@ -593,7 +601,7 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
           >
             Responda na conversa
           </Link>{" "}
-          e o assistente preenche para você.
+          e o Estrategista preenche para você.
         </p>
       )}
     </div>
