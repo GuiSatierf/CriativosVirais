@@ -7,6 +7,7 @@ import { getJobs, jobTransaction } from "@/jobs";
 import { batchSchema, batchItemSchema } from "./ai/schemas";
 import { textModel, providerOptions } from "./ai/model";
 import { buildSystemPrompt, untrusted } from "./ai/system-prompt";
+import { reviseUntilApproved } from "./batch-revision";
 import { spDayBr } from "./dates";
 import { DomainError } from "./errors";
 import { bigintReplacer } from "./json";
@@ -75,6 +76,25 @@ async function quality(
     throw new Error("Incomplete quality check");
   return object.checks;
 }
+async function rewriteItem(
+  tenantId: string,
+  system: string,
+  item: z.infer<typeof batchItemSchema>,
+  issues: string[],
+  signal?: AbortSignal,
+) {
+  const { output } = await generateText({
+    model: textModel({ tenantId, purpose: "batch" }),
+    providerOptions,
+    output: Output.object({ schema: batchItemSchema }),
+    maxOutputTokens: 5000,
+    instructions: system,
+    prompt: `Corrija somente este item pelos critérios de qualidade.\n${untrusted("failed_item", { item, issues })}`,
+    maxRetries: 1,
+    abortSignal: deadline(90_000, signal),
+  });
+  return output;
+}
 export async function generateBatch(
   tenantId: string,
   conversationId: string,
@@ -98,24 +118,13 @@ export async function generateBatch(
   if (object.items.length !== quantity)
     throw new Error("Unexpected batch size");
   const checks = await quality(tenantId, object.items, system, signal);
-  for (const check of checks.filter((c) => !c.passed)) {
-    const regenerated = await generateText({
-      model: textModel({ tenantId, purpose: "batch" }),
-      providerOptions,
-      output: Output.object({ schema: batchItemSchema }),
-      maxOutputTokens: 5000,
-      instructions: system,
-      prompt: `Corrija somente este item pelos critérios de qualidade.\n${untrusted("failed_item", { item: object.items[check.index], issues: check.issues })}`,
-      maxRetries: 1,
-      abortSignal: deadline(90_000, signal),
-    });
-    object.items[check.index] = regenerated.output;
-    const [verified] = await quality(tenantId, [regenerated.output], system, signal);
-    if (!verified.passed)
-      throw new Error(
-        "A copy não passou na revisão de qualidade. Ajuste o contexto e tente novamente.",
-      );
-  }
+  for (const check of checks.filter((c) => !c.passed))
+    object.items[check.index] = await reviseUntilApproved(
+      object.items[check.index],
+      check.issues,
+      (item, issues) => rewriteItem(tenantId, system, item, issues, signal),
+      async (item) => (await quality(tenantId, [item], system, signal))[0],
+    );
   signal?.throwIfAborted();
   return db.transaction(async (tx) => {
     await tx.execute(

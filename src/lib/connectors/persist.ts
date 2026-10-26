@@ -4,7 +4,30 @@ import { creatives, creativeMetrics, integrations } from "@/db/schema";
 import { DomainError } from "../errors";
 import { nullableBigint, upsertCreativeMetrics } from "../metrics";
 import { tenantValues, tenantWhere } from "../tenant-scope";
-import type { MetricRecord } from "./types";
+import { metricNames, type MetricRecord } from "./types";
+
+type MetricName = (typeof metricNames)[number];
+
+// Column of each metric in creative_metrics, so a partial import writes only what it brought.
+function metricValues(r: MetricRecord, metrics: readonly MetricName[]) {
+  const all = {
+    spend_cents: { spendCents: nullableBigint(r.spend_cents) },
+    impressions: { impressions: nullableBigint(r.impressions) },
+    clicks: { clicks: nullableBigint(r.clicks) },
+    ctr: { ctr: r.ctr },
+    hook_rate: { hookRate: r.hook_rate },
+    body_rate: { bodyRate: r.body_rate },
+    leads: { leads: nullableBigint(r.leads) },
+    checkouts: { checkouts: nullableBigint(r.checkouts) },
+    approved_sales: { approvedSales: nullableBigint(r.approved_sales) },
+    revenue_cents: { revenueCents: nullableBigint(r.revenue_cents) },
+    profit_cents: { profitCents: nullableBigint(r.profit_cents) },
+    roas: { roas: r.roas },
+    refunds: { refunds: nullableBigint(r.refunds) },
+    chargebacks: { chargebacks: nullableBigint(r.chargebacks) },
+  } satisfies Record<MetricName, object>;
+  return Object.assign({}, ...metrics.map((metric) => all[metric]));
+}
 
 type Snapshot = {
   id: string;
@@ -23,10 +46,15 @@ function chunks<T>(items: Iterable<T>) {
 const identity = (key: string, s: Omit<Snapshot, "id">) =>
   JSON.stringify([key, s.from, s.to, s.source, s.campaign]);
 
+/**
+ * Saves snapshots. Re-importing a period replaces only the metrics in `metrics` (the columns the
+ * file mapped); the others keep what an earlier import of that period brought.
+ */
 export async function saveMetrics(
   tenantId: string,
   records: MetricRecord[],
   definitions: Record<string, string> = {},
+  metrics: readonly MetricName[] = metricNames,
 ) {
   return db.transaction(async (tx) => {
     await tx.execute(
@@ -76,6 +104,8 @@ export async function saveMetrics(
     const campaignOf = new Map([...known].map(([key, c]) => [key, c.campaignKey]));
     const metadata = new Map<string, { name: string | null; campaignKey: string | null; adsetKey: string | null; source: string }>();
     const removed = new Set<string>();
+    // Campaign-less rows a later sheet names: they take the campaign, so its upsert merges into them.
+    const relabeled = new Map<string, string>();
     const pending = new Map<string, { record: MetricRecord; campaignKey: string }>();
     let created = 0;
     for (const r of records) {
@@ -115,9 +145,14 @@ export async function saveMetrics(
           "Já existe um período sobreposto. Importe o mesmo período para substituir ou use períodos separados.",
         );
       if (replaceUnknown) {
-        snapshots.splice(snapshots.indexOf(replaceUnknown), 1);
+        const index = snapshots.indexOf(replaceUnknown);
         pending.delete(identity(r.creative_key, replaceUnknown));
-        if (!replaceUnknown.id.startsWith("new:")) removed.add(replaceUnknown.id);
+        // A stored row keeps the columns this sheet does not map; a row from this same file is replaced.
+        if (replaceUnknown.id.startsWith("new:")) snapshots.splice(index, 1);
+        if (!replaceUnknown.id.startsWith("new:")) {
+          snapshots[index] = { ...replaceUnknown, campaign: campaignKey };
+          relabeled.set(replaceUnknown.id, campaignKey);
+        }
       }
       const snapshot = { from: r.period_from, to: r.period_to, source: r.source, campaign: campaignKey };
       const id = identity(r.creative_key, snapshot);
@@ -145,6 +180,11 @@ export async function saveMetrics(
       await tx
         .delete(creativeMetrics)
         .where(tenantWhere(creativeMetrics, tenantId, inArray(creativeMetrics.id, part)));
+    for (const [id, campaignKey] of relabeled)
+      await tx
+        .update(creativeMetrics)
+        .set({ campaignKey })
+        .where(tenantWhere(creativeMetrics, tenantId, eq(creativeMetrics.id, id)));
     for (const part of chunks(pending.values()))
       await upsertCreativeMetrics(
         tx,
@@ -156,20 +196,7 @@ export async function saveMetrics(
             periodTo: r.period_to,
             source: r.source,
             confidence: r.confidence,
-            spendCents: nullableBigint(r.spend_cents),
-            impressions: nullableBigint(r.impressions),
-            clicks: nullableBigint(r.clicks),
-            ctr: r.ctr,
-            hookRate: r.hook_rate,
-            bodyRate: r.body_rate,
-            leads: nullableBigint(r.leads),
-            checkouts: nullableBigint(r.checkouts),
-            approvedSales: nullableBigint(r.approved_sales),
-            revenueCents: nullableBigint(r.revenue_cents),
-            profitCents: nullableBigint(r.profit_cents),
-            roas: r.roas,
-            refunds: nullableBigint(r.refunds),
-            chargebacks: nullableBigint(r.chargebacks),
+            ...metricValues(r, metrics),
           }),
         ),
       );
@@ -190,6 +217,7 @@ export async function saveMetrics(
             metadata: { metricDefinitions: combined },
           },
         });
-    return records.length;
+    // Distinct creatives, not rows: one creative across several campaigns counts once.
+    return new Set(records.map((r) => r.creative_key)).size;
   });
 }
