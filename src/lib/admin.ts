@@ -1,5 +1,5 @@
 import "server-only";
-import { and, count, desc, eq, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { db } from "@/db";
@@ -11,6 +11,7 @@ import { getAuth } from "./auth";
 import { HttpError } from "./errors";
 import { requireSameOrigin } from "./http";
 import { can, isStaffRole, type StaffPermission, type StaffRole } from "./staff";
+import { teamInviteNote } from "./team-invites";
 
 /** Better Auth user ids in admin routes. */
 export const userIdSchema = z.string().trim().min(1).max(100);
@@ -72,6 +73,9 @@ function statusCondition(status: AccessStatus | null) {
   return undefined;
 }
 
+const clientAccount = or(isNull(user.role), eq(user.role, "user"));
+const notTeamInvite = or(isNull(accessGrants.note), ne(accessGrants.note, teamInviteNote));
+
 /**
  * The most recent grants matching the search and status, and how many match in all. Hotmart buyers
  * can be thousands, so the page shows one slice and the search finds the rest on the server.
@@ -79,8 +83,8 @@ function statusCondition(status: AccessStatus | null) {
 export async function listAccess(query = "", status: AccessStatus | null = null, clientsOnly = false) {
   const term = query.trim().toLowerCase();
   const search = term.length === 0 ? undefined : ilike(accessGrants.email, containsPattern(term));
-  // Support manages clients only; team accounts stay out of its list.
-  const clients = clientsOnly ? or(isNull(user.role), eq(user.role, "user")) : undefined;
+  // Support manages clients only; team accounts and the grants of pending team invites stay out of its list.
+  const clients = clientsOnly ? and(clientAccount, notTeamInvite) : undefined;
   const where = and(search, statusCondition(status), clients);
   const [rows, [matching]] = await Promise.all([
     db
@@ -127,11 +131,14 @@ export async function grantAccess(actor: AdminActor, email: string, note: string
 
 export async function removeAccess(actor: AdminActor, grantId: string) {
   const [grant] = await db
-    .select({ email: accessGrants.email, userId: user.id })
+    .select({ email: accessGrants.email, note: accessGrants.note, userId: user.id })
     .from(accessGrants)
     .leftJoin(user, sql`lower(${user.email}) = ${accessGrants.email}`)
     .where(eq(accessGrants.id, grantId));
   if (grant == null) throw new HttpError(404, "Acesso não encontrado.");
+  // A pending team invite is the owner's; support only removes clients' grants.
+  if (grant.note === teamInviteNote && can(actor.role, "manage-access") === false)
+    throw new HttpError(403, "O seu papel na equipe não permite isso.");
   if (grant.userId != null)
     throw new HttpError(409, "Esta pessoa já criou a conta. Para tirar o acesso, bloqueie a conta.");
   await db.delete(accessGrants).where(eq(accessGrants.id, grantId));

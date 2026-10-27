@@ -46,6 +46,16 @@ test("support enters a client's account without the password, changes its email 
   await expect(freedRow).toHaveCount(0);
   await page.getByLabel("Buscar por e-mail").fill(staffEmail);
   await expect(page.getByText("Nenhum e-mail encontrado com esse filtro.")).toBeVisible();
+  // The grant of a pending team invite belongs to the owner: support neither sees nor removes it.
+  const invitedEmail = `convidado-${randomUUID()}@exemplo.test`;
+  const [inviteGrant] = await testDatabase<{ id: string }>(
+    `insert into access_grants (email, note) values ($1, 'Convite para a equipe') returning id`,
+    [invitedEmail],
+  );
+  await page.getByLabel("Buscar por e-mail").fill(invitedEmail);
+  await expect(page.getByText("Nenhum e-mail encontrado com esse filtro.")).toBeVisible();
+  const removeInvite = await page.request.delete(`/api/admin/access/${inviteGrant.id}`, { headers: { Origin: baseURL ?? "" } });
+  expect(removeInvite.status()).toBe(403);
   await page.getByLabel("Buscar por e-mail").fill(clientEmail);
   const clientAccess = page.getByRole("row").filter({ hasText: clientEmail });
   await expect(clientAccess).toContainText("Conta criada");
