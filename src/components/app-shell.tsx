@@ -104,7 +104,7 @@ export function AppShell({
             aria-label="Barra lateral"
             data-print="hide"
             className={cn(
-              "hidden w-64 shrink-0 border-r border-border bg-muted/40 pt-[env(safe-area-inset-top)] lg:flex",
+              "hidden w-72 shrink-0 border-r border-border bg-muted/40 pt-[env(safe-area-inset-top)] lg:flex",
               chat ? "h-full" : "sticky top-0 h-dvh self-start",
             )}
           >
