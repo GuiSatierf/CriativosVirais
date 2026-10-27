@@ -1,4 +1,5 @@
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, lte, notExists, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { accessGrants, adminAuditLog, session, user } from "@/db/schema";
 
@@ -53,8 +54,25 @@ export async function revokeBuyerAccess(tx: Transaction, email: string, reason: 
   await auditHotmart(tx, "account.blocked", email, { reason, ...details });
 }
 
-/** A purchase recorded after the cancellation means the buyer subscribed again. */
+const earlierGrant = alias(adminAuditLog, "earlier_grant");
+
+/**
+ * A purchase first recorded after the cancellation means the buyer subscribed again. Hotmart also
+ * redelivers old approvals, so a transaction already granted before the cancellation does not count.
+ */
 async function boughtAgainSince(tx: Transaction, email: string, since: Date) {
+  const grantedBefore = tx
+    .select({ id: earlierGrant.id })
+    .from(earlierGrant)
+    .where(
+      and(
+        eq(earlierGrant.actorEmail, hotmartActor),
+        eq(earlierGrant.targetEmail, email),
+        eq(earlierGrant.action, "access.granted"),
+        lte(earlierGrant.createdAt, since),
+        sql`${earlierGrant.details}->>'transaction' = ${adminAuditLog.details}->>'transaction'`,
+      ),
+    );
   const [purchase] = await tx
     .select({ id: adminAuditLog.id })
     .from(adminAuditLog)
@@ -64,6 +82,7 @@ async function boughtAgainSince(tx: Transaction, email: string, since: Date) {
         eq(adminAuditLog.targetEmail, email),
         eq(adminAuditLog.action, "access.granted"),
         gt(adminAuditLog.createdAt, since),
+        notExists(grantedBefore),
       ),
     )
     .limit(1);

@@ -96,6 +96,8 @@ test("the owner sets Hotmart, the AI limit and the end of access in the panel, a
   await subscriberContext.close();
   expect((await (await send(cancellation(buyer, Date.now() + 4_000))).json()).result).toBe("scheduled");
   expect((await accountBlock(buyer)).banned).not.toBe(true);
+  // Hotmart redelivering the old approval is not a new subscription; access still ends.
+  expect((await send(buyerPurchase)).status()).toBe(200);
   await expect.poll(async () => (await accountBlock(buyer)).ban_reason, { timeout: 60_000 }).toBe("assinatura cancelada na Hotmart");
 
   // 4. Blocking at once, the default: a cancellation takes access away immediately.
