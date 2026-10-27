@@ -9,11 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const appCode = /^\d{6}$/;
+/** How long a trusted browser skips the code; Better Auth's default trust period. */
+const trustedDays = 30;
 
 /** Second step of sign-in for accounts with two-factor: the authenticator code, or a recovery code. */
 export function TwoFactorStep() {
   const router = useRouter();
   const [recovery, setRecovery] = useState(false);
+  const [remember, setRemember] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,8 +29,8 @@ export function TwoFactorStep() {
     setPending(true);
     try {
       const result = recovery
-        ? await authClient.twoFactor.verifyBackupCode({ code })
-        : await authClient.twoFactor.verifyTotp({ code });
+        ? await authClient.twoFactor.verifyBackupCode({ code, trustDevice: remember })
+        : await authClient.twoFactor.verifyTotp({ code, trustDevice: remember });
       if (result.error) {
         setError(recovery ? "Código de recuperação inválido." : "Código incorreto ou vencido. Use o número que está no app agora.");
         return;
@@ -68,6 +71,20 @@ export function TwoFactorStep() {
             aria-describedby={error ? "code-error" : undefined}
           />
         </div>
+        <label className="flex cursor-pointer items-start gap-2.5 text-sm leading-snug">
+          <input
+            type="checkbox"
+            name="remember"
+            checked={remember}
+            onChange={(event) => setRemember(event.target.checked)}
+            disabled={pending}
+            className="mt-0.5 size-4 shrink-0 accent-foreground pointer-coarse:size-5"
+          />
+          <span>
+            Lembrar este computador por {trustedDays} dias
+            <span className="block text-muted-foreground">Não marque em computador de outra pessoa.</span>
+          </span>
+        </label>
         {error && (
           <Alert variant="destructive" id="code-error">
             <AlertDescription>{error}</AlertDescription>
