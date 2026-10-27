@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 // Laptops (lg, 1024 to 1279 px) get up to 64rem, always leaving 4rem of the chat visible;
-// the 768 px tablet width squeezed two-column views such as a batch.
+// the 768 px tablet width squeezed two-column views such as a batch. Wider screens grow
+// the panel up to 88rem, leaving 8rem of the chat, so Resultados fits without sideways scrolling.
 const panelWidth =
-  "data-[side=right]:w-full data-[side=right]:sm:max-w-3xl data-[side=right]:lg:max-w-[min(64rem,calc(100vw-4rem))] data-[side=right]:xl:max-w-6xl";
+  "data-[side=right]:w-full data-[side=right]:sm:max-w-3xl data-[side=right]:lg:max-w-[min(64rem,calc(100vw-4rem))] data-[side=right]:xl:max-w-[min(88rem,calc(100vw-8rem))]";
 
 function isPanelOnScreen() {
   return typeof document !== "undefined" && document.querySelector("[data-slot=sheet-content]") != null;
