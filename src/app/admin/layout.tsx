@@ -1,7 +1,10 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Brand } from "@/components/brand";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { ArrowLeft } from "@/components/icons";
 import { AdminSignOut } from "@/components/admin/admin-sign-out";
 import { adminGate } from "@/lib/admin";
 import { staffRoleLabel } from "@/lib/staff";
@@ -17,10 +20,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="min-h-dvh bg-background">
       <header className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-2.5">
-          <Brand className="h-5 sm:h-6" />
+          <Link href="/chat" aria-label="Criativos Virais — voltar ao app" className="inline-flex shrink-0 rounded-md">
+            <Brand className="h-5 sm:h-6" />
+          </Link>
           <Badge variant="outline">{staffRoleLabel[gate.actor.role]}</Badge>
         </div>
         <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+          <Link href="/chat" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+            <ArrowLeft aria-hidden />
+            <span className="sr-only sm:not-sr-only">Voltar ao app</span>
+          </Link>
           <span className="hidden truncate sm:inline">{gate.actor.name}</span>
           <AdminSignOut />
         </div>
