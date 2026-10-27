@@ -3,15 +3,18 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { batches, conversations } from "@/db/schema";
 import { handle, apiTenant, readJson, json, HttpError } from "@/lib/http";
+import { assertOwnProject } from "@/lib/projects";
 import { tenantWhere } from "@/lib/tenant-scope";
 
 const patchSchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
     archived: z.boolean().optional(),
+    /** Null takes the conversation out of its project. */
+    projectId: z.uuid().nullable().optional(),
   })
   .strict()
-  .refine((v) => v.title !== undefined || v.archived !== undefined);
+  .refine((v) => v.title !== undefined || v.archived !== undefined || v.projectId !== undefined);
 
 async function conversationId(context: { params: Promise<{ id: string }> }) {
   const id = z.uuid().safeParse((await context.params).id);
@@ -27,6 +30,7 @@ export function PATCH(
     const { tenantId } = await apiTenant(request);
     const id = await conversationId(context);
     const input = await readJson(request, patchSchema);
+    if (input.projectId != null) await assertOwnProject(tenantId, input.projectId);
     const [row] = await db
       .update(conversations)
       .set({
@@ -34,6 +38,7 @@ export function PATCH(
         ...(input.archived !== undefined && {
           archivedAt: input.archived ? new Date() : null,
         }),
+        ...(input.projectId !== undefined && { projectId: input.projectId }),
       })
       .where(tenantWhere(conversations, tenantId, eq(conversations.id, id)))
       .returning({ id: conversations.id });

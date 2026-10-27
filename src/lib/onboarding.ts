@@ -73,6 +73,7 @@ export function getRecentConversations(tenantId: string, limit = 20) {
     .select({
       id: conversations.id,
       title: conversations.title,
+      projectId: conversations.projectId,
       createdAt: conversations.createdAt,
     })
     .from(conversations)
