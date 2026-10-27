@@ -23,9 +23,10 @@ export type PanelSettings = {
 
 const savedSchema = z.object({ saved: z.boolean() });
 const productIdPattern = /^\d{1,20}$/;
-// "20", "20,00" or "R$ 1.250,50"; dots are thousands separators, as people type in Brazil.
+// "20", "20,00", "20.50" or "R$ 1.250,50".
 const reaisPattern = /^(\d{1,5})(?:,(\d{1,2}))?$/;
 const minAiLimitCents = 100;
+const maxAiLimitCents = 1_000_000;
 
 function saveSettings(body: Record<string, unknown>) {
   return api("/api/admin/settings", savedSchema, body, "PUT");
@@ -37,7 +38,10 @@ function reaisLabel(cents: number) {
 
 /** Cents typed as reais, or null when the text is not an amount. */
 function centsFromReais(text: string) {
-  const match = reaisPattern.exec(text.replace(/R\$|\s|\./g, ""));
+  const compact = text.replace(/R\$|\s/g, "");
+  // Without a comma, a dot before the last one or two digits is the decimal mark ("20.50"), as phone keypads type it.
+  const decimalComma = compact.includes(",") ? compact : compact.replace(/\.(?=\d{1,2}$)/, ",");
+  const match = reaisPattern.exec(decimalComma.replaceAll(".", ""));
   if (match == null) return null;
   return Number(match[1]) * 100 + Number((match[2] ?? "0").padEnd(2, "0"));
 }
@@ -168,6 +172,7 @@ function AiLimitCard({ cents }: { cents: number }) {
     event.preventDefault();
     const limit = centsFromReais(String(new FormData(event.currentTarget).get("limit") ?? ""));
     if (limit == null || limit < minAiLimitCents) return setError("Informe um valor a partir de R$ 1,00, como 20,00.");
+    if (limit > maxAiLimitCents) return setError("O limite máximo é R$ 10.000,00 por mês.");
     await run(() => saveSettings({ section: "ai-limit", cents: limit }), "Limite de IA salvo.");
   }
   return (

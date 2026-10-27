@@ -66,16 +66,25 @@ test("the owner sets Hotmart, the AI limit and the end of access in the panel, a
 
   const buyer = `assinante-${randomUUID()}@exemplo.test`;
   expect((await send(purchase(buyer), "e2e-hottok")).status()).toBe(401);
-  expect((await (await send(purchase(buyer))).json()).result).toBe("granted");
+  const buyerPurchase = purchase(buyer);
+  expect((await (await send(buyerPurchase)).json()).result).toBe("granted");
 
   // 2. The AI limit per client is saved in cents.
   const aiLimit = page.getByRole("region", { name: "Limite de IA por cliente" });
   await aiLimit.getByLabel("Gasto máximo por mês").fill("0,50");
   await aiLimit.getByRole("button", { name: "Salvar limite" }).click();
   await expect(aiLimit.getByText("Informe um valor a partir de R$ 1,00, como 20,00.")).toBeVisible();
+  await aiLimit.getByLabel("Gasto máximo por mês").fill("15.000,00");
+  await aiLimit.getByRole("button", { name: "Salvar limite" }).click();
+  await expect(aiLimit.getByText("O limite máximo é R$ 10.000,00 por mês.")).toBeVisible();
+  const savedLimit = async () => (await testDatabase<{ cents: string }>(`select ai_monthly_limit_cents::text as cents from app_settings`))[0]?.cents;
   await aiLimit.getByLabel("Gasto máximo por mês").fill("35,50");
   await aiLimit.getByRole("button", { name: "Salvar limite" }).click();
-  await expect.poll(async () => (await testDatabase<{ cents: string }>(`select ai_monthly_limit_cents::text as cents from app_settings`))[0]?.cents).toBe("3550");
+  await expect.poll(savedLimit).toBe("3550");
+  // A dot typed as the decimal mark, as phone keypads do, is not read as thousands.
+  await aiLimit.getByLabel("Gasto máximo por mês").fill("20.50");
+  await aiLimit.getByRole("button", { name: "Salvar limite" }).click();
+  await expect.poll(savedLimit).toBe("2050");
 
   // 3. Keeping access until the paid period ends: the cancellation waits for the last paid day.
   const accessEnd = page.getByRole("region", { name: "Quando o acesso termina" });
@@ -109,6 +118,7 @@ test("the owner sets Hotmart, the AI limit and the end of access in the panel, a
   expect(audited.map((entry) => entry.action).sort()).toEqual([
     "settings.access_end_changed",
     "settings.access_end_changed",
+    "settings.ai_limit_changed",
     "settings.ai_limit_changed",
     "settings.hotmart_changed",
   ]);
