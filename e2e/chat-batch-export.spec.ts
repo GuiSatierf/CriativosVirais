@@ -17,7 +17,7 @@ test("signup, chat, batch and .docx export", async ({ page }) => {
   const panel = page.getByRole("dialog");
   for (const [viewport, expectedWidth] of [
     [375, 375], [768, 768], [1023, 768], [1024, 960],
-    [1100, 1024], [1279, 1024], [1280, 1152], [1440, 1152],
+    [1100, 1024], [1279, 1024], [1280, 1152], [1440, 1312], [1872, 1408],
   ]) {
     await page.setViewportSize({ width: viewport, height: 900 });
     // The app reserves a stable scrollbar gutter on the root element. A full
@@ -26,9 +26,12 @@ test("signup, chat, batch and .docx export", async ({ page }) => {
     await expect.poll(async () => Math.round((await panel.boundingBox())?.width ?? 0), {
       message: `Panel width at a ${viewport}px viewport`,
     }).toBe(Math.min(layoutWidth, expectedWidth));
-    const box = await panel.boundingBox();
-    expect(box!.x).toBeGreaterThanOrEqual(0);
-    expect(Math.round(box!.x + box!.width)).toBe(layoutWidth);
+    // The panel slides in from the right, so its edge settles once the transition ends.
+    await expect.poll(async () => {
+      const box = await panel.boundingBox();
+      return box == null ? null : Math.round(box.x + box.width);
+    }, { message: `Panel right edge at a ${viewport}px viewport` }).toBe(layoutWidth);
+    expect((await panel.boundingBox())?.x).toBeGreaterThanOrEqual(0);
   }
 
   const downloadPromise = page.waitForEvent("download");
