@@ -37,12 +37,45 @@ const integrationNames: Record<string, string> = {
   vkmetrics: "VK Metrics",
 };
 
+/** The newest active leva whose creatives already have results, if any. */
+export async function latestBatchWithResults(tenantId: string) {
+  const [batch] = await db
+    .select({ id: batches.id, title: batches.title })
+    .from(batches)
+    .where(
+      and(
+        tenantWhere(batches, tenantId, isNull(batches.archivedAt)),
+        sql`EXISTS (SELECT 1 FROM batch_items bi
+          JOIN creatives c ON c.tenant_id = bi.tenant_id
+            AND c.creative_key = bi.creative_key
+          JOIN creative_metrics cm ON cm.tenant_id = c.tenant_id
+            AND cm.creative_id = c.id
+          WHERE bi.tenant_id = ${batches.tenantId}
+            AND bi.batch_id = ${batches.id})`,
+      ),
+    )
+    .orderBy(desc(batches.createdAt))
+    .limit(1);
+  return batch;
+}
+
+export function batchResultsNotice(batch: { id: string; title: string }): HomeStatus {
+  return {
+    id: "results",
+    // "Leva 03 · Produto · 14/10/2026" reads as "Leva 03" in the chip.
+    label: `${batch.title.split(" · ")[0]} já tem resultados`,
+    href: `/levas/${batch.id}`,
+    tone: "info",
+  };
+}
+
 /**
- * What the hero shows: a status line with news worth acting on and the next
+ * What the hero shows: a status line with news worth acting on (the leva with
+ * results lives in the app shell, always in view) and the next
  * best actions for this account. Plain queries, no model calls.
  */
 export async function getHome(tenantId: string): Promise<Home> {
-  const [onboarding, videos, broken, [withResults]] = await Promise.all([
+  const [onboarding, videos, broken] = await Promise.all([
     getOnboarding(tenantId),
     db
       .select({ status: assets.status, count: sql<number>`count(*)::int` })
@@ -62,23 +95,6 @@ export async function getHome(tenantId: string): Promise<Home> {
       .select({ provider: integrations.provider })
       .from(integrations)
       .where(tenantWhere(integrations, tenantId, eq(integrations.status, "error"))),
-    db
-      .select({ id: batches.id, title: batches.title })
-      .from(batches)
-      .where(
-        and(
-          tenantWhere(batches, tenantId, isNull(batches.archivedAt)),
-          sql`EXISTS (SELECT 1 FROM batch_items bi
-            JOIN creatives c ON c.tenant_id = bi.tenant_id
-              AND c.creative_key = bi.creative_key
-            JOIN creative_metrics cm ON cm.tenant_id = c.tenant_id
-              AND cm.creative_id = c.id
-            WHERE bi.tenant_id = ${batches.tenantId}
-              AND bi.batch_id = ${batches.id})`,
-        ),
-      )
-      .orderBy(desc(batches.createdAt))
-      .limit(1),
   ]);
 
   const status: HomeStatus[] = [];
@@ -106,14 +122,6 @@ export async function getHome(tenantId: string): Promise<Home> {
       label: `${integrationNames[provider] ?? "Integração"} precisa de atenção`,
       href: "/integracoes",
       tone: "warning",
-    });
-  if (withResults)
-    status.push({
-      id: "results",
-      // "Leva 03 · Produto · 14/10/2026" reads as "Leva 03" in the chip.
-      label: `${withResults.title.split(" · ")[0]} já tem resultados`,
-      href: `/levas/${withResults.id}`,
-      tone: "info",
     });
 
   const all: (HomeSuggestion | false)[] = [

@@ -8,6 +8,8 @@ import { redirect } from "next/navigation";
 import { legalPaths } from "@/lib/legal";
 import { hasAcceptedCurrentTerms } from "@/lib/legal-records";
 import { isStaffRole } from "@/lib/staff";
+import { batchResultsNotice, latestBatchWithResults } from "@/lib/home";
+import { listProjects } from "@/lib/projects";
 export const dynamic = "force-dynamic";
 export default async function AppLayout({
   children,
@@ -18,9 +20,11 @@ export default async function AppLayout({
   panel: React.ReactNode;
 }) {
   const { tenantId, user, session } = await requireTenant();
-  // The history drawer groups these by date and filters them client-side.
-  const [conversations, supportVisit, accepted] = await Promise.all([
-    getRecentConversations(tenantId, 50),
+  // The left bar lists these under their projects and filters them client-side.
+  const [conversations, projects, batchWithResults, supportVisit, accepted] = await Promise.all([
+    getRecentConversations(tenantId, 200),
+    listProjects(tenantId),
+    latestBatchWithResults(tenantId),
     describeSupportVisit({ session, user }),
     hasAcceptedCurrentTerms(user.id),
   ]);
@@ -34,6 +38,8 @@ export default async function AppLayout({
         image: avatarUrl(user.id, user.image),
       }}
       conversations={conversations}
+      projects={projects}
+      notice={batchWithResults == null ? null : batchResultsNotice(batchWithResults)}
       panel={panel}
       showAdminLink={supportVisit == null && isStaffRole(user.role)}
       banner={

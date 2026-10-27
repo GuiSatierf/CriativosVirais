@@ -23,6 +23,8 @@ export function RenameDialog({
   title,
   label,
   value,
+  maxLength = maxName,
+  failure = "Não foi possível renomear. Tente novamente.",
   onSave,
 }: {
   open: boolean;
@@ -30,6 +32,9 @@ export function RenameDialog({
   title: string;
   label: string;
   value: string;
+  maxLength?: number;
+  /** Shown when saving fails without a message from the server. */
+  failure?: string;
   onSave: (name: string) => Promise<void>;
 }) {
   const id = useId();
@@ -46,7 +51,7 @@ export function RenameDialog({
       await onSave(trimmed);
       onOpenChange(false);
     } catch (error) {
-      toastError(error, "Não foi possível renomear. Tente novamente.");
+      toastError(error, failure);
     } finally {
       setPending(false);
     }
@@ -70,7 +75,7 @@ export function RenameDialog({
             <Input
               id={id}
               value={name}
-              maxLength={maxName}
+              maxLength={maxLength}
               autoFocus
               autoComplete="off"
               enterKeyHint="done"

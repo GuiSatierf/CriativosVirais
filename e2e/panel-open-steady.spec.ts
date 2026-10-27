@@ -16,7 +16,7 @@ test("opening a panel slides it in and leaves the conversation behind it where i
       if (document.querySelector("[data-slot=sheet-content][data-starting-style]")) seen.starting = true;
     }).observe(document.body, { subtree: true, childList: true, attributes: true });
   });
-  await page.getByRole("banner").getByRole("link", { name: "Levas" }).click();
+  await page.getByRole("complementary", { name: "Barra lateral" }).getByRole("link", { name: "Levas", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
 
   expect(await page.evaluate(() => (window as unknown as { panelTransition: { starting: boolean } }).panelTransition.starting)).toBe(true);

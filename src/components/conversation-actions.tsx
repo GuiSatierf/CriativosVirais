@@ -5,6 +5,7 @@ import {
   Archive,
   ArchiveRestore,
   Ellipsis,
+  Folder,
   Pencil,
   Trash2,
 } from "@/components/icons";
@@ -15,24 +16,32 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { RenameDialog } from "@/components/rename-dialog";
-import { api, savedSchema } from "@/lib/client";
+import { api, savedSchema, toastError } from "@/lib/client";
 import { cn } from "@/lib/utils";
 
 const deletedSchema = z.object({ deleted: z.boolean() });
 
-/** Rename, archive/restore and delete for one conversation. */
+type Project = { id: string; name: string };
+
+/** Rename, move to a project, archive/restore and delete for one conversation. */
 export function ConversationActions({
   conversation,
   archived = false,
+  projects = [],
   className,
 }: {
-  conversation: { id: string; title: string };
+  conversation: { id: string; title: string; projectId?: string | null };
   archived?: boolean;
+  /** Projects it can move to; without any, the menu has no "Mover para projeto". */
+  projects?: Project[];
   className?: string;
 }) {
   const router = useRouter();
@@ -44,6 +53,16 @@ export function ConversationActions({
   async function rename(title: string) {
     await api(url, savedSchema, { title }, "PATCH");
     router.refresh();
+  }
+
+  async function moveTo(project: Project | null) {
+    try {
+      await api(url, savedSchema, { projectId: project?.id ?? null }, "PATCH");
+      toast.success(project == null ? "Conversa tirada do projeto." : `Conversa movida para ${project.name}.`);
+      router.refresh();
+    } catch (error) {
+      toastError(error, "Não foi possível mover a conversa. Tente novamente.");
+    }
   }
 
   async function setArchived(next: boolean) {
@@ -84,6 +103,31 @@ export function ConversationActions({
             <Pencil aria-hidden />
             Renomear
           </DropdownMenuItem>
+          {projects.length > 0 && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Folder aria-hidden />
+                Mover para projeto
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-52">
+                {projects.map((project) => (
+                  <DropdownMenuItem
+                    key={project.id}
+                    disabled={project.id === conversation.projectId}
+                    onClick={() => void moveTo(project)}
+                  >
+                    <span className="truncate">{project.name}</span>
+                  </DropdownMenuItem>
+                ))}
+                {conversation.projectId != null && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => void moveTo(null)}>Tirar do projeto</DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
           <DropdownMenuItem onClick={() => void setArchived(!archived)}>
             {archived ? <ArchiveRestore aria-hidden /> : <Archive aria-hidden />}
             {archived ? "Restaurar" : "Arquivar"}

@@ -69,6 +69,8 @@ import {
   SparkleIcon as PhSparkle,
   StorefrontIcon as PhStorefront,
   ShieldCheckIcon as PhShieldCheck,
+  FolderSimpleIcon as PhFolderSimple,
+  FolderOpenIcon as PhFolderOpen,
   ShieldWarningIcon as PhShieldWarning,
   ClockCounterClockwiseIcon as PhClockCounterClockwise,
 } from "@phosphor-icons/react/ssr";
@@ -163,5 +165,7 @@ export const XIcon = icon(PhX, "bold");
 export const Storefront = icon(PhStorefront, "duotone");
 export const Sparkle = icon(PhSparkle, "duotone");
 export const ShieldCheck = icon(PhShieldCheck, "duotone");
+export const Folder = icon(PhFolderSimple, "duotone");
+export const FolderOpen = icon(PhFolderOpen, "duotone");
 export const ShieldWarning = icon(PhShieldWarning, "duotone");
 export const History = icon(PhClockCounterClockwise, "duotone");
