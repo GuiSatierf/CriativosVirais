@@ -1,12 +1,16 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 // Laptops (lg, 1024 to 1279 px) get up to 64rem, always leaving 4rem of the chat visible;
 // the 768 px tablet width squeezed two-column views such as a batch.
 const panelWidth =
   "data-[side=right]:w-full data-[side=right]:sm:max-w-3xl data-[side=right]:lg:max-w-[min(64rem,calc(100vw-4rem))] data-[side=right]:xl:max-w-6xl";
+
+function isPanelOnScreen() {
+  return typeof document !== "undefined" && document.querySelector("[data-slot=sheet-content]") != null;
+}
 
 /**
  * Overlay used by intercepted routes: the page opens over the conversation
@@ -20,7 +24,14 @@ export function Panel({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(true);
+  // Mounting closed and opening on the next frame lets the sheet run its slide-in;
+  // a sheet that mounts already open skips its starting state. The page replacing
+  // its loading panel opens at once, so the panel slides in only the first time.
+  const [open, setOpen] = useState(isPanelOnScreen);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setOpen(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
   // Focus lands on the panel itself, not on its first field, so nothing
   // looks selected before the person acts; Tab then enters the content.
   const body = useRef<HTMLDivElement>(null);
