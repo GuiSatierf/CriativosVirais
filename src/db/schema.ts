@@ -214,11 +214,28 @@ export const clientContexts = pgTable(
   (t) => [uniqueIndex("client_contexts_tenant_unique").on(t.tenantId)],
 );
 
+/** Folders the person groups conversations into; only for organizing, the Strategist sees the whole account. */
+export const projects = pgTable(
+  "projects",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    name: text("name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("projects_tenant_idx").on(t.tenantId),
+    unique("projects_tenant_id_unique").on(t.tenantId, t.id),
+  ],
+);
+
 export const conversations = pgTable(
   "conversations",
   {
     id: id(),
     tenantId: tenantId(),
+    // Null keeps the conversation under "Conversas"; deleting a project moves its conversations back first.
+    projectId: uuid("project_id"),
     title: text("title").notNull(),
     processingToken: text("processing_token"),
     processingUntil: timestamp("processing_until", { withTimezone: true }),
@@ -228,6 +245,10 @@ export const conversations = pgTable(
   (t) => [
     index("conversations_tenant_idx").on(t.tenantId),
     unique("conversations_tenant_id_unique").on(t.tenantId, t.id),
+    foreignKey({
+      columns: [t.tenantId, t.projectId],
+      foreignColumns: [projects.tenantId, projects.id],
+    }),
   ],
 );
 

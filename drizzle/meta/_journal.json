@@ -71,6 +71,13 @@
       "when": 1792786766973,
       "tag": "0009_legal-terms",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793131683301,
+      "tag": "0012_projects",
+      "breakpoints": true
     }
   ]
 }
