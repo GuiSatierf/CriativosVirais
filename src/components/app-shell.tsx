@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSelectedLayoutSegment } from "next/navigation";
 import {
   Archive,
   ChartColumn,
@@ -114,7 +114,7 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const chat = isActive(pathname, "/chat");
+  const chat = useChatBehindPanel(isActive(pathname, "/chat"));
   const conversationId = /^\/chat\/([^/]+)/.exec(pathname)?.[1];
   const title = conversations.find((c) => c.id === conversationId)?.title;
 
@@ -211,6 +211,19 @@ export function AppShell({
       {panel}
     </div>
   );
+}
+
+/**
+ * A panel changes the address (/levas, /criativos…) while the conversation stays behind it,
+ * so the page keeps the layout it had before the panel opened instead of following the address.
+ */
+function useChatBehindPanel(onChatRoute: boolean) {
+  const panelSegment = useSelectedLayoutSegment("panel");
+  const panelOpen = panelSegment?.startsWith("(.)") === true;
+  const [chatBehind, setChatBehind] = useState(onChatRoute);
+  if (!panelOpen && chatBehind !== onChatRoute) setChatBehind(onChatRoute);
+  if (panelOpen) return chatBehind;
+  return onChatRoute;
 }
 
 /** History drawer: shortcuts to the panels, search and past conversations. */
