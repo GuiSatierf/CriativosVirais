@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TwoFactorStep } from "@/components/two-factor-step";
 import { TermsCheckbox } from "@/components/accept-terms-form";
 import { legalVersion, legalVersionHeader } from "@/lib/legal";
+import { teamInviteTokenHeader } from "@/lib/team-invite-token";
 
 const loginSchema = z.object({
   email: z.email({ error: "Informe um email válido." }),
@@ -36,7 +37,7 @@ const signupSchema = z.object({
 type Field = "name" | "email" | "password" | "acceptedTerms";
 type AuthResult = { data?: unknown; error?: { code?: string; message?: string } | null };
 // Server refusals that already carry the plain pt-BR reason the person must read.
-const explainedRefusals = new Set(["NO_ACCESS_GRANT", "BANNED_USER", "TERMS_NOT_ACCEPTED"]);
+const explainedRefusals = new Set(["NO_ACCESS_GRANT", "BANNED_USER", "TERMS_NOT_ACCEPTED", "INVALID_TEAM_INVITE"]);
 
 function refusalMessage(error: { code?: string; message?: string }, signup: boolean) {
   if (error.code !== undefined && explainedRefusals.has(error.code) && error.message !== undefined)
@@ -61,7 +62,7 @@ function toFieldErrors(error: z.ZodError) {
 }
 
 /** defaultEmail comes from the invite link, so the invited person only picks a name and a password. */
-export function AuthForm({ mode, defaultEmail }: { mode: "login" | "signup"; defaultEmail?: string }) {
+export function AuthForm({ mode, defaultEmail, inviteToken }: { mode: "login" | "signup"; defaultEmail?: string; inviteToken?: string }) {
   const signup = mode === "signup";
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -88,7 +89,7 @@ export function AuthForm({ mode, defaultEmail }: { mode: "login" | "signup"; def
       if (!parsed.success) return invalid(parsed.error);
       const { name, email, password } = parsed.data;
       // The server refuses a sign-up without the accepted version, even if this form is bypassed.
-      const fetchOptions = { headers: { [legalVersionHeader]: String(legalVersion) } };
+      const fetchOptions = { headers: { [legalVersionHeader]: String(legalVersion), ...(inviteToken ? { [teamInviteTokenHeader]: inviteToken } : {}) } };
       await run(() => authClient.signUp.email({ name, email, password, fetchOptions }));
     } else {
       const parsed = loginSchema.safeParse(fields);

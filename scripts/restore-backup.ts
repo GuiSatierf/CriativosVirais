@@ -7,6 +7,7 @@ import { pool } from "../src/db";
 import { decryptStream } from "../src/lib/backup/encryption";
 import { backupTarget, listObjects, type Bucket } from "../src/lib/backup/objects";
 import { startPostgresTool } from "../src/lib/backup/postgres";
+import { filesToRestore } from "../src/lib/backup/retention";
 import { getStorage } from "../src/lib/storage";
 
 /**
@@ -49,16 +50,17 @@ async function restoreDatabase(backup: Bucket, key: Buffer) {
 async function restoreFiles(backup: Bucket, key: Buffer) {
   const storage = getStorage();
   try {
-    const copies = [...(await listObjects(backup, "files/")).keys()];
-    for (const copy of copies) {
+    const [live, archived] = await Promise.all([listObjects(backup, "files/"), listObjects(backup, "deleted/")]);
+    const copies = filesToRestore([...live.keys()], [...archived.keys()]);
+    for (const [objectKey, copy] of copies) {
       const body = decryptStream(key);
       const upload = new Upload({
         client: storage.client,
-        params: { Bucket: storage.bucket, Key: copy.slice("files/".length), Body: body },
+        params: { Bucket: storage.bucket, Key: objectKey, Body: body },
       });
       await Promise.all([pipeline(await readBody(backup, copy), body), upload.done()]);
     }
-    console.info(`${copies.length} files restored.`);
+    console.info(`${copies.size} files restored.`);
   } finally {
     storage.client.destroy();
   }

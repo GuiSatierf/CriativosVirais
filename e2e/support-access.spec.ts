@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 import { signUp, testDatabase, testPassword, waitForSignUpSlot } from "./support";
+import { legalVersion, legalVersionHeader } from "../src/lib/legal";
 
 // playwright.config.ts points the app's email outbox here, so no message is really sent.
 async function emailsTo(email: string) {
@@ -171,6 +172,25 @@ test("support enters a client's account without the password, changes its email 
   expect(invite.subject).toBe("Você foi convidado para a equipe do Criativos Virais");
   const link = new URL(invite.text.match(/https?:\/\/\S+\/signup\?email=\S+/)?.[0] ?? "http://invalid");
 
+  // Knowing an invited email is insufficient to create its staff account, even without panel MFA.
+  expect(link.searchParams.get("invite")).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  await waitForSignUpSlot();
+  const unverified = await page.request.post("/api/auth/sign-up/email", {
+    data: { name: "Unverified invite", email: invited, password: testPassword },
+    headers: { [legalVersionHeader]: String(legalVersion), Origin: baseURL! },
+  });
+  expect(unverified.status()).toBe(403);
+  const invalidToken = await page.request.post("/api/auth/sign-up/email", {
+    data: { name: "Invalid invite", email: invited, password: testPassword },
+    headers: { [legalVersionHeader]: String(legalVersion), "x-team-invite-token": "A".repeat(43), Origin: baseURL! },
+  });
+  expect(invalidToken.status()).toBe(403);
+  expect(await testDatabase(`select 1 from "user" where email = $1`, [invited])).toHaveLength(0);
+  const [storedInvite] = await testDatabase<{ value: string }>(`select value from verification where identifier = $1`, [`team-invite:${invited}`]);
+  expect(storedInvite.value).not.toContain(link.searchParams.get("invite")!);
+  const pendingInvites = await page.request.get("/api/admin/team");
+  expect(await pendingInvites.text()).not.toContain(link.searchParams.get("invite")!);
+
   const guest = await browser.newContext({ baseURL, locale: "pt-BR" });
   const guestPage = await guest.newPage();
   await waitForSignUpSlot();
@@ -180,9 +200,13 @@ test("support enters a client's account without the password, changes its email 
   await guestPage.getByLabel(/Li e aceito os/).check();
   await guestPage.getByRole("button", { name: "Criar conta" }).click();
   await expect(guestPage).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
+  // With the temporary panel switch off, a mailbox-verified invite can enter without MFA setup.
+  await guestPage.goto("/admin");
+  await expect(guestPage.getByRole("heading", { name: "Painel do suporte" })).toBeVisible();
   await guest.close();
   const [joined] = await testDatabase<{ role: string }>(`select role from "user" where email = $1`, [invited]);
   expect(joined.role).toBe("support");
+  expect(await testDatabase(`select 1 from verification where identifier = $1`, [`team-invite:${invited}`])).toHaveLength(0);
   await page.reload();
   await expect(page.getByRole("row").filter({ hasText: invited })).toContainText("Falta ativar");
   // Only this test's invite: an earlier run may have left another pending one in the shared database.
