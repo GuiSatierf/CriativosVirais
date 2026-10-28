@@ -27,7 +27,7 @@ export type AdminGate =
   | { status: "needs-two-factor"; actor: AdminActor }
   | { status: "not-admin" };
 
-/** Who may enter /admin: a team role, and two-factor turned on before any data is shown. */
+/** Staff outside support visits; the temporary panel switch controls whether MFA is required. */
 export async function adminGate(requestHeaders: Headers): Promise<AdminGate> {
   const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (session == null) return { status: "not-admin" };
