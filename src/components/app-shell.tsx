@@ -10,6 +10,7 @@ import {
   Plug,
   Search,
   Settings,
+  ShieldCheck,
   SquarePen,
   UserRound,
   X,
@@ -100,6 +101,7 @@ export function AppShell({
   user,
   conversations,
   banner,
+  showAdminLink,
 }: {
   children: React.ReactNode;
   panel: React.ReactNode;
@@ -107,6 +109,8 @@ export function AppShell({
   conversations: Conversation[];
   /** Notice above the header, such as the support visit. */
   banner?: React.ReactNode;
+  /** Team members outside a support visit get a shortcut to the panel. */
+  showAdminLink: boolean;
 }) {
   const pathname = usePathname();
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -154,6 +158,7 @@ export function AppShell({
         <p className="invisible min-w-0 flex-1 truncate text-sm text-muted-foreground sm:visible">
           {chat && title ? title : ""}
         </p>
+        {showAdminLink && <AdminShortcut />}
         <PlaceShortcuts />
         <NewConversationButton />
         <Hint label="Histórico (Ctrl K)">
@@ -260,6 +265,23 @@ function HistoryBody({
       </nav>
       <ConversationHistory conversations={conversations} onNavigate={onNavigate} />
     </div>
+  );
+}
+
+/** The team panel, first in the bar and styled like the place shortcuts. */
+function AdminShortcut() {
+  return (
+    <Link
+      href="/admin"
+      className={cn(
+        buttonVariants({ variant: "ghost" }),
+        quietButton,
+        "size-9 shrink-0 px-0 pointer-coarse:size-11 sm:size-auto sm:px-3 sm:pointer-coarse:size-auto",
+      )}
+    >
+      <ShieldCheck aria-hidden className="size-5" />
+      <span className="sr-only sm:not-sr-only">Painel Admin</span>
+    </Link>
   );
 }
 

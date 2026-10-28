@@ -68,6 +68,7 @@ import {
   XIcon as PhX,
   SparkleIcon as PhSparkle,
   StorefrontIcon as PhStorefront,
+  ShieldCheckIcon as PhShieldCheck,
   ShieldWarningIcon as PhShieldWarning,
   ClockCounterClockwiseIcon as PhClockCounterClockwise,
 } from "@phosphor-icons/react/ssr";
@@ -161,5 +162,6 @@ export const X = icon(PhX, "bold");
 export const XIcon = icon(PhX, "bold");
 export const Storefront = icon(PhStorefront, "duotone");
 export const Sparkle = icon(PhSparkle, "duotone");
+export const ShieldCheck = icon(PhShieldCheck, "duotone");
 export const ShieldWarning = icon(PhShieldWarning, "duotone");
 export const History = icon(PhClockCounterClockwise, "duotone");
