@@ -78,6 +78,13 @@
       "when": 1793031531029,
       "tag": "0010_hotmart-provider",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793039992083,
+      "tag": "0011_admin-settings",
+      "breakpoints": true
     }
   ]
 }

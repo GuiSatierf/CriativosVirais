@@ -8,6 +8,7 @@ import { pool } from "./db";
 import { logError } from "./lib/log";
 import { logMissingConfiguration } from "./lib/configuration-report";
 import { purgeAccessLog } from "./jobs/purge-access-log";
+import { endHotmartAccess } from "./jobs/hotmart-access-end";
 import { runBackup } from "./jobs/backup";
 import { backupEnv } from "./lib/env";
 
@@ -44,6 +45,7 @@ async function main() {
       await runBackup();
     },
     "purge-access-log": purgeAccessLog,
+    "hotmart-access-end": endHotmartAccess,
   };
   for (const [name, handler] of Object.entries(handlers))
     await boss.work(name, workOptions(name), async ([job]) => {

@@ -26,15 +26,48 @@ test("support enters a client's account without the password, changes its email 
   await signUp(page, staffEmail);
   await testDatabase(`update "user" set role = 'support', two_factor_enabled = true where email = $1`, [staffEmail]);
 
-  // 1. Support sees only Contas, and the API refuses what the role does not allow.
+  // 1. Support sees Acessos and Contas, and the API refuses what the role does not allow.
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "Painel do suporte" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Acessos" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Contas" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Acessos" })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "Equipe" })).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: "Configurações" })).toHaveCount(0);
   // The active tab's underline overflows by a pixel; the tab list must not show a scrollbar for it.
   expect(await page.getByRole("tablist").evaluate((list) => getComputedStyle(list).scrollbarWidth)).toBe("none");
-  expect((await page.request.get("/api/admin/access")).status()).toBe(403);
+
+  // Support frees a client's email and removes it while unused, sees no team account, and blocks nobody.
+  const freedEmail = `liberado-${randomUUID()}@exemplo.test`;
+  await page.getByRole("button", { name: "Liberar e-mail" }).click();
+  await page.getByRole("alertdialog").getByLabel("E-mail da compra").fill(freedEmail);
+  await page.getByRole("alertdialog").getByRole("button", { name: "Liberar", exact: true }).click();
+  const freedRow = page.getByRole("row").filter({ hasText: freedEmail });
+  await freedRow.getByRole("button", { name: "Remover" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Remover" }).click();
+  await expect(freedRow).toHaveCount(0);
+  await page.getByLabel("Buscar por e-mail").fill(staffEmail);
+  await expect(page.getByText("Nenhum e-mail encontrado com esse filtro.")).toBeVisible();
+  // The grant of a pending team invite belongs to the owner: support neither sees nor removes it.
+  const invitedEmail = `convidado-${randomUUID()}@exemplo.test`;
+  const [inviteGrant] = await testDatabase<{ id: string }>(
+    `insert into access_grants (email, note) values ($1, 'Convite para a equipe') returning id`,
+    [invitedEmail],
+  );
+  await page.getByLabel("Buscar por e-mail").fill(invitedEmail);
+  await expect(page.getByText("Nenhum e-mail encontrado com esse filtro.")).toBeVisible();
+  const removeInvite = await page.request.delete(`/api/admin/access/${inviteGrant.id}`, { headers: { Origin: baseURL ?? "" } });
+  expect(removeInvite.status()).toBe(403);
+  await page.getByLabel("Buscar por e-mail").fill(clientEmail);
+  const clientAccess = page.getByRole("row").filter({ hasText: clientEmail });
+  await expect(clientAccess).toContainText("Conta criada");
+  await expect(clientAccess.getByRole("button", { name: "Bloquear" })).toHaveCount(0);
+  const [clientAccount] = await testDatabase<{ id: string }>(`select id from "user" where email = $1`, [clientEmail]);
+  const blockAttempt = await page.request.post(`/api/admin/accounts/${clientAccount.id}/block`, {
+    data: { reason: "teste do suporte" },
+    headers: { Origin: baseURL ?? "" },
+  });
+  expect(blockAttempt.status()).toBe(403);
+  await page.goto("/admin?aba=contas");
   expect((await page.request.get("/api/admin/team")).status()).toBe(403);
 
   // 2. Entering the account asks for a reason, then opens the client's chat under a banner.

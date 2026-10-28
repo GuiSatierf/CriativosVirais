@@ -9,12 +9,13 @@ export const staffRoleLabel: Record<StaffRole, string> = {
 };
 
 /** What each part of the panel needs. */
-export type StaffPermission = "manage-team" | "manage-access" | "enter-accounts";
+// grant-access frees emails to sign up; manage-access also blocks and unblocks accounts.
+export type StaffPermission = "manage-team" | "manage-settings" | "manage-access" | "grant-access" | "enter-accounts";
 
 const permissions: Record<StaffRole, readonly StaffPermission[]> = {
-  owner: ["manage-team", "manage-access", "enter-accounts"],
-  admin: ["manage-access", "enter-accounts"],
-  support: ["enter-accounts"],
+  owner: ["manage-team", "manage-settings", "manage-access", "grant-access", "enter-accounts"],
+  admin: ["manage-access", "grant-access", "enter-accounts"],
+  support: ["grant-access", "enter-accounts"],
 };
 
 export function isStaffRole(role: string | null | undefined): role is StaffRole {
@@ -42,11 +43,12 @@ export function isClientOnlyPath(path: string) {
 }
 
 /** Panel tabs in display order, each shown only to roles with its permission. */
-export type AdminTab = "acessos" | "contas" | "equipe";
+export type AdminTab = "acessos" | "contas" | "equipe" | "configuracoes";
 const tabPermission: Record<AdminTab, StaffPermission> = {
-  acessos: "manage-access",
+  acessos: "grant-access",
   contas: "enter-accounts",
   equipe: "manage-team",
+  configuracoes: "manage-settings",
 };
 
 export function adminTabsFor(role: string | null | undefined) {

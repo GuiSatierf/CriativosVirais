@@ -6,7 +6,7 @@ import { dbEnv } from "@/lib/env";
 import { logError } from "@/lib/log";
 export { analysisQueue } from "./queues";
 // Every queue the worker creates; analysisQueue picks between the two analysis queues.
-export const queues = ["analyze-video", "transcribe-audio", "ingest-event", "sync-metrics", "generate-batch", "purge-access-log", "backup"] as const;
+export const queues = ["analyze-video", "transcribe-audio", "ingest-event", "sync-metrics", "generate-batch", "purge-access-log", "backup", "hotmart-access-end"] as const;
 export const queueOptions: QueueOptions = {
   retryLimit: 3,
   retryDelay: 60,
@@ -41,6 +41,9 @@ function createBoss(sendOnly: boolean) {
   boss.on("error", (error) => logError("job-queue", error));
   return boss;
 }
+// Exclusive allows one waiting job per singleton key, and these jobs have none: each cancelled
+// subscription waits on its own until its last paid day.
+const standardPolicyQueues = new Set<string>(["sync-metrics", "hotmart-access-end"]);
 /** Worker instance: installs pg-boss, owns queue configuration, maintenance and cron. */
 export async function startWorkerJobs() {
   const boss = createBoss(false);
@@ -49,7 +52,7 @@ export async function startWorkerJobs() {
     const options = { ...queueOptions, ...perQueue[name] };
     await boss.createQueue(name, {
       ...options,
-      policy: name === "sync-metrics" ? "standard" : "exclusive",
+      policy: standardPolicyQueues.has(name) ? "standard" : "exclusive",
     });
     await boss.updateQueue(name, options);
   }

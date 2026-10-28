@@ -2,12 +2,14 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { AccessPanel } from "@/components/admin/access-panel";
 import { AccountsPanel } from "@/components/admin/accounts-panel";
+import { SettingsPanel } from "@/components/admin/settings-panel";
 import { TeamPanel } from "@/components/admin/team-panel";
 import { adminGate, listAccess, type AdminActor } from "@/lib/admin";
 import { listAccounts } from "@/lib/admin-accounts";
+import { settingsForPanel } from "@/lib/app-settings";
 import { listTeam } from "@/lib/admin-team";
 import { listTeamInvites } from "@/lib/team-invites";
-import { adminTabsFor, type AdminTab } from "@/lib/staff";
+import { adminTabsFor, can, type AdminTab } from "@/lib/staff";
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ aba?: string }> }) {
   const gate = await adminGate(await headers());
@@ -16,7 +18,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   if (gate.status === "needs-two-factor") redirect("/admin/seguranca");
   const tabs = adminTabsFor(gate.actor.role);
   const requested = (await searchParams).aba;
-  // Support starts on Contas, the only tab it has; a tab the role lacks falls back to the first.
+  // A tab the role lacks falls back to the first one it has.
   const current = tabs.find((tab) => tab === requested) ?? tabs[0];
   return <AdminTabPanel tab={current} actor={gate.actor} navigation={{ role: gate.actor.role, tabs }} />;
 }
@@ -50,7 +52,8 @@ async function AdminTabPanel({
       />
     );
   }
-  const { access, total } = await listAccess();
+  if (tab === "configuracoes") return <SettingsPanel settings={await settingsForPanel()} navigation={navigation} />;
+  const { access, total } = await listAccess("", null, can(actor.role, "manage-access") === false);
   return (
     <AccessPanel
       list={{ access: access.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })), total }}
