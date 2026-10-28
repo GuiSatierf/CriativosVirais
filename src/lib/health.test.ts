@@ -15,6 +15,13 @@ describe("system health", () => {
     expect(evaluateHealth({ ...healthy, workerLastSeenSeconds: 600 }).problems).toEqual(["worker"]);
     expect(evaluateHealth({ ...healthy, oldestWaitingJobSeconds: 1_200 }).problems).toEqual(["queue"]);
   });
+
+  it("reports a missing or stale backup only when backups are configured", () => {
+    expect(evaluateHealth({ ...healthy, lastBackupSeconds: undefined }).ok).toBe(true);
+    expect(evaluateHealth({ ...healthy, lastBackupSeconds: 3_600 }).ok).toBe(true);
+    expect(evaluateHealth({ ...healthy, lastBackupSeconds: null }).problems).toEqual(["backup"]);
+    expect(evaluateHealth({ ...healthy, lastBackupSeconds: 27 * 3_600 }).problems).toEqual(["backup"]);
+  });
 });
 
 describe("shared health reading", () => {

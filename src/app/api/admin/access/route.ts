@@ -7,11 +7,18 @@ const grantSchema = z.object({
   note: z.string().trim().max(200).nullable().optional(),
 });
 
-/** Emails allowed to create an account, with the state of each account. */
+const listSchema = z.object({
+  q: z.string().trim().max(254).default(""),
+  situacao: z.enum(["waiting", "active", "blocked"]).nullable().default(null),
+});
+
+/** Emails allowed to create an account, with the state of each account, searched by email and status. */
 export function GET(request: Request) {
   return handle(async () => {
     await requireAdmin(request);
-    return json({ access: await listAccess() });
+    const params = new URL(request.url).searchParams;
+    const filter = listSchema.parse({ q: params.get("q") ?? undefined, situacao: params.get("situacao") });
+    return json(await listAccess(filter.q, filter.situacao));
   });
 }
 

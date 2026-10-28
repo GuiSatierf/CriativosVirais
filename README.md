@@ -28,7 +28,7 @@ Fora do escopo: edição ou renderização de vídeo, publicação de anúncios 
 | Processo | Responsabilidade |
 | --- | --- |
 | App (Next.js 16, standalone) | Páginas, APIs, chat em streaming, envio de jobs |
-| Worker (`dist/worker.js`) | Filas `analyze-video` (vídeos, 2 por vez), `transcribe-audio` (áudios do chat, 4 por vez), `ingest-event`, `sync-metrics`, `generate-batch` e `purge-access-log`; sincronização UTMify a cada seis horas, com um job por integração, e limpeza diária do registro de acesso |
+| Worker (`dist/worker.js`) | Filas `analyze-video` (vídeos, 2 por vez), `transcribe-audio` (áudios do chat, 4 por vez), `ingest-event`, `sync-metrics`, `generate-batch`, `purge-access-log` e `backup`; sincronização UTMify a cada seis horas, com um job por integração, limpeza diária do registro de acesso e backup diário quando `BACKUP_*` está configurado |
 | PostgreSQL 17 | Dados, sessões, rate limit de autenticação e filas pg-boss |
 | RustFS (S3) | Áudios e vídeos em bucket privado, enviados pelo navegador com URL assinada |
 
@@ -201,7 +201,7 @@ Usa `POST https://query-api.utmify.com.br/public-api/v1/dashboards/{dashboardId}
 
 ## Deploy
 
-A imagem do `Dockerfile` executa `node server.js` (app, porta 3000, healthcheck `/api/health`; o monitor externo consulta `/api/health/system`, que confere banco, worker e fila) e `node dist/worker.js` (worker). Migrations e bucket são aplicados com `node dist/tools/src/db/migrate.js` e `node dist/tools/scripts/init-storage.js`. Passo a passo para Compose e Coolify, atualização de versões e verificação dos provedores: [docs/ativacao.md](docs/ativacao.md).
+A imagem do `Dockerfile` executa `node server.js` (app, porta 3000, healthcheck `/api/health`; o monitor externo consulta `/api/health/system`, que confere banco, worker e fila) e `node dist/worker.js` (worker). Migrations e bucket são aplicados com `node dist/tools/src/db/migrate.js` e `node dist/tools/scripts/init-storage.js`. O worker também faz um backup diário cifrado do banco e dos arquivos para um bucket S3 externo, quando `BACKUP_*` está configurado, com restauração por `node dist/tools/scripts/restore-backup.js`. Passo a passo para Compose e Coolify, atualização de versões e verificação dos provedores: [docs/ativacao.md](docs/ativacao.md).
 
 ## Limites conhecidos
 
