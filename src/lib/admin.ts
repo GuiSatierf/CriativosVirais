@@ -14,6 +14,12 @@ import { can, isStaffRole, type StaffPermission, type StaffRole } from "./staff"
 /** Better Auth user ids in admin routes. */
 export const userIdSchema = z.string().trim().min(1).max(100);
 
+/**
+ * Off while the free test with students runs, so the team opens the panel with the password
+ * alone (decided on 27/10/2026). Setting it back to true restores the two-factor requirement.
+ */
+const panelRequiresTwoFactor = false;
+
 export type AdminActor = { id: string; email: string; name: string; role: StaffRole };
 export type AdminGate =
   | { status: "ok"; actor: AdminActor }
@@ -30,7 +36,7 @@ export async function adminGate(requestHeaders: Headers): Promise<AdminGate> {
   const { id, email, name, role, twoFactorEnabled } = session.user;
   if (!isStaffRole(role)) return { status: "not-admin" };
   const actor = { id, email, name, role };
-  if (twoFactorEnabled !== true) return { status: "needs-two-factor", actor };
+  if (panelRequiresTwoFactor && twoFactorEnabled !== true) return { status: "needs-two-factor", actor };
   return { status: "ok", actor };
 }
 
