@@ -167,6 +167,9 @@ test("support enters a client's account without the password, changes its email 
   await guestPage.getByLabel(/Li e aceito os/).check();
   await guestPage.getByRole("button", { name: "Criar conta" }).click();
   await expect(guestPage).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
+  // With the temporary panel switch off, a mailbox-verified invite can enter without MFA setup.
+  await guestPage.goto("/admin");
+  await expect(guestPage.getByRole("heading", { name: "Painel do suporte" })).toBeVisible();
   await guest.close();
   const [joined] = await testDatabase<{ role: string }>(`select role from "user" where email = $1`, [invited]);
   expect(joined.role).toBe("support");
