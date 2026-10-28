@@ -17,7 +17,8 @@ import { enrollmentHeader, isValidEnrollmentCode } from "./admin-enrollment";
 import { isClientOnlyPath, isStaffRole, staffRoles } from "./staff";
 import { legalVersion, legalVersionHeader } from "./legal";
 import { recordAccess, recordTermsAcceptance } from "./legal-records";
-import { applyTeamInvite } from "./team-invites";
+import { applyTeamInvite, canAcceptTeamInvite } from "./team-invites";
+import { teamInviteTokenHeader } from "./team-invite-token";
 
 const noAccessMessage =
   "Este e-mail ainda não tem acesso. Use o e-mail da compra na Hotmart. Se já comprou, fale com o suporte.";
@@ -27,7 +28,11 @@ const accessRules = createAuthMiddleware(async (ctx) => {
   if (ctx.path === "/sign-up/email") {
     requireTermsAcceptance(ctx);
     const email: unknown = ctx.body?.email;
-    if (typeof email === "string" && (await hasAccessGrant(email))) return;
+    if (typeof email === "string") {
+      if (!(await canAcceptTeamInvite(email, ctx.headers?.get(teamInviteTokenHeader) ?? null)))
+        throw new APIError("FORBIDDEN", { message: "Open the team invitation link sent to your email.", code: "INVALID_TEAM_INVITE" });
+      if (await hasAccessGrant(email)) return;
+    }
     throw new APIError("FORBIDDEN", { message: noAccessMessage, code: "NO_ACCESS_GRANT" });
   }
   // Admin actions go through /api/admin, which checks two-factor and writes the audit log.
@@ -118,12 +123,12 @@ function createAuth() {
     databaseHooks: {
       user: {
         create: {
-          after: async (user) => {
+          after: async (user, context) => {
             await provisionTenant(user);
             // Sign-up was refused above unless the person accepted the current terms.
             await recordTermsAcceptance(user.id);
             // Someone the owner added to the team before they had an account.
-            await applyTeamInvite(user);
+            await applyTeamInvite(user, context?.headers?.get(teamInviteTokenHeader) ?? null);
           },
         },
       },

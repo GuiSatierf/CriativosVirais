@@ -5,9 +5,10 @@ import { authEnv } from "./env";
 import { logError } from "./log";
 
 /** teamRole turns the invite into "you joined the team", for someone added on the Equipe tab. */
-export function accessInviteEmail(email: string, teamRole?: string) {
+export function accessInviteEmail(email: string, teamRole?: string, teamToken?: string) {
   const signup = new URL("/signup", authEnv().BETTER_AUTH_URL);
   signup.searchParams.set("email", email);
+  if (teamToken) signup.searchParams.set("invite", teamToken);
   const message: BrandedMessage = {
     preview: "Crie sua conta para começar.",
     greeting: "Olá.",
@@ -33,10 +34,10 @@ export function accessInviteEmail(email: string, teamRole?: string) {
 }
 
 /** Sent once, when the email is freed; a failed send is logged and the access stays granted. */
-export async function sendAccessInvite(email: string, teamRole?: string) {
+export async function sendAccessInvite(email: string, teamRole?: string, teamToken?: string) {
   if (!canSendEmail()) return;
   try {
-    await sendEmail(accessInviteEmail(email, teamRole));
+    await sendEmail(accessInviteEmail(email, teamRole, teamToken));
   } catch (error) {
     logError("access-invite", error);
   }

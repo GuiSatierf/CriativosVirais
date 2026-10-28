@@ -65,10 +65,10 @@ async function inviteTeamMember(actor: AdminActor, email: string, role: StaffRol
     .insert(accessGrants)
     .values({ email, note: teamInviteNote, grantedBy: actor.id })
     .onConflictDoNothing({ target: accessGrants.email });
-  await saveTeamInvite(email, role, actor.email);
+  const token = await saveTeamInvite(email, role, actor.email);
   await audit(actor, "team.invited", email, { role });
   // Not awaited: a slow email must not hold the panel; the sender logs its own failures.
-  void sendAccessInvite(email, staffRoleLabel[role]);
+  void sendAccessInvite(email, staffRoleLabel[role], token);
   return { code: null, invited: true };
 }
 
