@@ -140,6 +140,14 @@ Na Hotmart, crie em Ferramentas → Webhook uma configuração versão 2.0.0 apo
 - Produtos fora de `HOTMART_PRODUCT_IDS` e os demais eventos são ignorados. Cada ação fica no registro do painel com o autor "Hotmart". Repetições da Hotmart não mudam nada.
 - Cancelamento de assinatura ainda não bloqueia: falta decidir se o acesso termina na hora ou no fim do período pago.
 
+### Vendas da Hotmart de cada cliente
+
+Em Integrações → Passo 1 → Conectar Hotmart, o cliente cola o hottok da conta dele e recebe um endereço `/api/ingest/hotmart/<token>`, exibido uma única vez, para cadastrar na Hotmart (versão 2.0.0). A chamada é aceita só com o token da URL e o hottok daquele cliente.
+
+- O código do criativo vem de `purchase.origin.src` (ou `sck`, ou `xcod`): no link do anúncio, `?src=L01-C02`.
+- Aprovada, reembolsada, chargeback, cancelada, expirada e boleto/atraso viram os status `approved`, `refunded`, `chargeback`, `cancelled`, `failed` e `pending`; `PURCHASE_COMPLETE` repete uma venda já aprovada e é ignorado. O valor é `purchase.price` em centavos; só BRL.
+- Nada do comprador (nome, e-mail, documento, endereço) é guardado. Repetições da Hotmart são aceitas e não duplicam: vale a primeira entrega.
+
 ### Webhook de vendas
 
 Token e secret são gerados em Integrações e exibidos uma única vez. Gerar de novo revoga os anteriores.
