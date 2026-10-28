@@ -52,6 +52,7 @@ export const provider = pgEnum("integration_provider", [
   "vkmetrics",
   "csv",
   "webhook",
+  "hotmart",
 ]);
 export const evidenceLevel = pgEnum("evidence_level", [
   "hipotese",

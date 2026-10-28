@@ -1,25 +1,10 @@
 import { eq, and } from "drizzle-orm";
-import type { z } from "zod";
-import { integrations, salesEvents } from "@/db/schema";
+import { integrations } from "@/db/schema";
 import { db } from "@/db";
 import { handle, json, readBody, HttpError } from "@/lib/http";
-import { tenantValues, tenantWhere } from "@/lib/tenant-scope";
 import { verifyHmac, tokenHash, decrypt } from "@/lib/crypto";
-import { eventSchema, allowEvent, isSameEvent } from "@/lib/connectors/webhook";
-import { getJobs, jobTransaction } from "@/jobs";
-type Transaction = Parameters<Parameters<typeof jobTransaction>[0]>[0];
-/** A known event_id is accepted again only as an exact retry; changed content must use a new id. */
-async function assertReplay(tx: Transaction, tenantId: string, input: z.infer<typeof eventSchema>) {
-  const [stored] = await tx
-    .select({ raw: salesEvents.raw })
-    .from(salesEvents)
-    .where(tenantWhere(salesEvents, tenantId, eq(salesEvents.eventId, input.event_id)));
-  if (stored && isSameEvent(stored.raw, input)) return;
-  throw new HttpError(
-    409,
-    "Este event_id já foi recebido com outro conteúdo. Envie a mudança, como um reembolso, com um novo event_id.",
-  );
-}
+import { eventSchema, allowEvent } from "@/lib/connectors/webhook";
+import { recordSalesEvent } from "@/lib/sales-events";
 export function POST(request: Request) {
   return handle(async () => {
     const token =
@@ -68,40 +53,7 @@ export function POST(request: Request) {
       input.creative_key !== input.utm_content
     )
       throw new HttpError(400, "Chaves de criativo divergentes.");
-    const boss = await getJobs();
-    await jobTransaction(async (tx, connection) => {
-      const [event] = await tx
-        .insert(salesEvents)
-        .values(tenantValues(tenantId, {
-          eventId: input.event_id,
-          occurredAt: new Date(input.occurred_at),
-          status: input.status,
-          currency: input.currency,
-          revenueCents: input.revenue === null ? null : BigInt(input.revenue),
-          profitCents: input.profit === null ? null : BigInt(input.profit),
-          creativeKey: input.creative_key ?? input.utm_content ?? null,
-          utmContent: input.utm_content,
-          utmSource: input.utm_source,
-          utmCampaign: input.utm_campaign || null,
-          utmMedium: input.utm_medium,
-          utmTerm: input.utm_term,
-          source: "webhook",
-          raw: input,
-        }))
-        .onConflictDoNothing({
-          target: [salesEvents.tenantId, salesEvents.eventId],
-        })
-        .returning({ id: salesEvents.id });
-      if (!event) {
-        await assertReplay(tx, tenantId, input);
-        return;
-      }
-      await boss.send(
-        "ingest-event",
-        { tenantId, eventId: event.id },
-        { db: connection, singletonKey: event.id },
-      );
-    });
+    await recordSalesEvent(tenantId, input, "webhook");
     return json({ accepted: true }, 202);
   });
 }
