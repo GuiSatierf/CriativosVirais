@@ -3,7 +3,7 @@ import { and, desc, eq, ilike, isNull, max, notInArray, or, sql } from "drizzle-
 import { db } from "@/db";
 import { accessGrants, session, user } from "@/db/schema";
 import { normalizeEmail } from "./access";
-import { audit, type AdminActor } from "./admin";
+import { audit, containsPattern, type AdminActor } from "./admin";
 import { getAuth } from "./auth";
 import { HttpError } from "./errors";
 import { isStaffRole, staffRoles } from "./staff";
@@ -14,8 +14,7 @@ const clientsOnly = or(isNull(user.role), notInArray(user.role, [...staffRoles])
 /** Client accounts, most recently active first; the search matches name or email. */
 export async function listAccounts(query: string) {
   const term = query.trim();
-  // % and _ are LIKE wildcards; typed literally they must match themselves, not everything.
-  const pattern = `%${term.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
+  const pattern = containsPattern(term);
   const search = term.length === 0 ? undefined : or(ilike(user.email, pattern), ilike(user.name, pattern));
   // Only the client's own sessions count as access, not the team's visits.
   const lastAccess = max(sql`case when ${session.impersonatedBy} is null then ${session.updatedAt} end`).mapWith(

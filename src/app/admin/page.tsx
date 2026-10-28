@@ -6,6 +6,7 @@ import { TeamPanel } from "@/components/admin/team-panel";
 import { adminGate, listAccess, type AdminActor } from "@/lib/admin";
 import { listAccounts } from "@/lib/admin-accounts";
 import { listTeam } from "@/lib/admin-team";
+import { listTeamInvites } from "@/lib/team-invites";
 import { adminTabsFor, type AdminTab } from "@/lib/staff";
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ aba?: string }> }) {
@@ -38,11 +39,21 @@ async function AdminTabPanel({
       />
     );
   }
-  if (tab === "equipe") return <TeamPanel team={await listTeam()} actorId={actor.id} navigation={navigation} />;
-  const access = await listAccess();
+  if (tab === "equipe") {
+    const [team, invites] = await Promise.all([listTeam(), listTeamInvites()]);
+    return (
+      <TeamPanel
+        team={team}
+        invites={invites.map((invite) => ({ ...invite, expiresAt: invite.expiresAt.toISOString() }))}
+        actorId={actor.id}
+        navigation={navigation}
+      />
+    );
+  }
+  const { access, total } = await listAccess();
   return (
     <AccessPanel
-      access={access.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }))}
+      list={{ access: access.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })), total }}
       actorId={actor.id}
       navigation={navigation}
     />
