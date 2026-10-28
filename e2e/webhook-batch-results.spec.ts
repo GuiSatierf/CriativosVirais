@@ -7,7 +7,7 @@ test("signed webhook sale is processed by the worker and shows in the batch resu
   const { batchId } = await createBatchThroughChat(page);
 
   await page.goto("/integracoes");
-  await page.getByRole("button", { name: "Configurar" }).click();
+  await page.getByRole("button", { name: "Outro checkout" }).click();
   await page.getByRole("button", { name: "Gerar conexão" }).click();
   const token = await page.getByLabel("Token", { exact: true }).inputValue();
   const secret = await page.getByLabel("Secret", { exact: true }).inputValue();

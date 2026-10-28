@@ -75,8 +75,9 @@ const webhookSchema = z.object({
   secret: z.string(),
 });
 type WebhookCredentials = z.infer<typeof webhookSchema>;
-type Action = "connect" | "sync" | "disconnect" | "generate" | "revoke";
-type Panel = "csv" | "utmify" | "webhook";
+type Action = "connect" | "sync" | "disconnect" | "generate" | "revoke" | "hotmart";
+type Panel = "csv" | "utmify" | "webhook" | "hotmart";
+const hotmartSchema = z.object({ url: z.url() });
 type Run = (
   name: Action,
   fn: () => Promise<void>,
@@ -110,6 +111,7 @@ export function Integrations({
   const [csvDay, setCsvDay] = useState(initialCsvDay);
   // Kept here so closing the sheet does not lose credentials shown only once.
   const [webhook, setWebhook] = useState<WebhookCredentials>();
+  const [hotmartUrl, setHotmartUrl] = useState<string>();
   /** lastSyncAt seen when a manual sync was requested, until a new one lands. */
   const [syncRequest, setSyncRequest] = useState<{
     lastSyncAt: string | null;
@@ -118,6 +120,9 @@ export function Integrations({
 
   const utm = rows?.find((r) => r.provider === "utmify");
   const hook = rows?.find((r) => r.provider === "webhook");
+  const hotmart = rows?.find((r) => r.provider === "hotmart");
+  // Sales arrive from Hotmart or from another checkout's webhook; the card shows whichever is set up.
+  const salesSource = hotmart ?? hook;
 
   const refresh = useCallback(async () => {
     try {
@@ -203,7 +208,7 @@ export function Integrations({
   );
 
   const utmStatus = toStatus(utm?.status);
-  const hookStatus = toStatus(hook?.status);
+  const salesStatus = toStatus(salesSource?.status);
 
   return (
     <div className="space-y-4">
@@ -243,21 +248,28 @@ export function Integrations({
             <IntegrationCard
               title="Passo 1 · Vendas de cada criativo"
               tag={<Badge>Necessário</Badge>}
-              description="Cada venda chega com o código do criativo. Configure no seu checkout, colando a URL e o token desta conexão."
+              description="Cada venda chega com o código do criativo. Conecte a Hotmart ou o webhook de outro checkout."
               brings="Traz vendas e receita por criativo. Não traz o gasto com anúncio."
-              badge={hook && <StatusBadge status={hookStatus} />}
+              badge={salesSource && <StatusBadge status={salesStatus} />}
               meta={
-                webhook
-                  ? "Copie o token e o secret antes de sair."
-                  : hook && "Pronta para receber vendas."
+                webhook || hotmartUrl
+                  ? "Copie os dados da conexão antes de sair."
+                  : salesSource && (hotmart ? "Hotmart pronta para receber vendas." : "Pronta para receber vendas.")
               }
             >
               <Button
-                variant={hook ? "outline" : "default"}
+                variant={hotmart ? "outline" : salesSource ? "ghost" : "default"}
+                onClick={() => openPanel("hotmart")}
+              >
+                {hotmart ? <Settings2 aria-hidden /> : <Plug aria-hidden />}
+                {hotmart ? "Gerenciar Hotmart" : "Conectar Hotmart"}
+              </Button>
+              <Button
+                variant={hook ? "outline" : "ghost"}
                 onClick={() => openPanel("webhook")}
               >
                 {hook ? <Settings2 aria-hidden /> : <Webhook aria-hidden />}
-                {hook ? "Gerenciar" : "Configurar"}
+                {hook ? "Gerenciar outro checkout" : "Outro checkout"}
               </Button>
             </IntegrationCard>
           </li>
@@ -353,6 +365,20 @@ export function Integrations({
             />
           </SetupSheetContent>
         )}
+        {panel === "hotmart" && (
+          <SetupSheetContent
+            title="Hotmart"
+            description="Cada venda da sua Hotmart chega com o criativo que a gerou."
+          >
+            <HotmartPanel
+              hotmart={hotmart}
+              busy={busy}
+              url={hotmartUrl}
+              setUrl={setHotmartUrl}
+              run={run}
+            />
+          </SetupSheetContent>
+        )}
         {panel === "webhook" && (
           <SetupSheetContent
             title="Webhook de vendas"
@@ -369,6 +395,137 @@ export function Integrations({
           </SetupSheetContent>
         )}
       </Sheet>
+    </div>
+  );
+}
+
+function HotmartPanel({
+  hotmart,
+  busy,
+  url,
+  setUrl,
+  run,
+}: {
+  hotmart: Row | undefined;
+  busy: Action | null;
+  url: string | undefined;
+  setUrl: (value: string | undefined) => void;
+  run: Run;
+}) {
+  const [hottok, setHottok] = useState("");
+  const pending = busy === "hotmart";
+
+  function connect(event: React.FormEvent) {
+    event.preventDefault();
+    if (hottok.trim().length < 8) {
+      toast.error("Cole o hottok da sua conta Hotmart.");
+      return;
+    }
+    void run(
+      "hotmart",
+      async () => {
+        const result = await api("/api/integrations", hotmartSchema, { provider: "hotmart", hottok: hottok.trim() });
+        setUrl(result.url);
+        setHottok("");
+      },
+      "Hotmart conectada. Copie o endereço e cole na Hotmart.",
+    );
+  }
+
+  function disconnect() {
+    void run(
+      "hotmart",
+      async () => {
+        await api("/api/integrations", savedSchema, { provider: "hotmart" }, "DELETE");
+        setUrl(undefined);
+      },
+      "Hotmart desconectada.",
+    );
+  }
+
+  return (
+    <div className="space-y-6 px-6 py-6">
+      {hotmart && !url && <StatusBadge status={toStatus(hotmart.status)} />}
+      <Steps>
+        <Step number={1} title="Copie o hottok na Hotmart">
+          <p className="text-xs text-muted-foreground">
+            Na Hotmart, abra Ferramentas → Webhook → Autenticação e copie o Hottok.
+          </p>
+        </Step>
+        <Step number={2} title={hotmart ? "Cole um hottok novo, se mudou" : "Cole o hottok aqui"}>
+          <form onSubmit={connect} noValidate className="space-y-2">
+            <Label htmlFor="hotmart-hottok" className="sr-only">
+              Hottok
+            </Label>
+            <PasswordInput
+              id="hotmart-hottok"
+              name="hotmart-hottok"
+              autoComplete="new-password"
+              autoCapitalize="off"
+              spellCheck={false}
+              value={hottok}
+              onChange={(event) => setHottok(event.target.value)}
+              disabled={pending}
+            />
+            <Button type="submit" disabled={pending}>
+              {pending ? (
+                <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden />
+              ) : (
+                <KeyRound aria-hidden />
+              )}
+              {pending ? "Conectando…" : hotmart ? "Trocar hottok e gerar novo endereço" : "Gerar endereço"}
+            </Button>
+          </form>
+        </Step>
+        <Step number={3} title="Crie a configuração na Hotmart" muted={!url}>
+          {url ? (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  aria-label="Endereço para a Hotmart"
+                  value={url}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="font-mono text-base md:text-xs"
+                />
+                <CopyButton iconOnly label="Copiar endereço" text={url} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Em Ferramentas → Webhook → Cadastrar webhook, cole este endereço, escolha a versão 2.0.0 e
+                marque compra aprovada, cancelada, reembolsada e chargeback. Ele aparece só agora.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {hotmart
+                ? "O endereço já foi gerado. Se perdeu, gere um novo no passo 2 e troque na Hotmart."
+                : "O endereço aparece aqui depois do passo 2."}
+            </p>
+          )}
+        </Step>
+        <Step number={4} title="Ponha o código do criativo nos links">
+          <p className="text-xs text-muted-foreground">
+            No link de cada anúncio para a página de vendas, acrescente <code>src</code> com o código do
+            criativo, por exemplo <code>?src=L01-C02</code>.
+          </p>
+        </Step>
+      </Steps>
+
+      {hotmart && (
+        <ConfirmButton
+          variant="ghost"
+          icon={Unplug}
+          label="Desconectar Hotmart"
+          pendingLabel="Desconectando…"
+          title="Desconectar a Hotmart?"
+          description="As vendas enviadas pela Hotmart deixam de ser recebidas. As vendas já registradas continuam nos relatórios."
+          confirmLabel="Desconectar"
+          pending={pending}
+          disabled={pending}
+          onConfirm={disconnect}
+        />
+      )}
     </div>
   );
 }
