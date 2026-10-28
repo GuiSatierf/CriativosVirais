@@ -5,6 +5,20 @@ const weeklyCopies = 4;
 /** Files removed from the app stay this long in the backup, so a mistaken deletion can be undone. */
 export const deletedFilesKeptDays = 30;
 
+/**
+ * Includes archived immutable uploads when restoring an older database dump. A file removed
+ * after that dump may still be referenced by it. Live copies take precedence over archives.
+ */
+export function filesToRestore(live: readonly string[], archived: readonly string[]) {
+  const copies = new Map<string, string>();
+  for (const copy of [...archived].sort()) {
+    const match = /^deleted\/\d{4}-\d{2}-\d{2}\/(.+)$/.exec(copy);
+    if (match) copies.set(match[1], copy);
+  }
+  for (const copy of live) copies.set(copy.slice("files/".length), copy);
+  return copies;
+}
+
 const dayPattern = /^\d{4}-\d{2}-\d{2}$/;
 const dayInMs = 86_400_000;
 
