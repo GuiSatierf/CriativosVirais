@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { handle, apiTenant, readJson, json, HttpError } from "@/lib/http";
 import { getStorage } from "@/lib/storage";
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
-import { getJobs, jobTransaction } from "@/jobs";
+import { analysisQueue, getJobs, jobTransaction } from "@/jobs";
 import { tenantWhere } from "@/lib/tenant-scope";
 export function POST(request: Request) {
   return handle(async () => {
@@ -54,7 +54,7 @@ export function POST(request: Request) {
         .returning();
       if (updated.length)
         await boss.send(
-          "analyze-video",
+          analysisQueue(updated[0].kind),
           { tenantId, assetId },
           { db: connection, singletonKey: assetId },
         );
