@@ -1,12 +1,12 @@
 import "server-only";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { db } from "@/db";
 import { accessGrants, adminAuditLog, user } from "@/db/schema";
 import { normalizeEmail } from "./access";
 import { sendAccessInvite } from "./access-invite-email";
-import { accessStatus, blockRefusal } from "./admin-rules";
+import { accessStatus, blockRefusal, type AccessStatus } from "./admin-rules";
 import { getAuth } from "./auth";
 import { HttpError } from "./errors";
 import { requireSameOrigin } from "./http";
@@ -57,30 +57,57 @@ export async function audit(actor: Pick<AdminActor, "id" | "email">, action: str
 }
 
 const granter = alias(user, "granter");
+const accessPageSize = 100;
+const grantAccount = sql`lower(${user.email}) = ${accessGrants.email}`;
 
-export async function listAccess() {
-  const rows = await db
-    .select({
-      id: accessGrants.id,
-      email: accessGrants.email,
-      source: accessGrants.source,
-      note: accessGrants.note,
-      createdAt: accessGrants.createdAt,
-      grantedBy: granter.name,
-      userId: user.id,
-      banned: user.banned,
-      banReason: user.banReason,
-      role: user.role,
-    })
-    .from(accessGrants)
-    .leftJoin(user, sql`lower(${user.email}) = ${accessGrants.email}`)
-    .leftJoin(granter, eq(granter.id, accessGrants.grantedBy))
-    .orderBy(desc(accessGrants.createdAt));
-  return rows.map(({ banned, role, ...row }) => ({
+/** A LIKE pattern that finds the term anywhere; % and _ typed by the user match themselves, not everything. */
+export function containsPattern(term: string) {
+  return `%${term.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
+}
+
+function statusCondition(status: AccessStatus | null) {
+  if (status === "waiting") return isNull(user.id);
+  if (status === "blocked") return eq(user.banned, true);
+  if (status === "active") return and(isNotNull(user.id), or(isNull(user.banned), eq(user.banned, false)));
+  return undefined;
+}
+
+/**
+ * The most recent grants matching the search and status, and how many match in all. Hotmart buyers
+ * can be thousands, so the page shows one slice and the search finds the rest on the server.
+ */
+export async function listAccess(query = "", status: AccessStatus | null = null) {
+  const term = query.trim().toLowerCase();
+  const search = term.length === 0 ? undefined : ilike(accessGrants.email, containsPattern(term));
+  const where = and(search, statusCondition(status));
+  const [rows, [matching]] = await Promise.all([
+    db
+      .select({
+        id: accessGrants.id,
+        email: accessGrants.email,
+        source: accessGrants.source,
+        note: accessGrants.note,
+        createdAt: accessGrants.createdAt,
+        grantedBy: granter.name,
+        userId: user.id,
+        banned: user.banned,
+        banReason: user.banReason,
+        role: user.role,
+      })
+      .from(accessGrants)
+      .leftJoin(user, grantAccount)
+      .leftJoin(granter, eq(granter.id, accessGrants.grantedBy))
+      .where(where)
+      .orderBy(desc(accessGrants.createdAt))
+      .limit(accessPageSize),
+    db.select({ total: count() }).from(accessGrants).leftJoin(user, grantAccount).where(where),
+  ]);
+  const access = rows.map(({ banned, role, ...row }) => ({
     ...row,
     teamRole: isStaffRole(role) ? role : null,
     status: accessStatus({ userId: row.userId, banned }),
   }));
+  return { access, total: matching?.total ?? 0 };
 }
 
 export async function grantAccess(actor: AdminActor, email: string, note: string | null) {

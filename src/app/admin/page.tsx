@@ -50,10 +50,10 @@ async function AdminTabPanel({
       />
     );
   }
-  const access = await listAccess();
+  const { access, total } = await listAccess();
   return (
     <AccessPanel
-      access={access.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }))}
+      list={{ access: access.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })), total }}
       actorId={actor.id}
       navigation={navigation}
     />
