@@ -7,6 +7,7 @@ import { SupportBanner } from "@/components/support-banner";
 import { redirect } from "next/navigation";
 import { legalPaths } from "@/lib/legal";
 import { hasAcceptedCurrentTerms } from "@/lib/legal-records";
+import { isStaffRole } from "@/lib/staff";
 export const dynamic = "force-dynamic";
 export default async function AppLayout({
   children,
@@ -34,6 +35,7 @@ export default async function AppLayout({
       }}
       conversations={conversations}
       panel={panel}
+      showAdminLink={supportVisit == null && isStaffRole(user.role)}
       banner={
         supportVisit && (
           <SupportBanner clientName={supportVisit.clientName} endsAt={supportVisit.endsAt.toISOString()} />
