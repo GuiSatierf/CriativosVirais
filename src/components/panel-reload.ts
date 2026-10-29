@@ -1,13 +1,11 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useRouter, useSelectedLayoutSegment } from "next/navigation";
+import { chatKey, panelKey, panelReloadAttribute, reopenKey } from "@/components/panel-reload-script";
 
 // A reload keeps the address of an open panel (/levas) but not the conversation behind it,
 // so the panel came back as a page of its own and the conversation was lost. Each tab
 // remembers both, and a reload of an open panel reopens it over the same conversation.
-const chatKey = "criativos:chat-behind-panel";
-const panelKey = "criativos:open-panel";
-const reopenKey = "criativos:reopen-panel";
 
 /** Session storage of this tab, or null where the browser blocks it (the reload then shows the page alone). */
 function tabStorage() {
@@ -32,6 +30,11 @@ export function rememberOpenPanel() {
   tabStorage()?.setItem(panelKey, currentUrl());
 }
 
+/** Shows the page the inline panel reload script hid. */
+function showPage() {
+  document.documentElement.removeAttribute(panelReloadAttribute);
+}
+
 /** Called when the person closes the panel: a later reload shows the conversation alone. */
 export function forgetOpenPanel() {
   tabStorage()?.removeItem(panelKey);
@@ -51,13 +54,27 @@ export function usePanelReload(conversationId: string | undefined) {
     if (decided.current) return;
     decided.current = true;
     const storage = tabStorage();
-    if (storage == null || conversationId != null || panelOpen || wasReloaded() === false) return;
     const url = currentUrl();
-    const chatId = storage.getItem(chatKey);
-    if (chatId == null || storage.getItem(panelKey) !== url) return;
+    const chatId = storage?.getItem(chatKey);
+    if (
+      storage == null ||
+      conversationId != null ||
+      panelOpen ||
+      wasReloaded() === false ||
+      chatId == null ||
+      storage.getItem(panelKey) !== url
+    ) {
+      showPage();
+      return;
+    }
     storage.setItem(reopenKey, url);
     router.replace(`/chat/${chatId}`);
   }, [conversationId, panelOpen, router]);
+
+  // The page stays hidden until the panel is back over the conversation.
+  useEffect(() => {
+    if (panelOpen) showPage();
+  }, [panelOpen]);
 
   useEffect(() => {
     const storage = tabStorage();
