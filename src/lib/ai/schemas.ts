@@ -19,6 +19,13 @@ export const skeleton = z.enum([
   "E10",
   "E11",
   "E12",
+  "E13",
+  "E14",
+  "E15",
+  "E16",
+  "E17",
+  "E18",
+  "E19",
   "hipotese",
 ]);
 export const block = z.enum([
