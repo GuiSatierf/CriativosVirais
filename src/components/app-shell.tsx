@@ -41,6 +41,7 @@ import { StrategistAvatar } from "@/components/chat/strategist";
 import { Hint } from "@/components/hint";
 import { ThemeMenuGroup } from "@/components/theme-toggle";
 import { ConversationActions } from "@/components/conversation-actions";
+import { usePanelReload } from "@/components/panel-reload";
 import { authClient } from "@/lib/auth-client";
 import { api, toastError } from "@/lib/client";
 import { spDay } from "@/lib/dates";
@@ -117,6 +118,7 @@ export function AppShell({
   const chat = useChatBehindPanel(isActive(pathname, "/chat"));
   const conversationId = /^\/chat\/([^/]+)/.exec(pathname)?.[1];
   const title = conversations.find((c) => c.id === conversationId)?.title;
+  usePanelReload(conversationId);
 
   useEffect(() => {
     // Ctrl/⌘ + K opens the conversation history from anywhere.

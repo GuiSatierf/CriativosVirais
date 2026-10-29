@@ -1,6 +1,7 @@
 "use client";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { forgetOpenPanel, rememberOpenPanel } from "@/components/panel-reload";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 // Laptops (lg, 1024 to 1279 px) get up to 64rem, always leaving 4rem of the chat visible;
@@ -33,6 +34,9 @@ export function Panel({
     const frame = requestAnimationFrame(() => setOpen(true));
     return () => cancelAnimationFrame(frame);
   }, []);
+  // Moving inside the panel (a leva opened from Levas) updates what a reload brings back.
+  const pathname = usePathname();
+  useEffect(rememberOpenPanel, [pathname]);
   // Focus lands on the panel itself, not on its first field, so nothing
   // looks selected before the person acts; Tab then enters the content.
   const body = useRef<HTMLDivElement>(null);
@@ -42,6 +46,7 @@ export function Panel({
       onOpenChange={(next) => {
         if (next) return;
         setOpen(false);
+        forgetOpenPanel();
         router.back();
       }}
     >
