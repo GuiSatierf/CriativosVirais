@@ -61,6 +61,7 @@ export const batchItemSchema = z.object({
   g1: text,
   g2: text,
   g3: text,
+  g4: text,
   corpo: text,
   narrativa: text,
   awareness_entry: awareness,

@@ -179,6 +179,7 @@ export async function generateBatch(
         g1: i.g1,
         g2: i.g2,
         g3: i.g3,
+        g4: i.g4,
         corpo: i.corpo,
         narrativa: i.narrativa,
         awarenessEntry: i.awareness_entry,
