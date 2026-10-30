@@ -75,11 +75,12 @@ const schemas = {
   }),
   privateMethod: z.object({
     // The mentor's paid method, kept only on the server. Base64 so the Markdown survives the host's
-    // variable editor; compose files pass it as "" when unset.
+    // variable editor; compose files pass it as "" when unset. Line breaks are dropped because
+    // `base64` wraps its output at 76 columns by default.
     PRIVATE_METHOD_BASE64: z
       .string()
-      .trim()
-      .regex(/^[A-Za-z0-9+/]*={0,2}$/)
+      .transform((v) => v.replace(/\s/g, ""))
+      .pipe(z.string().regex(/^[A-Za-z0-9+/]*={0,2}$/))
       .optional()
       .transform((v) => (v === "" ? undefined : v)),
   }),
