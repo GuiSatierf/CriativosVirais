@@ -111,7 +111,7 @@ export async function generateBatch(
     output: Output.object({ schema: batchSchema }),
     maxOutputTokens: 24000,
     instructions: system,
-    prompt: `Crie exatamente ${quantity} criativos no template. instrucoes_gravacao e instrucoes_edicao devem ser vazias salvo necessidade real. 3 hooks compatíveis com o mesmo corpo completo falado com CTA. Use somente provas autorizadas. Cada item é uma hipótese explícita.\n${untrusted("generation_request", instructions)}`,
+    prompt: `Crie exatamente ${quantity} criativos no template. instrucoes_gravacao e instrucoes_edicao devem ser vazias salvo necessidade real. 4 hooks (g1 a g4) compatíveis com o mesmo corpo completo falado com CTA. Use somente provas autorizadas. Cada item é uma hipótese explícita.\n${untrusted("generation_request", instructions)}`,
     maxRetries: 1,
     abortSignal: deadline(180_000, signal),
   });
