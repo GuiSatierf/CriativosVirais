@@ -211,7 +211,7 @@ function useGenerationStatus(id: string, title: string) {
         setState(next);
         if (next.status === "done" || next.status === "failed") return;
       } catch {
-        // A network blip is retried on the next poll; the card keeps showing "Gerando".
+        // A network blip is retried on the next poll; the card keeps what it showed (loading or "Gerando").
         failures += 1;
         if (failures >= maxGenerationPollFailures) {
           if (!stopped) setState({ status: "failed", title, batchId: null, error: null });
