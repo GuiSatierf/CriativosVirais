@@ -547,6 +547,10 @@
   .skip-link {
     @apply fixed top-4 left-4 z-50 -translate-y-24 rounded-lg bg-primary px-5 py-3 text-primary-foreground focus:translate-y-0;
   }
+  /* A reloaded panel goes back over its conversation; its full-page version is never shown. */
+  [data-panel-reload] #main-content {
+    visibility: hidden;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

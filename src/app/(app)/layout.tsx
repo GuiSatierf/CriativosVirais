@@ -4,7 +4,9 @@ import { AppShell } from "@/components/app-shell";
 import { avatarUrl } from "@/lib/avatar";
 import { describeSupportVisit } from "@/lib/admin-accounts";
 import { SupportBanner } from "@/components/support-banner";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { panelReloadScript } from "@/components/panel-reload-script";
 import { legalPaths } from "@/lib/legal";
 import { hasAcceptedCurrentTerms } from "@/lib/legal-records";
 import { isStaffRole } from "@/lib/staff";
@@ -26,23 +28,28 @@ export default async function AppLayout({
   ]);
   // Accounts from before the current terms accept them once; a team member visiting cannot do it for them.
   if (!accepted && supportVisit == null) redirect(legalPaths.accept);
+  // The Content-Security-Policy only runs inline scripts carrying this request's nonce.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
-    <AppShell
-      user={{
-        name: user.name,
-        email: user.email,
-        image: avatarUrl(user.id, user.image),
-      }}
-      conversations={conversations}
-      panel={panel}
-      showAdminLink={supportVisit == null && isStaffRole(user.role)}
-      banner={
-        supportVisit && (
-          <SupportBanner clientName={supportVisit.clientName} endsAt={supportVisit.endsAt.toISOString()} />
-        )
-      }
-    >
-      {children}
-    </AppShell>
+    <>
+      <script nonce={nonce} dangerouslySetInnerHTML={{ __html: panelReloadScript }} />
+      <AppShell
+        user={{
+          name: user.name,
+          email: user.email,
+          image: avatarUrl(user.id, user.image),
+        }}
+        conversations={conversations}
+        panel={panel}
+        showAdminLink={supportVisit == null && isStaffRole(user.role)}
+        banner={
+          supportVisit && (
+            <SupportBanner clientName={supportVisit.clientName} endsAt={supportVisit.endsAt.toISOString()} />
+          )
+        }
+      >
+        {children}
+      </AppShell>
+    </>
   );
 }
