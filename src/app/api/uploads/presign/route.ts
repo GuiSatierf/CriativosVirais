@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { assets, creatives } from "@/db/schema";
 import { handle, apiTenant, readJson, json, HttpError } from "@/lib/http";
 import { getStorage } from "@/lib/storage";
+import { assertRequestLimit } from "@/lib/request-limit";
 import { tenantValues, tenantWhere } from "@/lib/tenant-scope";
 const schema = z
   .object({
@@ -28,6 +29,7 @@ const schema = z
 export function POST(request: Request) {
   return handle(async () => {
     const { tenantId } = await apiTenant(request);
+    await assertRequestLimit(tenantId, "upload");
     const input = await readJson(request, schema);
     if (
       !input.mime.startsWith(input.kind + "/") ||

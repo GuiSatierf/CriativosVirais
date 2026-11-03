@@ -7,6 +7,16 @@ export class HttpError extends Error {
   }
 }
 
+/** One account sent too many requests in a short window; the wait goes out as Retry-After. */
+export class TooManyRequestsError extends HttpError {
+  readonly retryAfterInSeconds: number;
+  constructor(message: string, retryAfterInSeconds: number) {
+    super(429, message);
+    this.name = "TooManyRequestsError";
+    this.retryAfterInSeconds = retryAfterInSeconds;
+  }
+}
+
 const domainStatus = {
   invalid_input: 400,
   not_found: 404,

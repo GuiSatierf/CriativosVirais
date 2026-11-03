@@ -45,17 +45,22 @@ const videoPrompt = "Analise o vídeo que enviei.";
 
 /** The operation spent its monthly AI budget; trying again before the month turns cannot help. */
 class AiLimitError extends Error {}
+/** Too many messages in a short window; the same message goes through after a short wait. */
+class ChatThrottledError extends Error {}
 
-// The chat transport only sees a failed response, so the budget refusal is told apart here.
+// The chat transport only sees a failed response, so the budget refusal is told apart here;
+// the per-minute limit is the 429 that carries Retry-After.
 async function chatFetch(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   if (response.status !== 429) return response;
   const body: unknown = await response.json().catch(() => null);
-  const message =
+  const serverMessage =
     typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
       ? body.error
-      : "Você usou todo o limite de IA deste mês.";
-  throw new AiLimitError(message);
+      : null;
+  if (response.headers.has("retry-after"))
+    throw new ChatThrottledError(serverMessage ?? "Você enviou muitas mensagens em pouco tempo. Aguarde um minuto.");
+  throw new AiLimitError(serverMessage ?? "Você usou todo o limite de IA deste mês.");
 }
 
 function isCsv(file: File) {
@@ -700,6 +705,7 @@ export function Chat({
       <CircleAlert aria-hidden />
       <AlertTitle>Não foi possível gerar a resposta.</AlertTitle>
       <AlertDescription>
+        {error instanceof ChatThrottledError && <p>{error.message}</p>}
         <Button
           type="button"
           variant="outline"

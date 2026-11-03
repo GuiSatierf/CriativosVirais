@@ -19,6 +19,7 @@ import {
   onModelError,
 } from "@/lib/ai/model";
 import { assertAiBudget } from "@/lib/ai/budget";
+import { assertRequestLimit } from "@/lib/request-limit";
 import {
   attachmentsSchema,
   buildSystemPrompt,
@@ -48,6 +49,7 @@ const inputSchema = z.object({
 export function POST(request: Request) {
   return handle(async () => {
     const { tenantId } = await apiTenant(request);
+    await assertRequestLimit(tenantId, "chat");
     assertModelConfigured();
     // Refused up front with its own message; the model wrapper checks again on every step.
     await assertAiBudget(tenantId);
