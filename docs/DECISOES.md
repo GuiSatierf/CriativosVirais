@@ -26,8 +26,8 @@ Os três comentários `eslint-disable-next-line` continuam valendo: o Oxlint lê
 
 ## 2026-10-26 — Regra de APIs obsoletas ligada no lint
 
-**Decisão.** O `.oxlintrc.json` liga `typescript/no-deprecated` como erro. Os usos que existiam foram trocados antes: 34 no PR das APIs obsoletas e os 5 `React.FormEvent` das telas de administração que entraram depois.
+**Decisão.** O `.oxlintrc.json` liga `typescript/no-deprecated` como erro. Os usos que existiam foram trocados antes: 34 no PR das APIs obsoletas e mais 8 que entraram depois (6 `React.FormEvent`, um `.finite()` e um `.passthrough()` do zod).
 
-**Por quê.** Sem a regra, código novo voltava a usar APIs marcadas como obsoletas (as telas de administração trouxeram 5 depois da primeira troca). Com ela, o lint acusa na hora, antes de a API sumir numa versão nova da biblioteca.
+**Por quê.** Sem a regra, código novo voltava a usar APIs marcadas como obsoletas (entraram 8 depois da primeira troca). Com ela, o lint acusa na hora, antes de a API sumir numa versão nova da biblioteca.
 
 **Descartado.** Ligar como aviso: aviso não reprova o lint e foi assim que os usos voltaram.
