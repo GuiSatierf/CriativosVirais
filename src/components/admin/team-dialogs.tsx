@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/client";
-import { staffRoleLabel, staffRoles, type StaffRole } from "@/lib/staff";
+import { panelRequiresTwoFactor, staffRoleLabel, staffRoles, type StaffRole } from "@/lib/staff";
 import { Spinner, useAction } from "./access-dialogs";
 
 export type TeamRow = { id: string; name: string; email: string; role: StaffRole; twoFactorEnabled: boolean };
@@ -134,7 +134,8 @@ export function AddMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
             <AlertDialogHeader>
               <AlertDialogTitle>Adicionar à equipe</AlertDialogTitle>
               <AlertDialogDescription>
-                Se a pessoa ainda não tem conta, ela recebe um convite por e-mail. No primeiro acesso ao painel, ela ativa a verificação em duas etapas com o código de ativação que você gera aqui.
+                Se a pessoa ainda não tem conta, ela recebe um convite por e-mail.
+                {panelRequiresTwoFactor && " No primeiro acesso ao painel, ela ativa a verificação em duas etapas com o código de ativação que você gera aqui."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="grid gap-2">

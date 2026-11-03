@@ -2,6 +2,13 @@
 export const staffRoles = ["owner", "admin", "support"] as const;
 export type StaffRole = (typeof staffRoles)[number];
 
+/**
+ * Off while the free test with students runs, so the team opens the panel with the password
+ * alone (decided on 27/10/2026). Setting it back to true restores the two-factor requirement,
+ * and the team tab shows the two-factor status and activation codes again.
+ */
+export const panelRequiresTwoFactor = false;
+
 export const staffRoleLabel: Record<StaffRole, string> = {
   owner: "Dono",
   admin: "Admin",

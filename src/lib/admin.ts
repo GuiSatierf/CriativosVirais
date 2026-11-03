@@ -10,17 +10,11 @@ import { accessStatus, blockRefusal, type AccessStatus } from "./admin-rules";
 import { getAuth } from "./auth";
 import { HttpError } from "./errors";
 import { requireSameOrigin } from "./http";
-import { can, isStaffRole, type StaffPermission, type StaffRole } from "./staff";
+import { can, isStaffRole, panelRequiresTwoFactor, type StaffPermission, type StaffRole } from "./staff";
 import { teamInviteNote } from "./team-invites";
 
 /** Better Auth user ids in admin routes. */
 export const userIdSchema = z.string().trim().min(1).max(100);
-
-/**
- * Off while the free test with students runs, so the team opens the panel with the password
- * alone (decided on 27/10/2026). Setting it back to true restores the two-factor requirement.
- */
-const panelRequiresTwoFactor = false;
 
 export type AdminActor = { id: string; email: string; name: string; role: StaffRole };
 export type AdminGate =

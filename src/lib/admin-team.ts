@@ -8,7 +8,7 @@ import { sendAccessInvite } from "./access-invite-email";
 import { issueEnrollmentCode } from "./admin-enrollment";
 import { deleteTeamInvite, saveTeamInvite, teamInviteNote } from "./team-invites";
 import { HttpError } from "./errors";
-import { isStaffRole, staffRoleLabel, staffRoles, type StaffRole } from "./staff";
+import { isStaffRole, panelRequiresTwoFactor, staffRoleLabel, staffRoles, type StaffRole } from "./staff";
 
 /** Everyone with a team role, owners first. */
 export async function listTeam() {
@@ -53,9 +53,9 @@ function refuseSelf(actor: AdminActor, userId: string) {
   throw new HttpError(400, "Você não pode mudar o seu próprio papel. Peça a outro dono.");
 }
 
-/** A code only when the person still has to turn on two-factor; it is shown once to the owner. */
+/** A code only while the panel requires two-factor and the person still has to turn it on; it is shown once to the owner. */
 async function enrollmentCodeFor(member: { id: string; twoFactorEnabled: boolean | null }) {
-  if (member.twoFactorEnabled === true) return null;
+  if (panelRequiresTwoFactor === false || member.twoFactorEnabled === true) return null;
   return issueEnrollmentCode(member.id);
 }
 
