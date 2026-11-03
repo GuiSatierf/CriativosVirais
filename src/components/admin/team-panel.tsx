@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, toastError } from "@/lib/client";
-import { staffRoleLabel, type StaffRole } from "@/lib/staff";
+import { panelRequiresTwoFactor, staffRoleLabel, type StaffRole } from "@/lib/staff";
 import { cn } from "@/lib/utils";
 import { AdminHeading, type AdminNavigation } from "./admin-heading";
 import { AddMemberDialog, ChangeRoleDialog, NewCodeDialog, RemoveMemberDialog, type TeamRow } from "./team-dialogs";
@@ -68,7 +68,7 @@ function TwoFactorPill({ row }: { row: TeamRow }) {
   );
 }
 
-/** Owner-only list of the team, with roles, two-factor status and the actions on each person. */
+/** Owner-only list of the team, with roles, the actions on each person and, while the panel requires it, two-factor status. */
 export function TeamPanel({
   team,
   invites,
@@ -89,7 +89,7 @@ export function TeamPanel({
     if (row.id === actorId) return <span className="text-xs text-muted-foreground">Você</span>;
     return (
       <div className="flex flex-wrap justify-end gap-1 sm:flex-nowrap">
-        {!row.twoFactorEnabled && <Button variant="ghost" size="sm" onClick={() => setCoding(row)}>Novo código</Button>}
+        {panelRequiresTwoFactor && !row.twoFactorEnabled && <Button variant="ghost" size="sm" onClick={() => setCoding(row)}>Novo código</Button>}
         <Button variant="ghost" size="sm" onClick={() => setChanging(row)}>Trocar papel</Button>
         <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setRemoving(row)}>Remover</Button>
       </div>
@@ -115,7 +115,7 @@ export function TeamPanel({
             <TableRow>
               <TableHead>Pessoa</TableHead>
               <TableHead>Papel</TableHead>
-              <TableHead>Verificação em duas etapas</TableHead>
+              {panelRequiresTwoFactor && <TableHead>Verificação em duas etapas</TableHead>}
               <TableHead className="w-0"><span className="sr-only">Ações</span></TableHead>
             </TableRow>
           </TableHeader>
@@ -127,7 +127,7 @@ export function TeamPanel({
                   <p className="text-xs text-muted-foreground">{row.email}</p>
                 </TableCell>
                 <TableCell><Badge variant="secondary">{staffRoleLabel[row.role]}</Badge></TableCell>
-                <TableCell><TwoFactorPill row={row} /></TableCell>
+                {panelRequiresTwoFactor && <TableCell><TwoFactorPill row={row} /></TableCell>}
                 <TableCell className="text-right whitespace-nowrap">{actions(row)}</TableCell>
               </TableRow>
             ))}
@@ -143,7 +143,7 @@ export function TeamPanel({
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               <Badge variant="secondary">{staffRoleLabel[row.role]}</Badge>
-              <TwoFactorPill row={row} />
+              {panelRequiresTwoFactor && <TwoFactorPill row={row} />}
             </div>
             <div className="flex justify-end">{actions(row)}</div>
           </li>
@@ -151,13 +151,14 @@ export function TeamPanel({
       </ul>
       <PendingInvites invites={invites} />
       <p className="text-xs text-muted-foreground">
-        Só o dono vê esta aba. Admin libera e bloqueia clientes e entra na conta deles; suporte só busca o cliente e entra na conta. Todos usam verificação em duas etapas.
+        Só o dono vê esta aba. Admin libera e bloqueia clientes e entra na conta deles; suporte só busca o cliente e entra na conta.
+        {panelRequiresTwoFactor && " Todos usam verificação em duas etapas."}
       </p>
 
       <AddMemberDialog open={adding} onOpenChange={setAdding} />
       <ChangeRoleDialog row={changing} onClose={() => setChanging(null)} />
       <RemoveMemberDialog row={removing} onClose={() => setRemoving(null)} />
-      <NewCodeDialog row={coding} onClose={() => setCoding(null)} />
+      {panelRequiresTwoFactor && <NewCodeDialog row={coding} onClose={() => setCoding(null)} />}
     </div>
   );
 }

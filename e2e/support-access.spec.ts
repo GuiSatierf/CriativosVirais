@@ -4,6 +4,7 @@ import path from "node:path";
 import { expect, test } from "@playwright/test";
 import { signUp, testDatabase, testPassword, waitForSignUpSlot } from "./support";
 import { legalVersion, legalVersionHeader } from "../src/lib/legal";
+import { panelRequiresTwoFactor } from "../src/lib/staff";
 
 // playwright.config.ts points the app's email outbox here, so no message is really sent.
 async function emailsTo(email: string) {
@@ -148,14 +149,23 @@ test("support enters a client's account without the password, changes its email 
   await expect(login).toHaveURL(/\/chat/);
   await clientAgain.close();
 
-  // 6. An owner adds the client to the team and gets the one-time activation code.
+  // 6. An owner adds the client to the team. The one-time activation code and the two-factor
+  // status appear only while the panel requires two-factor.
   await testDatabase(`update "user" set role = 'owner' where email = $1`, [staffEmail]);
   await page.goto("/admin?aba=equipe");
   await page.getByRole("button", { name: "Adicionar à equipe" }).click();
   await page.getByLabel("E-mail").fill(newEmail);
   await page.getByRole("button", { name: "Adicionar", exact: true }).click();
-  await expect(page.getByText("Código de ativação, vale 24 horas:")).toBeVisible();
-  await page.getByRole("button", { name: "Pronto" }).click();
+  if (panelRequiresTwoFactor) {
+    await expect(page.getByText("Código de ativação, vale 24 horas:")).toBeVisible();
+    await page.getByRole("button", { name: "Pronto" }).click();
+  } else {
+    await expect(page.getByText(`${newEmail} agora é Suporte.`)).toBeVisible();
+    await expect(page.getByText("Código de ativação, vale 24 horas:")).toHaveCount(0);
+    await expect(page.getByRole("columnheader", { name: "Verificação em duas etapas" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Novo código" })).toHaveCount(0);
+    await expect(page.getByText("Todos usam verificação em duas etapas")).toHaveCount(0);
+  }
   await expect(page.getByRole("row").filter({ hasText: newEmail })).toContainText("Suporte");
   const [role] = await testDatabase<{ role: string }>(`select role from "user" where email = $1`, [newEmail]);
   expect(role.role).toBe("support");
@@ -208,7 +218,7 @@ test("support enters a client's account without the password, changes its email 
   expect(joined.role).toBe("support");
   expect(await testDatabase(`select 1 from verification where identifier = $1`, [`team-invite:${invited}`])).toHaveLength(0);
   await page.reload();
-  await expect(page.getByRole("row").filter({ hasText: invited })).toContainText("Falta ativar");
+  await expect(page.getByRole("row").filter({ hasText: invited })).toContainText(panelRequiresTwoFactor ? "Falta ativar" : "Suporte");
   // Only this test's invite: an earlier run may have left another pending one in the shared database.
   await expect(page.getByRole("region", { name: "Convites aguardando cadastro" }).getByText(invited)).toHaveCount(0);
 
