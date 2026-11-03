@@ -38,7 +38,8 @@ export default async function RootLayout({
   const theme =
     themeSchema.safeParse(cookieStore.get(themeCookie)?.value).data ?? "system";
   return (
-    <html lang="pt-BR" className={cn("font-sans", inter.variable, theme)}>
+    // The panel reload script marks <html> before hydration (src/components/panel-reload-script.ts).
+    <html lang="pt-BR" className={cn("font-sans", inter.variable, theme)} suppressHydrationWarning>
       <body>
         <a className="skip-link" href="#main-content">
           Ir para o conteúdo

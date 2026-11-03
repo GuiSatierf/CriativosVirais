@@ -52,6 +52,7 @@ export const provider = pgEnum("integration_provider", [
   "vkmetrics",
   "csv",
   "webhook",
+  "hotmart",
 ]);
 export const evidenceLevel = pgEnum("evidence_level", [
   "hipotese",
@@ -543,6 +544,8 @@ export const batchItems = pgTable(
     g1: text("g1").notNull(),
     g2: text("g2").notNull(),
     g3: text("g3").notNull(),
+    // Batches generated before four hooks per script have only three.
+    g4: text("g4"),
     corpo: text("corpo").notNull(),
     narrativa: text("narrativa").notNull(),
     awarenessEntry: text("awareness_entry").notNull(),
@@ -651,6 +654,23 @@ export const adminAuditLog = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("admin_audit_log_created_idx").on(t.createdAt)],
+);
+
+// What a cancelled Hotmart subscription does: block at once, or keep access until the paid period ends.
+export const accessEndPolicy = pgEnum("access_end_policy", ["immediate", "end_of_period"]);
+// Platform settings the owner changes in the panel; a single row. NULL falls back to the server environment.
+export const appSettings = pgTable(
+  "app_settings",
+  {
+    id: integer("id").primaryKey().default(1),
+    // Encrypted with ENCRYPTION_KEY; never sent back to the browser.
+    hotmartHottok: text("hotmart_hottok"),
+    hotmartProductIds: text("hotmart_product_ids").array(),
+    aiMonthlyLimitCents: int64("ai_monthly_limit_cents"),
+    accessEndPolicy: accessEndPolicy("access_end_policy").default("immediate").notNull(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [check("app_settings_single_row", sql`${t.id} = 1`)],
 );
 
 // LGPD: who accepted which version of the terms and privacy policy, and when.

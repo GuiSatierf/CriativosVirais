@@ -50,6 +50,14 @@ export class ProviderRejectedError extends Error {
   }
 }
 
+/** Backup failure with a fixed message: never echoes object keys, SQL or tool output. */
+export class BackupError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BackupError";
+  }
+}
+
 /** Server misconfiguration; names only the group, never values. */
 export class ConfigError extends Error {
   constructor(group: string) {

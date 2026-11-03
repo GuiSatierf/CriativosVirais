@@ -18,13 +18,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/client";
-import { staffRoleLabel, staffRoles, type StaffRole } from "@/lib/staff";
+import { panelRequiresTwoFactor, staffRoleLabel, staffRoles, type StaffRole } from "@/lib/staff";
 import { Spinner, useAction } from "./access-dialogs";
 
 export type TeamRow = { id: string; name: string; email: string; role: StaffRole; twoFactorEnabled: boolean };
 
 const doneSchema = z.object({}).loose();
 const codeSchema = z.object({ code: z.string().nullable() });
+const addSchema = codeSchema.extend({ invited: z.boolean() });
 const emailSchema = z.email();
 
 const roleHint: Record<StaffRole, string> = {
@@ -97,9 +98,13 @@ export function AddMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
     setPending(true);
     setError(null);
     try {
-      const result = await api("/api/admin/team", codeSchema, { email, role });
-      toast.success(`${email} agora é ${staffRoleLabel[role]}.`);
+      const result = await api("/api/admin/team", addSchema, { email, role });
       router.refresh();
+      if (result.invited) {
+        toast.success(`Convite enviado para ${email}. Quando a pessoa criar a conta, ela entra como ${staffRoleLabel[role]}.`);
+        return close();
+      }
+      toast.success(`${email} agora é ${staffRoleLabel[role]}.`);
       if (result.code == null) return close();
       setCode(result.code);
       setAdded(true);
@@ -129,7 +134,8 @@ export function AddMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
             <AlertDialogHeader>
               <AlertDialogTitle>Adicionar à equipe</AlertDialogTitle>
               <AlertDialogDescription>
-                A pessoa precisa ter criado a conta antes. No primeiro acesso ao painel, ela ativa a verificação em duas etapas com o código que aparece aqui.
+                Se a pessoa ainda não tem conta, ela recebe um convite por e-mail.
+                {panelRequiresTwoFactor && " No primeiro acesso ao painel, ela ativa a verificação em duas etapas com o código de ativação que você gera aqui."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="grid gap-2">

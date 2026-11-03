@@ -19,7 +19,12 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 FROM base AS runner
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates && rm -rf /var/lib/apt/lists/*
+# pg_dump must match the Postgres 17 server; Debian bookworm ships 15, so it comes from the
+# PostgreSQL project repository, set up by postgresql-common as postgresql.org documents.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates postgresql-common \
+  && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
+  && apt-get install -y --no-install-recommends postgresql-client-17 \
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=production-deps --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static

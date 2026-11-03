@@ -211,7 +211,7 @@ function useGenerationStatus(id: string, title: string) {
         setState(next);
         if (next.status === "done" || next.status === "failed") return;
       } catch {
-        // A network blip is retried on the next poll; the card keeps showing "Gerando".
+        // A network blip is retried on the next poll; the card keeps what it showed (loading or "Gerando").
         failures += 1;
         if (failures >= maxGenerationPollFailures) {
           if (!stopped) setState({ status: "failed", title, batchId: null, error: null });
@@ -237,7 +237,7 @@ function BatchStatusCard({
 }: {
   icon: React.ReactNode;
   title: string;
-  note: string;
+  note: React.ReactNode;
 }) {
   return (
     <div role="status" className="flex items-center gap-3 rounded-xl border bg-card p-3">
@@ -254,9 +254,23 @@ function BatchStatusCard({
 
 function GenerationCard({ id, title }: { id: string; title: string }) {
   const state = useGenerationStatus(id, title);
-  if (state?.status === "done" && state.batchId)
+  // Until the first answer the batch may already be done, so the card does not claim it is generating.
+  if (state == null)
+    return (
+      <BatchStatusCard
+        icon={<Layers className="size-4" aria-hidden />}
+        title={title}
+        note={
+          <>
+            <span aria-hidden className="mt-1 block h-3 w-32 animate-pulse rounded bg-muted" />
+            <span className="sr-only">Carregando a leva</span>
+          </>
+        }
+      />
+    );
+  if (state.status === "done" && state.batchId)
     return <BatchCard id={state.batchId} title={state.title} />;
-  if (state?.status === "failed")
+  if (state.status === "failed")
     return (
       <BatchStatusCard
         icon={<CircleAlert className="size-4 text-destructive" aria-hidden />}

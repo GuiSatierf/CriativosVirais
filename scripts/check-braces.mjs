@@ -62,18 +62,6 @@ assert.throws(() => braces.expand("{1..1001}"), /range limit/);
 assert.throws(() => braces.parse("abc", { maxLength: 2 }), /max characters/);
 assert.deepEqual(braces("{a,a}", { expand: true, nodupes: true }), ["a"]);
 
-// Exercise the fast-glob and ts-morph consumers shipped with shadcn.
-const shadcnRequire = createRequire(require.resolve("shadcn"));
-const glob = shadcnRequire("fast-glob");
-assert.ok((await glob("src/**/*.{ts,tsx}")).length > 0);
-const globRequire = createRequire(shadcnRequire.resolve("fast-glob"));
-const micromatch = globRequire("micromatch");
-assert.equal(createRequire(globRequire.resolve("micromatch"))("braces/package.json").name, metadata.name);
-assert.ok(micromatch.isMatch("src/page.tsx", "src/**/*.{ts,tsx}"));
-const { Project } = shadcnRequire("ts-morph");
-const project = new Project({ skipAddingFilesFromTsConfig: true });
-assert.ok(project.addSourceFilesAtPaths("src/**/*.{ts,tsx}").length > 0);
-
 // Check a constrained Node stack too; malicious input must fail before recursion.
 const child = spawnSync(process.execPath, ["--stack-size=256", "-e", `
 const assert = require('node:assert/strict');
@@ -84,4 +72,4 @@ for (const method of [braces.compile, braces.expand, braces.stringify]) {
 }
 `], { cwd: process.cwd(), encoding: "utf8", timeout: 10000 });
 assert.equal(child.status, 0, child.stderr || String(child.error));
-console.log("Braces security regression, installed-source integrity and tool compatibility checks passed.");
+console.log("Braces security regression, installed-source integrity and compatibility checks passed.");

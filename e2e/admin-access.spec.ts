@@ -20,15 +20,18 @@ test("only granted emails sign up, /admin is hidden from clients, and a blocked 
   await signUp(page, email);
   expect((await page.goto("/admin"))?.status()).toBe(404);
 
-  // 3. An admin without two-factor is sent to turn it on and the API refuses every action.
+  // 3. While the free test runs, an admin opens the panel and grants access with the password alone.
   await testDatabase(`update "user" set role = 'admin' where email = $1`, [email]);
   await page.goto("/admin");
-  await expect(page).toHaveURL(/\/admin\/seguranca$/);
-  await expect(page.getByRole("heading", { name: "Proteja o acesso de admin" })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole("heading", { name: "Painel de admin" })).toBeVisible();
   const listed = await page.request.get("/api/admin/access");
-  expect(listed.status()).toBe(403);
-  const granted = await page.request.post("/api/admin/access", { data: { email: "x@exemplo.test" }, headers: { Origin: baseURL! } });
-  expect(granted.status()).toBe(403);
+  expect(listed.status()).toBe(200);
+  const granted = await page.request.post("/api/admin/access", {
+    data: { email: `aluna-${randomUUID()}@exemplo.test` },
+    headers: { Origin: baseURL! },
+  });
+  expect(granted.ok()).toBe(true);
   // Enrolling an admin's two-factor needs the operator's one-time code, not just the password.
   const enroll = await page.request.post("/api/auth/two-factor/enable", { data: { password: testPassword, method: "totp" }, headers: { Origin: baseURL! } });
   expect(enroll.status()).toBe(403);

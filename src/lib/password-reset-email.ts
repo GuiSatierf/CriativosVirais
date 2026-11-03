@@ -1,39 +1,26 @@
 import "server-only";
 import { sendEmail } from "./email";
+import { brandedHtml, brandedText, firstName, type BrandedMessage } from "./email-layout";
 import { logError } from "./log";
 import { resetLinkLifetimeLabel } from "./password-rules";
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function firstName(name: string) {
-  return name.trim().split(/\s+/)[0] ?? "";
-}
-
 export function passwordResetEmail(user: { email: string; name: string }, url: string) {
   const name = firstName(user.name);
-  const greeting = name ? `Olá, ${name}.` : "Olá.";
-  const lines = [
-    "Recebemos um pedido para redefinir a senha da sua conta no Criativos Virais.",
-    `Para criar uma senha nova, abra o link abaixo. Ele vale por ${resetLinkLifetimeLabel} e só pode ser usado uma vez.`,
-  ];
-  const ignore = "Se você não fez esse pedido, ignore este e-mail. Sua senha continua a mesma.";
+  const message: BrandedMessage = {
+    preview: "Use o link para criar uma senha nova.",
+    greeting: name ? `Olá, ${name}.` : "Olá.",
+    paragraphs: [
+      "Recebemos um pedido para redefinir a senha da sua conta no Criativos Virais.",
+      `Para criar uma senha nova, use o botão abaixo. O link vale por ${resetLinkLifetimeLabel} e só pode ser usado uma vez.`,
+    ],
+    action: { label: "Criar uma senha nova", url },
+    note: "Se você não fez esse pedido, ignore este e-mail. Sua senha continua a mesma.",
+  };
   return {
     to: user.email,
     subject: "Redefinir sua senha · Criativos Virais",
-    text: [greeting, "", ...lines, "", url, "", ignore].join("\n"),
-    html: [
-      `<p>${escapeHtml(greeting)}</p>`,
-      ...lines.map((line) => `<p>${line}</p>`),
-      `<p><a href="${escapeHtml(url)}">Criar uma senha nova</a></p>`,
-      `<p>${ignore}</p>`,
-    ].join("\n"),
+    text: brandedText(message),
+    html: brandedHtml(message),
   };
 }
 

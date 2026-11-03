@@ -6,7 +6,7 @@ import { dbEnv } from "@/lib/env";
 import { logError } from "@/lib/log";
 export { analysisQueue } from "./queues";
 // Every queue the worker creates; analysisQueue picks between the two analysis queues.
-export const queues = ["analyze-video", "transcribe-audio", "ingest-event", "sync-metrics", "generate-batch", "purge-access-log"] as const;
+export const queues = ["analyze-video", "transcribe-audio", "ingest-event", "sync-metrics", "generate-batch", "purge-access-log", "backup", "hotmart-access-end"] as const;
 export const queueOptions: QueueOptions = {
   retryLimit: 3,
   retryDelay: 60,
@@ -17,6 +17,9 @@ export const queueOptions: QueueOptions = {
 // longer than the default expiry; a failure is shown on the chat card instead.
 const perQueue: Partial<Record<(typeof queues)[number], QueueOptions>> = {
   "generate-batch": { retryLimit: 0, expireInSeconds: 3600 },
+  // A first backup copies every stored video; later ones only what is new. One retry after 15
+  // minutes: the queue holds one backup at a time, so a longer wait would also block a manual run.
+  backup: { retryLimit: 1, retryDelay: 900, retryBackoff: false, expireInSeconds: 3 * 3600 },
 };
 // A batch generation can hold its slot for up to 30 minutes; one at a time would make every
 // other tenant's batch wait behind it. Videos are bounded by ffmpeg memory and disk; voice notes
@@ -38,6 +41,9 @@ function createBoss(sendOnly: boolean) {
   boss.on("error", (error) => logError("job-queue", error));
   return boss;
 }
+// Exclusive allows one waiting job per singleton key, and these jobs have none: each cancelled
+// subscription waits on its own until its last paid day.
+const standardPolicyQueues = new Set<string>(["sync-metrics", "hotmart-access-end"]);
 /** Worker instance: installs pg-boss, owns queue configuration, maintenance and cron. */
 export async function startWorkerJobs() {
   const boss = createBoss(false);
@@ -46,7 +52,7 @@ export async function startWorkerJobs() {
     const options = { ...queueOptions, ...perQueue[name] };
     await boss.createQueue(name, {
       ...options,
-      policy: name === "sync-metrics" ? "standard" : "exclusive",
+      policy: standardPolicyQueues.has(name) ? "standard" : "exclusive",
     });
     await boss.updateQueue(name, options);
   }

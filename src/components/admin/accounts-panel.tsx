@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { Ellipsis, KeyRound, LogIn, Pencil, Search } from "@/components/icons";
@@ -19,11 +19,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { api, toastError } from "@/lib/client";
+import { api } from "@/lib/client";
 import { cn } from "@/lib/utils";
 import { Spinner } from "./access-dialogs";
 import { ChangeEmailDialog, SetPasswordDialog } from "./account-dialogs";
 import { AdminHeading, type AdminNavigation } from "./admin-heading";
+import { useServerSearch } from "./use-server-search";
 
 export type AccountRow = { id: string; name: string; email: string; blocked: boolean; lastAccess: string | null };
 
@@ -33,7 +34,6 @@ const accountsSchema = z.object({
   ),
 });
 const doneSchema = z.object({}).loose();
-const searchDelayMs = 300;
 const minimumReason = 3;
 const zone = "America/Sao_Paulo";
 const timeFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: zone, hour: "2-digit", minute: "2-digit" });
@@ -60,36 +60,16 @@ function StatusPill({ row }: { row: AccountRow }) {
   );
 }
 
-/** Keeps the server list until the search changes, then asks the server again after a pause. */
+async function loadAccounts(search: string) {
+  const result = await api(`/api/admin/accounts?${search}`, accountsSchema);
+  return result.accounts;
+}
+
 function useAccountSearch(initial: AccountRow[]) {
   const [query, setQuery] = useState("");
-  const [accounts, setAccounts] = useState(initial);
-  const [source, setSource] = useState(initial);
-  // router.refresh() brings a new server list; it replaces the table unless a search is showing.
-  if (source !== initial) {
-    setSource(initial);
-    if (query.trim().length === 0) setAccounts(initial);
-  }
-  const searched = useRef(false);
-  useEffect(() => {
-    const term = query.trim();
-    // The server already rendered the unfiltered list.
-    if (!searched.current && term.length === 0) return;
-    searched.current = true;
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      try {
-        const result = await api(`/api/admin/accounts?q=${encodeURIComponent(term)}`, accountsSchema);
-        if (!controller.signal.aborted) setAccounts(result.accounts);
-      } catch (error) {
-        if (!controller.signal.aborted) toastError(error);
-      }
-    }, term.length === 0 ? 0 : searchDelayMs);
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, [query]);
+  const term = query.trim();
+  const search = term.length === 0 ? "" : new URLSearchParams({ q: term }).toString();
+  const accounts = useServerSearch(initial, search, loadAccounts);
   return { query, setQuery, accounts };
 }
 
@@ -227,9 +207,9 @@ export function AccountsPanel({ accounts: initial, navigation }: { accounts: Acc
               <TableBody>
                 {accounts.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell>
+                    <TableCell className="whitespace-normal">
                       <p className="font-medium">{row.name}</p>
-                      <p className="text-xs text-muted-foreground">{row.email}</p>
+                      <p className="text-xs break-all text-muted-foreground">{row.email}</p>
                     </TableCell>
                     <TableCell><StatusPill row={row} /></TableCell>
                     <TableCell className="tabular-nums">{formatLastAccess(row.lastAccess)}</TableCell>
@@ -244,7 +224,7 @@ export function AccountsPanel({ accounts: initial, navigation }: { accounts: Acc
               <li key={row.id} className="min-w-0 space-y-2 rounded-xl border bg-card p-4">
                 <div className="min-w-0">
                   <p className="truncate font-medium">{row.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{row.email}</p>
+                  <p className="text-xs break-all text-muted-foreground">{row.email}</p>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <StatusPill row={row} />

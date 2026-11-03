@@ -1,6 +1,17 @@
 import { randomUUID } from "node:crypto";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
 import { expect, test } from "@playwright/test";
 import { testDatabase, testPassword, waitForSignUpSlot } from "./support";
+
+// playwright.config.ts points the app's email outbox here, so no message is really sent.
+async function inviteTo(email: string) {
+  const outbox = "test-results/outbox";
+  const messages = await Promise.all(
+    (await readdir(outbox).catch(() => [])).map(async (file) => JSON.parse(await readFile(path.join(outbox, file), "utf8"))),
+  );
+  return messages.filter((message) => message.to === email && message.subject === "Seu acesso ao Criativos Virais foi liberado");
+}
 
 function purchase(event: string, email: string, productId = 1234567) {
   return {
@@ -31,10 +42,17 @@ test("a Hotmart purchase frees the email to sign up and a refund blocks the acco
   const grants = await testDatabase<{ source: string }>(`select source from access_grants where email = $1`, [email]);
   expect(grants).toEqual([{ source: "hotmart" }]);
 
+  // The buyer gets one branded invite whose link opens sign-up with the email already filled in.
+  await expect.poll(async () => (await inviteTo(email)).length).toBe(1);
+  const [invite] = await inviteTo(email);
+  expect(invite.html).toContain("/brand/logo-email.png");
+  const link = invite.text.match(/https?:\/\/\S+\/signup\?email=\S+/)?.[0] ?? "";
+  expect(link).not.toBe("");
+
   await waitForSignUpSlot();
-  await page.goto("/signup");
+  await page.goto(new URL(link).pathname + new URL(link).search);
+  await expect(page.getByLabel("E-mail")).toHaveValue(email);
   await page.getByLabel("Nome").fill("Compradora Teste");
-  await page.getByLabel("E-mail").fill(email);
   await page.getByRole("textbox", { name: "Senha" }).fill(testPassword);
   await page.getByLabel(/Li e aceito os/).check();
   await page.getByRole("button", { name: "Criar conta" }).click();

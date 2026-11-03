@@ -2,6 +2,7 @@ import { gte, sql } from "drizzle-orm";
 import type { LanguageModelMiddleware } from "ai";
 import { db } from "@/db";
 import { aiPurpose, aiUsage } from "@/db/schema";
+import { aiMonthlyLimitCents } from "../app-settings";
 import { spDay } from "../dates";
 import { aiBudgetEnv } from "../env";
 import { DomainError } from "../errors";
@@ -56,10 +57,10 @@ async function spentThisMonthMillicents(tenantId: string) {
   return BigInt(row?.spent ?? "0");
 }
 
-/** Refuses a model call once the operation has spent its monthly AI budget. */
+/** Refuses a model call once the operation has spent its monthly AI budget, as set in the panel. */
 export async function assertAiBudget(tenantId: string) {
-  const limit = BigInt(aiBudgetEnv().AI_MONTHLY_LIMIT_CENTS) * 1000n;
-  if ((await spentThisMonthMillicents(tenantId)) < limit) return;
+  const [limitCents, spent] = await Promise.all([aiMonthlyLimitCents(), spentThisMonthMillicents(tenantId)]);
+  if (spent < limitCents * 1000n) return;
   throw new DomainError(
     "limit_reached",
     `Você usou todo o limite de IA deste mês. Ele renova em ${renewalLabel()}.`,

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSelectedLayoutSegment } from "next/navigation";
 import {
   Archive,
   ChartColumn,
@@ -10,6 +10,7 @@ import {
   Plug,
   Search,
   Settings,
+  ShieldCheck,
   SquarePen,
   UserRound,
   X,
@@ -40,6 +41,7 @@ import { StrategistAvatar } from "@/components/chat/strategist";
 import { Hint } from "@/components/hint";
 import { ThemeMenuGroup } from "@/components/theme-toggle";
 import { ConversationActions } from "@/components/conversation-actions";
+import { usePanelReload } from "@/components/panel-reload";
 import { authClient } from "@/lib/auth-client";
 import { api, toastError } from "@/lib/client";
 import { spDay } from "@/lib/dates";
@@ -100,6 +102,7 @@ export function AppShell({
   user,
   conversations,
   banner,
+  showAdminLink,
 }: {
   children: React.ReactNode;
   panel: React.ReactNode;
@@ -107,12 +110,15 @@ export function AppShell({
   conversations: Conversation[];
   /** Notice above the header, such as the support visit. */
   banner?: React.ReactNode;
+  /** Team members outside a support visit get a shortcut to the panel. */
+  showAdminLink: boolean;
 }) {
   const pathname = usePathname();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const chat = isActive(pathname, "/chat");
+  const chat = useChatBehindPanel(isActive(pathname, "/chat"));
   const conversationId = /^\/chat\/([^/]+)/.exec(pathname)?.[1];
   const title = conversations.find((c) => c.id === conversationId)?.title;
+  usePanelReload(conversationId);
 
   useEffect(() => {
     // Ctrl/⌘ + K opens the conversation history from anywhere.
@@ -154,6 +160,7 @@ export function AppShell({
         <p className="invisible min-w-0 flex-1 truncate text-sm text-muted-foreground sm:visible">
           {chat && title ? title : ""}
         </p>
+        {showAdminLink && <AdminShortcut />}
         <PlaceShortcuts />
         <NewConversationButton />
         <Hint label="Histórico (Ctrl K)">
@@ -208,6 +215,19 @@ export function AppShell({
   );
 }
 
+/**
+ * A panel changes the address (/levas, /criativos…) while the conversation stays behind it,
+ * so the page keeps the layout it had before the panel opened instead of following the address.
+ */
+function useChatBehindPanel(onChatRoute: boolean) {
+  const panelSegment = useSelectedLayoutSegment("panel");
+  const panelOpen = panelSegment?.startsWith("(.)") === true;
+  const [chatBehind, setChatBehind] = useState(onChatRoute);
+  if (!panelOpen && chatBehind !== onChatRoute) setChatBehind(onChatRoute);
+  if (panelOpen) return chatBehind;
+  return onChatRoute;
+}
+
 /** History drawer: shortcuts to the panels, search and past conversations. */
 function HistoryBody({
   conversations,
@@ -260,6 +280,23 @@ function HistoryBody({
       </nav>
       <ConversationHistory conversations={conversations} onNavigate={onNavigate} />
     </div>
+  );
+}
+
+/** The team panel, first in the bar and styled like the place shortcuts. */
+function AdminShortcut() {
+  return (
+    <Link
+      href="/admin"
+      className={cn(
+        buttonVariants({ variant: "ghost" }),
+        quietButton,
+        "size-9 shrink-0 px-0 pointer-coarse:size-11 sm:size-auto sm:px-3 sm:pointer-coarse:size-auto",
+      )}
+    >
+      <ShieldCheck aria-hidden className="size-5" />
+      <span className="sr-only sm:not-sr-only">Painel Admin</span>
+    </Link>
   );
 }
 

@@ -2,6 +2,10 @@ import { z } from "zod";
 import { ConfigError } from "./errors";
 
 const filled = z.string().trim().min(1);
+const base64Key = z
+  .string()
+  .regex(/^[A-Za-z0-9+/]{43}=$/)
+  .refine((v) => Buffer.from(v, "base64").length === 32);
 // Compose files pass unset variables as "", and a stray space must not read as zero: both fall
 // back to the default.
 const centsOr = (fallback: number) =>
@@ -69,11 +73,32 @@ const schemas = {
       // "," alone would turn every purchase into "ignored" without any warning.
       .refine((ids) => ids.length > 0),
   }),
+  privateMethod: z.object({
+    // The mentor's paid method, kept only on the server. Base64 so the Markdown survives the host's
+    // variable editor; compose files pass it as "" when unset. Line breaks are dropped because
+    // `base64` wraps its output at 76 columns by default.
+    PRIVATE_METHOD_BASE64: z
+      .string()
+      .transform((v) => v.replace(/\s/g, ""))
+      .pipe(z.string().regex(/^[A-Za-z0-9+/]*={0,2}$/))
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+  }),
   crypto: z.object({
     ENCRYPTION_KEY: z
       .string()
       .regex(/^[A-Za-z0-9+/]{43}=$/)
       .refine((v) => Buffer.from(v, "base64").length === 32),
+  }),
+  backup: z.object({
+    BACKUP_S3_ENDPOINT: z.url(),
+    BACKUP_S3_REGION: filled,
+    BACKUP_S3_ACCESS_KEY: filled,
+    BACKUP_S3_SECRET_KEY: filled,
+    BACKUP_S3_BUCKET: z.string().min(3),
+    BACKUP_S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("false"),
+    // Separate from ENCRYPTION_KEY, which must never travel with the backups it protects.
+    BACKUP_ENCRYPTION_KEY: base64Key,
   }),
 };
 type Group = keyof typeof schemas;
@@ -105,6 +130,7 @@ export const transcribeEnv = () => optionalGroup("transcribe");
 export const emailEnv = () => optionalGroup("email");
 export const emailOutboxEnv = () => optionalGroup("emailOutbox");
 export const hotmartEnv = () => optionalGroup("hotmart");
+export const privateMethodEnv = () => group("privateMethod");
 
 const optionalProviders = {
   ai: { feature: "chat and batch generation", variables: ["DEEPSEEK_API_KEY", "DEEPSEEK_MODEL_TEXT"] },
@@ -125,3 +151,5 @@ export function missingOptionalConfiguration() {
     .filter((name) => !optionalGroup(name))
     .map((name) => optionalProviders[name]);
 }
+/** Off until a bucket is set; once it is, a missing or invalid field is an error, not a skip. */
+export const backupEnv = () => (process.env.BACKUP_S3_BUCKET ? group("backup") : null);

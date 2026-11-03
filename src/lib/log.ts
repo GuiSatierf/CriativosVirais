@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  BackupError,
   ConfigError,
   DomainError,
   HttpError,
@@ -13,6 +14,7 @@ export function logError(context: string, error: unknown) {
   const e = error instanceof Error ? error : undefined;
   const code = (error as { code?: unknown; statusCode?: unknown } | undefined) ?? {};
   const own =
+    error instanceof BackupError ||
     error instanceof ConfigError ||
     error instanceof DomainError ||
     error instanceof HttpError ||

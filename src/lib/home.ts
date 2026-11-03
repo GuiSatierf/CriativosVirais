@@ -162,7 +162,7 @@ export async function getHome(tenantId: string): Promise<Home> {
     !onboarding.results && {
       id: "integrations",
       title: "Conectar vendas",
-      description: "UTMify ou webhook do checkout",
+      description: "Hotmart ou webhook do checkout",
       icon: "integrations",
       action: { type: "link", href: "/integracoes" },
     },

@@ -28,7 +28,7 @@ Fora do escopo: edição ou renderização de vídeo, publicação de anúncios 
 | Processo | Responsabilidade |
 | --- | --- |
 | App (Next.js 16, standalone) | Páginas, APIs, chat em streaming, envio de jobs |
-| Worker (`dist/worker.js`) | Filas `analyze-video` (vídeos, 2 por vez), `transcribe-audio` (áudios do chat, 4 por vez), `ingest-event`, `sync-metrics`, `generate-batch` e `purge-access-log`; sincronização UTMify a cada seis horas, com um job por integração, e limpeza diária do registro de acesso |
+| Worker (`dist/worker.js`) | Filas `analyze-video` (vídeos, 2 por vez), `transcribe-audio` (áudios do chat, 4 por vez), `ingest-event`, `sync-metrics`, `generate-batch`, `purge-access-log` e `backup`; sincronização UTMify a cada seis horas, com um job por integração, limpeza diária do registro de acesso e backup diário quando `BACKUP_*` está configurado |
 | PostgreSQL 17 | Dados, sessões, rate limit de autenticação e filas pg-boss |
 | RustFS (S3) | Áudios e vídeos em bucket privado, enviados pelo navegador com URL assinada |
 
@@ -82,10 +82,10 @@ Referências: [`.env.example`](.env.example) (local) e [`.env.production.example
 | `DEEPSEEK_MODEL_VISION` | Descrição dos frames; precisa aceitar imagens |
 | `AI_PROVIDER` | Opcional. `fake` troca o modelo de texto por um roteiro fixo (`src/lib/ai/fake-model.ts`), sem chamar a DeepSeek; só em desenvolvimento e testes, recusado com `NODE_ENV=production` |
 | `GROQ_API_KEY`, `GROQ_WHISPER_MODEL` | Transcrição de áudio e da trilha dos vídeos |
-| `AI_MONTHLY_LIMIT_CENTS` | Opcional. Teto de gasto com IA por operação no mês (horário de São Paulo), em centavos; padrão `2000` (R$ 20). Ao chegar nele, chat, levas e análise de vídeo param até o mês virar |
+| `AI_MONTHLY_LIMIT_CENTS` | Opcional. Teto de gasto com IA por operação no mês (horário de São Paulo), em centavos; padrão `2000` (R$ 20). Ao chegar nele, chat, levas e análise de vídeo param até o mês virar. O dono pode trocar o valor no painel (aba Configurações), que vale por cima desta variável |
 | `AI_PRICE_INPUT_CENTS_PER_MTOK`, `AI_PRICE_CACHED_INPUT_CENTS_PER_MTOK`, `AI_PRICE_OUTPUT_CENTS_PER_MTOK` | Opcionais. Preço do provedor em centavos de real por milhão de tokens (entrada, entrada em cache, saída), usado para medir o gasto; padrões `170`, `20` e `680` |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Recuperação de senha por e-mail (Resend). `EMAIL_FROM` usa um domínio verificado no Resend, por exemplo `Criativos Virais <nao-responda@mail.exemplo.com.br>`. Sem elas, a tela de recuperação mostra o contato do suporte |
-| `HOTMART_HOTTOK`, `HOTMART_PRODUCT_IDS` | Opcionais. Liberação automática pela Hotmart: o hottok da conta (Hotmart → Ferramentas → Webhook → Autenticação) e os IDs dos produtos que dão acesso, separados por vírgula. Sem elas, `/api/hotmart/access` responde 404 e o acesso é liberado só pelo painel |
+| `HOTMART_HOTTOK`, `HOTMART_PRODUCT_IDS` | Opcionais. Liberação automática pela Hotmart: o hottok da conta (Hotmart → Ferramentas → Webhook → Autenticação) e os IDs dos produtos que dão acesso, separados por vírgula. O dono também pode configurar os dois no painel (aba Configurações, hottok guardado cifrado), o que vale por cima das variáveis. Sem nenhum dos dois, `/api/hotmart/access` responde 404 e o acesso é liberado só pelo painel. Cancelamento de assinatura bloqueia na hora ou no último dia pago, conforme a opção do painel |
 | `EMAIL_OUTBOX_DIR` | Opcional. Grava os e-mails como arquivos JSON nessa pasta em vez de enviar; só em desenvolvimento e testes, recusado com `NODE_ENV=production` |
 | `TEST_DATABASE_URL` | Só para `test:attribution`; banco vazio cujo nome termina em `_test` |
 
@@ -139,6 +139,14 @@ Na Hotmart, crie em Ferramentas → Webhook uma configuração versão 2.0.0 apo
 - `PURCHASE_REFUNDED` e `PURCHASE_CHARGEBACK` bloqueiam a conta com o motivo e encerram as sessões; sem conta, removem a liberação. Contas da equipe nunca são alteradas, e um bloqueio feito pela equipe continua com o motivo dela (uma compra nova não o tira).
 - Produtos fora de `HOTMART_PRODUCT_IDS` e os demais eventos são ignorados. Cada ação fica no registro do painel com o autor "Hotmart". Repetições da Hotmart não mudam nada.
 - Cancelamento de assinatura ainda não bloqueia: falta decidir se o acesso termina na hora ou no fim do período pago.
+
+### Vendas da Hotmart de cada cliente
+
+Em Integrações → Passo 1 → Conectar Hotmart, o cliente cola o hottok da conta dele e recebe um endereço `/api/ingest/hotmart/<token>`, exibido uma única vez, para cadastrar na Hotmart (versão 2.0.0). A chamada é aceita só com o token da URL e o hottok daquele cliente.
+
+- O código do criativo vem de `purchase.origin.src` (ou `sck`, ou `xcod`): no link do anúncio, `?src=L01-C02`.
+- Aprovada, reembolsada, chargeback, cancelada, expirada e boleto/atraso viram os status `approved`, `refunded`, `chargeback`, `cancelled`, `failed` e `pending`; `PURCHASE_COMPLETE` repete uma venda já aprovada e é ignorado. O valor é `purchase.price` em centavos; só BRL.
+- Nada do comprador (nome, e-mail, documento, endereço) é guardado. Repetições da Hotmart são aceitas e não duplicam: vale a primeira entrega.
 
 ### Webhook de vendas
 
@@ -201,7 +209,7 @@ Usa `POST https://query-api.utmify.com.br/public-api/v1/dashboards/{dashboardId}
 
 ## Deploy
 
-A imagem do `Dockerfile` executa `node server.js` (app, porta 3000, healthcheck `/api/health`; o monitor externo consulta `/api/health/system`, que confere banco, worker e fila) e `node dist/worker.js` (worker). Migrations e bucket são aplicados com `node dist/tools/src/db/migrate.js` e `node dist/tools/scripts/init-storage.js`. Passo a passo para Compose e Coolify, atualização de versões e verificação dos provedores: [docs/ativacao.md](docs/ativacao.md).
+A imagem do `Dockerfile` executa `node server.js` (app, porta 3000, healthcheck `/api/health`; o monitor externo consulta `/api/health/system`, que confere banco, worker e fila) e `node dist/worker.js` (worker). Migrations e bucket são aplicados com `node dist/tools/src/db/migrate.js` e `node dist/tools/scripts/init-storage.js`. O worker também faz um backup diário cifrado do banco e dos arquivos para um bucket S3 externo, quando `BACKUP_*` está configurado, com restauração por `node dist/tools/scripts/restore-backup.js`. Passo a passo para Compose e Coolify, atualização de versões e verificação dos provedores: [docs/ativacao.md](docs/ativacao.md).
 
 ## Limites conhecidos
 

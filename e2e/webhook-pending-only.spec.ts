@@ -6,7 +6,7 @@ test("a day with only a pending sale records no results, while an approved sale 
   const email = `pendente-${randomUUID()}@exemplo.test`;
   await signUp(page, email);
   await page.goto("/integracoes");
-  await page.getByRole("button", { name: "Configurar" }).click();
+  await page.getByRole("button", { name: "Outro checkout" }).click();
   await page.getByRole("button", { name: "Gerar conexão" }).click();
   const token = await page.getByLabel("Token", { exact: true }).inputValue();
   const secret = await page.getByLabel("Secret", { exact: true }).inputValue();

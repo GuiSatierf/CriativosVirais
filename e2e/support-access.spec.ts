@@ -1,6 +1,18 @@
 import { randomUUID } from "node:crypto";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { signUp, testDatabase } from "./support";
+import { signUp, testDatabase, testPassword, waitForSignUpSlot } from "./support";
+import { legalVersion, legalVersionHeader } from "../src/lib/legal";
+import { panelRequiresTwoFactor } from "../src/lib/staff";
+
+// playwright.config.ts points the app's email outbox here, so no message is really sent.
+async function emailsTo(email: string) {
+  const outbox = "test-results/outbox";
+  const files = await readdir(outbox).catch(() => []);
+  const messages = await Promise.all(files.map(async (file) => JSON.parse(await readFile(path.join(outbox, file), "utf8"))));
+  return messages.filter((message) => message.to === email);
+}
 
 test("support enters a client's account without the password, changes its email and password from the panel, and the owner manages the team", async ({ page, browser, baseURL }) => {
   // A client with a findable name, and a support member who already turned on two-factor.
@@ -15,15 +27,48 @@ test("support enters a client's account without the password, changes its email 
   await signUp(page, staffEmail);
   await testDatabase(`update "user" set role = 'support', two_factor_enabled = true where email = $1`, [staffEmail]);
 
-  // 1. Support sees only Contas, and the API refuses what the role does not allow.
+  // 1. Support sees Acessos and Contas, and the API refuses what the role does not allow.
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "Painel do suporte" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Acessos" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Contas" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Acessos" })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "Equipe" })).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: "Configurações" })).toHaveCount(0);
   // The active tab's underline overflows by a pixel; the tab list must not show a scrollbar for it.
   expect(await page.getByRole("tablist").evaluate((list) => getComputedStyle(list).scrollbarWidth)).toBe("none");
-  expect((await page.request.get("/api/admin/access")).status()).toBe(403);
+
+  // Support frees a client's email and removes it while unused, sees no team account, and blocks nobody.
+  const freedEmail = `liberado-${randomUUID()}@exemplo.test`;
+  await page.getByRole("button", { name: "Liberar e-mail" }).click();
+  await page.getByRole("alertdialog").getByLabel("E-mail da compra").fill(freedEmail);
+  await page.getByRole("alertdialog").getByRole("button", { name: "Liberar", exact: true }).click();
+  const freedRow = page.getByRole("row").filter({ hasText: freedEmail });
+  await freedRow.getByRole("button", { name: "Remover" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Remover" }).click();
+  await expect(freedRow).toHaveCount(0);
+  await page.getByLabel("Buscar por e-mail").fill(staffEmail);
+  await expect(page.getByText("Nenhum e-mail encontrado com esse filtro.")).toBeVisible();
+  // The grant of a pending team invite belongs to the owner: support neither sees nor removes it.
+  const invitedEmail = `convidado-${randomUUID()}@exemplo.test`;
+  const [inviteGrant] = await testDatabase<{ id: string }>(
+    `insert into access_grants (email, note) values ($1, 'Convite para a equipe') returning id`,
+    [invitedEmail],
+  );
+  await page.getByLabel("Buscar por e-mail").fill(invitedEmail);
+  await expect(page.getByText("Nenhum e-mail encontrado com esse filtro.")).toBeVisible();
+  const removeInvite = await page.request.delete(`/api/admin/access/${inviteGrant.id}`, { headers: { Origin: baseURL ?? "" } });
+  expect(removeInvite.status()).toBe(403);
+  await page.getByLabel("Buscar por e-mail").fill(clientEmail);
+  const clientAccess = page.getByRole("row").filter({ hasText: clientEmail });
+  await expect(clientAccess).toContainText("Conta criada");
+  await expect(clientAccess.getByRole("button", { name: "Bloquear" })).toHaveCount(0);
+  const [clientAccount] = await testDatabase<{ id: string }>(`select id from "user" where email = $1`, [clientEmail]);
+  const blockAttempt = await page.request.post(`/api/admin/accounts/${clientAccount.id}/block`, {
+    data: { reason: "teste do suporte" },
+    headers: { Origin: baseURL ?? "" },
+  });
+  expect(blockAttempt.status()).toBe(403);
+  await page.goto("/admin?aba=contas");
   expect((await page.request.get("/api/admin/team")).status()).toBe(403);
 
   // 2. Entering the account asks for a reason, then opens the client's chat under a banner.
@@ -104,15 +149,87 @@ test("support enters a client's account without the password, changes its email 
   await expect(login).toHaveURL(/\/chat/);
   await clientAgain.close();
 
-  // 6. An owner adds the client to the team and gets the one-time activation code.
+  // 6. An owner adds the client to the team. The one-time activation code and the two-factor
+  // status appear only while the panel requires two-factor.
   await testDatabase(`update "user" set role = 'owner' where email = $1`, [staffEmail]);
   await page.goto("/admin?aba=equipe");
   await page.getByRole("button", { name: "Adicionar à equipe" }).click();
   await page.getByLabel("E-mail").fill(newEmail);
   await page.getByRole("button", { name: "Adicionar", exact: true }).click();
-  await expect(page.getByText("Código de ativação, vale 24 horas:")).toBeVisible();
-  await page.getByRole("button", { name: "Pronto" }).click();
+  if (panelRequiresTwoFactor) {
+    await expect(page.getByText("Código de ativação, vale 24 horas:")).toBeVisible();
+    await page.getByRole("button", { name: "Pronto" }).click();
+  } else {
+    await expect(page.getByText(`${newEmail} agora é Suporte.`)).toBeVisible();
+    await expect(page.getByText("Código de ativação, vale 24 horas:")).toHaveCount(0);
+    await expect(page.getByRole("columnheader", { name: "Verificação em duas etapas" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Novo código" })).toHaveCount(0);
+    await expect(page.getByText("Todos usam verificação em duas etapas")).toHaveCount(0);
+  }
   await expect(page.getByRole("row").filter({ hasText: newEmail })).toContainText("Suporte");
   const [role] = await testDatabase<{ role: string }>(`select role from "user" where email = $1`, [newEmail]);
   expect(role.role).toBe("support");
+
+  // 7. An email with no account is invited: it gets the team invite and joins with the role on sign-up.
+  const invited = `convidado-${randomUUID()}@exemplo.test`;
+  await page.getByRole("button", { name: "Adicionar à equipe" }).click();
+  await page.getByLabel("E-mail").fill(invited);
+  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  await expect(page.getByText(`Convite enviado para ${invited}`)).toBeVisible();
+  await expect(page.getByRole("region", { name: "Convites aguardando cadastro" })).toContainText(invited);
+  await expect.poll(async () => (await emailsTo(invited)).length).toBe(1);
+  const [invite] = await emailsTo(invited);
+  expect(invite.subject).toBe("Você foi convidado para a equipe do Criativos Virais");
+  const link = new URL(invite.text.match(/https?:\/\/\S+\/signup\?email=\S+/)?.[0] ?? "http://invalid");
+
+  // Knowing an invited email is insufficient to create its staff account, even without panel MFA.
+  expect(link.searchParams.get("invite")).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  await waitForSignUpSlot();
+  const unverified = await page.request.post("/api/auth/sign-up/email", {
+    data: { name: "Unverified invite", email: invited, password: testPassword },
+    headers: { [legalVersionHeader]: String(legalVersion), Origin: baseURL! },
+  });
+  expect(unverified.status()).toBe(403);
+  const invalidToken = await page.request.post("/api/auth/sign-up/email", {
+    data: { name: "Invalid invite", email: invited, password: testPassword },
+    headers: { [legalVersionHeader]: String(legalVersion), "x-team-invite-token": "A".repeat(43), Origin: baseURL! },
+  });
+  expect(invalidToken.status()).toBe(403);
+  expect(await testDatabase(`select 1 from "user" where email = $1`, [invited])).toHaveLength(0);
+  const [storedInvite] = await testDatabase<{ value: string }>(`select value from verification where identifier = $1`, [`team-invite:${invited}`]);
+  expect(storedInvite.value).not.toContain(link.searchParams.get("invite")!);
+  const pendingInvites = await page.request.get("/api/admin/team");
+  expect(await pendingInvites.text()).not.toContain(link.searchParams.get("invite")!);
+
+  const guest = await browser.newContext({ baseURL, locale: "pt-BR" });
+  const guestPage = await guest.newPage();
+  await waitForSignUpSlot();
+  await guestPage.goto(link.pathname + link.search);
+  await guestPage.getByLabel("Nome").fill("Pessoa Convidada");
+  await guestPage.getByRole("textbox", { name: "Senha" }).fill(testPassword);
+  await guestPage.getByLabel(/Li e aceito os/).check();
+  await guestPage.getByRole("button", { name: "Criar conta" }).click();
+  await expect(guestPage).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
+  // With the temporary panel switch off, a mailbox-verified invite can enter without MFA setup.
+  await guestPage.goto("/admin");
+  await expect(guestPage.getByRole("heading", { name: "Painel do suporte" })).toBeVisible();
+  await guest.close();
+  const [joined] = await testDatabase<{ role: string }>(`select role from "user" where email = $1`, [invited]);
+  expect(joined.role).toBe("support");
+  expect(await testDatabase(`select 1 from verification where identifier = $1`, [`team-invite:${invited}`])).toHaveLength(0);
+  await page.reload();
+  await expect(page.getByRole("row").filter({ hasText: invited })).toContainText(panelRequiresTwoFactor ? "Falta ativar" : "Suporte");
+  // Only this test's invite: an earlier run may have left another pending one in the shared database.
+  await expect(page.getByRole("region", { name: "Convites aguardando cadastro" }).getByText(invited)).toHaveCount(0);
+
+  // 8. An invite that expires unused takes back the access it freed.
+  const unused = `sem-uso-${randomUUID()}@exemplo.test`;
+  await page.getByRole("button", { name: "Adicionar à equipe" }).click();
+  await page.getByLabel("E-mail").fill(unused);
+  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  await expect(page.getByText(`Convite enviado para ${unused}`)).toBeVisible();
+  await testDatabase(`update verification set expires_at = now() - interval '1 minute' where identifier = $1`, [`team-invite:${unused}`]);
+  await page.reload();
+  await expect(page.getByText(unused)).toHaveCount(0);
+  expect(await testDatabase(`select 1 from access_grants where email = $1`, [unused])).toHaveLength(0);
 });
