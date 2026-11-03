@@ -89,7 +89,7 @@ export function TeamPanel({
     if (row.id === actorId) return <span className="text-xs text-muted-foreground">Você</span>;
     return (
       <div className="flex flex-wrap justify-end gap-1 sm:flex-nowrap">
-        {panelRequiresTwoFactor && !row.twoFactorEnabled && <Button variant="ghost" size="sm" onClick={() => setCoding(row)}>Novo código</Button>}
+        {panelRequiresTwoFactor && row.twoFactorEnabled === false && <Button variant="ghost" size="sm" onClick={() => setCoding(row)}>Novo código</Button>}
         <Button variant="ghost" size="sm" onClick={() => setChanging(row)}>Trocar papel</Button>
         <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setRemoving(row)}>Remover</Button>
       </div>
