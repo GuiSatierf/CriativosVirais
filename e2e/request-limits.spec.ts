@@ -15,10 +15,11 @@ async function fillWindow(userId: string, route: string, count: number, ageInMs 
 }
 
 test("chat, upload and import refuse an account past its per-minute limit with a clear message", async ({ page, baseURL }) => {
+  if (baseURL == null) throw new Error("Playwright baseURL is not configured");
   await signUp(page);
   const session = await (await page.request.get("/api/auth/get-session")).json();
   const userId: string = session.user.id;
-  const headers = { Origin: baseURL! };
+  const headers = { Origin: baseURL };
 
   await fillWindow(userId, "chat", 20);
   const field = page.getByPlaceholder("Escreva para o Estrategista…");

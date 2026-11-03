@@ -2,6 +2,16 @@
 
 Uma entrada por decisão de arquitetura ou de biblioteca: data, o que foi decidido, por quê e o que foi descartado.
 
+## 2026-11-03 — Limite de pedidos por conta na tabela do Better Auth
+
+**Decisão.** Chat, envio de arquivo e importação de planilha têm um limite por conta em janelas fixas de um minuto (`src/lib/request-limit.ts`), guardado na tabela `rate_limit` que o Better Auth já usa para o login, com chaves `app:<rota>:<tenant>`. Ao passar, a resposta é 429 com `Retry-After`, e o chat separa esse aviso do limite mensal de IA pelo cabeçalho.
+
+**Por quê.** O app pode rodar em mais de um processo, então a contagem precisa ficar no banco. A tabela já tem chave única, contagem e horário, e reusá-la evita uma migração. As chaves do Better Auth são `<ip><caminho>` e nunca começam com `app:`.
+
+**Descartado.**
+- Contar na memória do processo, como o webhook faz: cada processo teria a sua contagem.
+- Uma tabela própria: mesma estrutura, mais uma migração.
+
 ## 2026-10-19 — Oxlint no lugar do ESLint, TypeScript 7
 
 **Decisão.** O `npm run lint` passa a rodar o Oxlint (`.oxlintrc.json`) com regras que usam tipos (`typeAware`) e checagem de tipos (`typeCheck`), pelo `oxlint-tsgolint`. ESLint, `eslint-config-next` e `eslint.config.mjs` saem. Depois disso o TypeScript sobe de 6.0.3 para 7.0.2.
