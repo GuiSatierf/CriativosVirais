@@ -15,7 +15,7 @@ import { AddMemberDialog, ChangeRoleDialog, NewCodeDialog, RemoveMemberDialog, t
 
 export type TeamInvite = { email: string; role: StaffRole; expiresAt: string };
 
-const doneSchema = z.object({}).passthrough();
+const doneSchema = z.object({}).loose();
 const dayFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 
 /** Emails added to the team that have not signed up yet; the role applies at sign-up. */

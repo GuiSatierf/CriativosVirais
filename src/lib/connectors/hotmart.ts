@@ -19,7 +19,7 @@ const purchaseSaleSchema = z.object({
   data: z.object({
     purchase: z.object({
       transaction: z.string().min(1).max(100),
-      price: z.object({ value: z.number().finite().nonnegative(), currency_value: z.string() }).optional(),
+      price: z.object({ value: z.number().nonnegative(), currency_value: z.string() }).optional(),
       origin: z.object({ src: trackingCode, sck: trackingCode, xcod: trackingCode }).optional(),
     }),
   }),

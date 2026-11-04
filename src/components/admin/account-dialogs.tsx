@@ -24,7 +24,7 @@ const emailSchema = z.email();
 
 export function ChangeEmailDialog({ row, onClose }: { row: Account | null; onClose: () => void }) {
   const { pending, error, setError, run } = useAction(onClose);
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (row == null) return;
     const id = row.id;
@@ -57,7 +57,7 @@ export function ChangeEmailDialog({ row, onClose }: { row: Account | null; onClo
 
 export function SetPasswordDialog({ row, onClose }: { row: Account | null; onClose: () => void }) {
   const { pending, error, setError, run } = useAction(onClose);
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (row == null) return;
     const id = row.id;

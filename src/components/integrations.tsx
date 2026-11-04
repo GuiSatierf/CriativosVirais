@@ -415,7 +415,7 @@ function HotmartPanel({
   const [hottok, setHottok] = useState("");
   const pending = busy === "hotmart";
 
-  function connect(event: React.FormEvent) {
+  function connect(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (hottok.trim().length < 8) {
       toast.error("Cole o hottok da sua conta Hotmart.");

@@ -53,6 +53,7 @@
     "nextjs/no-unwanted-polyfillio": "warn",
 
     "typescript/ban-ts-comment": "error",
+    "typescript/no-deprecated": "error",
     "typescript/no-duplicate-enum-values": "error",
     "typescript/no-empty-object-type": "error",
     "typescript/no-explicit-any": "error",
