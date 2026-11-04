@@ -133,6 +133,7 @@ test("the owner sets Hotmart, the AI limit and the end of access in the panel, a
     "settings.ai_limit_changed",
     "settings.ai_limit_changed",
     "settings.hotmart_changed",
+    "settings.upload_limit_changed",
   ]);
   expect(JSON.stringify(audited)).not.toContain(panelHottok);
 
