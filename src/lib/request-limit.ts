@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { gte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { rateLimit } from "@/db/schema";
+import { assets, rateLimit } from "@/db/schema";
+import { dailyUploadLimit } from "./app-settings";
 import { TooManyRequestsError } from "./errors";
+import { tenantWhere } from "./tenant-scope";
 
 const windowInMs = 60_000;
+const saoPauloDayStart = sql`date_trunc('day', now() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo'`;
 
 // Per account and per minute: far above what a person does by hand, low enough to stop a loop.
 const requestLimits = {
@@ -46,4 +49,33 @@ export async function assertRequestLimit(tenantId: string, route: LimitedRoute) 
   if (row.count <= limit.max) return;
   const retryAfterInSeconds = Math.max(1, Math.ceil((row.lastRequest + windowInMs - now) / 1000));
   throw new TooManyRequestsError(limit.message, retryAfterInSeconds);
+}
+
+/**
+ * Refuses a new upload once the account sent the panel's daily limit of files.
+ *
+ * @remarks
+ * Every presigned upload creates its asset row, so today's rows are the files already sent.
+ * The day follows São Paulo time, and Retry-After points at the next midnight there.
+ *
+ * @param tenantId - The account resolved from the server session.
+ * @throws {TooManyRequestsError} When the account already sent its daily limit of files.
+ */
+export async function assertDailyUploadLimit(tenantId: string) {
+  const [limit, [today]] = await Promise.all([
+    dailyUploadLimit(),
+    db
+      .select({
+        sent: sql<number>`count(*)::int`,
+        secondsLeft: sql<number>`ceil(extract(epoch FROM ${saoPauloDayStart} + interval '1 day' - now()))::int`,
+      })
+      .from(assets)
+      .where(tenantWhere(assets, tenantId, gte(assets.createdAt, saoPauloDayStart))),
+  ]);
+  if (today == null) throw new Error("Daily upload count returned no row");
+  if (today.sent < limit) return;
+  throw new TooManyRequestsError(
+    `Você chegou ao limite de ${limit.toLocaleString("pt-BR")} envios de hoje. Ele renova amanhã.`,
+    Math.max(1, today.secondsLeft),
+  );
 }

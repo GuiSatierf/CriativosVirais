@@ -667,6 +667,8 @@ export const appSettings = pgTable(
     hotmartHottok: text("hotmart_hottok"),
     hotmartProductIds: text("hotmart_product_ids").array(),
     aiMonthlyLimitCents: int64("ai_monthly_limit_cents"),
+    // Files one client may send per São Paulo day; NULL keeps the default.
+    dailyUploadLimit: integer("daily_upload_limit"),
     accessEndPolicy: accessEndPolicy("access_end_policy").default("immediate").notNull(),
     updatedAt: updatedAt(),
   },

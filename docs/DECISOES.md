@@ -12,6 +12,8 @@ Uma entrada por decisão de arquitetura ou de biblioteca: data, o que foi decidi
 - Contar na memória do processo, como o webhook faz: cada processo teria a sua contagem.
 - Uma tabela própria: mesma estrutura, mais uma migração.
 
+**Limite diário de envios.** Além do limite por minuto, cada conta envia até 100 arquivos por dia (horário de Brasília), número que o dono troca na aba Configurações (`app_settings.daily_upload_limit`, migração 0015). A conta vem das linhas de `assets` criadas no dia, porque cada envio cria a sua; assim não precisa de outro contador. Ele limita o espaço ocupado e as transcrições, que não entram no limite mensal de IA.
+
 ## 2026-10-19 — Oxlint no lugar do ESLint, TypeScript 7
 
 **Decisão.** O `npm run lint` passa a rodar o Oxlint (`.oxlintrc.json`) com regras que usam tipos (`typeAware`) e checagem de tipos (`typeCheck`), pelo `oxlint-tsgolint`. ESLint, `eslint-config-next` e `eslint.config.mjs` saem. Depois disso o TypeScript sobe de 6.0.3 para 7.0.2.

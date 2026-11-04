@@ -14,7 +14,7 @@ async function fillWindow(userId: string, route: string, count: number, ageInMs 
   );
 }
 
-test("chat, upload and import refuse an account past its per-minute limit with a clear message", async ({ page, baseURL }) => {
+test("chat, upload and import refuse an account past its per-minute and daily limits with a clear message", async ({ page, baseURL }) => {
   if (baseURL == null) throw new Error("Playwright baseURL is not configured");
   await signUp(page);
   const session = await (await page.request.get("/api/auth/get-session")).json();
@@ -29,6 +29,22 @@ test("chat, upload and import refuse an account past its per-minute limit with a
   await expect(page.getByText("Não foi possível gerar a resposta.")).toBeVisible();
   await expect(page.getByText("Você enviou muitas mensagens em pouco tempo. Aguarde um minuto e tente de novo.")).toBeVisible();
   await expect(page.getByText("Limite de IA do mês atingido.")).toBeHidden();
+
+  // 100 files already sent today: the daily limit refuses the next one until São Paulo midnight.
+  await testDatabase(
+    `INSERT INTO assets (tenant_id, kind, s3_key, mime, size)
+     SELECT tenant_id, 'video', tenant_id || '/e2e-daily-' || n, 'video/mp4', 1000
+     FROM tenant_members, generate_series(1, 100) AS n WHERE user_id = $1`,
+    [userId],
+  );
+  const daily = await page.request.post("/api/uploads/presign", {
+    data: { kind: "video", mime: "video/mp4", size: 1000 },
+    headers,
+  });
+  expect(daily.status()).toBe(429);
+  expect(Number(daily.headers()["retry-after"])).toBeGreaterThan(0);
+  expect(Number(daily.headers()["retry-after"])).toBeLessThanOrEqual(86_400);
+  expect(await daily.json()).toEqual({ error: "Você chegou ao limite de 100 envios de hoje. Ele renova amanhã." });
 
   await fillWindow(userId, "upload", 30);
   const upload = await page.request.post("/api/uploads/presign", {
