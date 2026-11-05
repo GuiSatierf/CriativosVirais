@@ -7,6 +7,8 @@ import { HttpError } from "./errors";
 
 // Settings the owner changes in the panel. Each one falls back to the server environment until it is saved.
 const settingsRowId = 1;
+// Far above a heavy day of creative work (20 to 40 files), low enough to stop a runaway client.
+const defaultDailyUploadLimit = 100;
 export type AccessEndPolicy = (typeof accessEndPolicy.enumValues)[number];
 export type SettingsActor = { id: string; email: string };
 
@@ -36,6 +38,11 @@ export async function aiMonthlyLimitCents() {
   return limitCentsOf(await readSettings());
 }
 
+/** Videos and audios one client may send per São Paulo day. */
+export async function dailyUploadLimit() {
+  return (await readSettings())?.dailyUploadLimit ?? defaultDailyUploadLimit;
+}
+
 export async function subscriptionEndPolicy(): Promise<AccessEndPolicy> {
   return (await readSettings())?.accessEndPolicy ?? "immediate";
 }
@@ -53,6 +60,7 @@ export async function settingsForPanel() {
       webhookUrl: new URL("/api/hotmart/access", authEnv().BETTER_AUTH_URL).toString(),
     },
     aiMonthlyLimitCents: Number(limitCentsOf(row)),
+    dailyUploadLimit: row?.dailyUploadLimit ?? defaultDailyUploadLimit,
     accessEndPolicy: row?.accessEndPolicy ?? ("immediate" as const),
   };
 }
@@ -83,6 +91,10 @@ export async function saveHotmartSettings(actor: SettingsActor, input: { hottok:
 
 export async function saveAiMonthlyLimit(actor: SettingsActor, cents: number) {
   await saveSettings(actor, { aiMonthlyLimitCents: BigInt(cents) }, "settings.ai_limit_changed", { cents: String(cents) });
+}
+
+export async function saveDailyUploadLimit(actor: SettingsActor, limit: number) {
+  await saveSettings(actor, { dailyUploadLimit: limit }, "settings.upload_limit_changed", { limit: String(limit) });
 }
 
 export async function saveAccessEndPolicy(actor: SettingsActor, policy: AccessEndPolicy) {

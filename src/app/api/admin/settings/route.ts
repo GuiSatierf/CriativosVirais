@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
-import { saveAccessEndPolicy, saveAiMonthlyLimit, saveHotmartSettings } from "@/lib/app-settings";
+import { saveAccessEndPolicy, saveAiMonthlyLimit, saveDailyUploadLimit, saveHotmartSettings } from "@/lib/app-settings";
 import { accessEndPolicy } from "@/db/schema";
 import { handle, json, readJson } from "@/lib/http";
 
 const maxHotmartProducts = 20;
 const minAiLimitCents = 100;
 const maxAiLimitCents = 1_000_000;
+const minDailyUploadLimit = 1;
+const maxDailyUploadLimit = 10_000;
 
 // Hotmart product ids are numbers; the panel sends them as typed, separated by commas.
 const productIdsSchema = z
@@ -31,6 +33,10 @@ const settingsSchema = z.discriminatedUnion("section", [
     cents: z.number().int().min(minAiLimitCents).max(maxAiLimitCents),
   }),
   z.object({
+    section: z.literal("upload-limit"),
+    limit: z.number().int().min(minDailyUploadLimit).max(maxDailyUploadLimit),
+  }),
+  z.object({
     section: z.literal("access-end"),
     policy: z.enum(accessEndPolicy.enumValues),
   }),
@@ -43,6 +49,7 @@ export function PUT(request: Request) {
     const input = await readJson(request, settingsSchema, 4_000);
     if (input.section === "hotmart") await saveHotmartSettings(actor, input);
     if (input.section === "ai-limit") await saveAiMonthlyLimit(actor, input.cents);
+    if (input.section === "upload-limit") await saveDailyUploadLimit(actor, input.limit);
     if (input.section === "access-end") await saveAccessEndPolicy(actor, input.policy);
     return json({ saved: true });
   });

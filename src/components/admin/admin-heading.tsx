@@ -15,7 +15,7 @@ const tabDescription: Record<AdminTab, string> = {
   acessos: "Quem pode criar conta e usar o Criativos Virais.",
   contas: "Encontre o cliente e entre na conta dele para ajudar.",
   equipe: "Quem da equipe usa o painel e o que cada um pode fazer.",
-  configuracoes: "Hotmart, limite de IA e fim do acesso.",
+  configuracoes: "Hotmart, limites de IA e de envios, e fim do acesso.",
 };
 const trigger = "h-full flex-none rounded-none border-0 px-0.5";
 

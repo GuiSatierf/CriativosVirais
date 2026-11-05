@@ -86,6 +86,16 @@ test("the owner sets Hotmart, the AI limit and the end of access in the panel, a
   await aiLimit.getByRole("button", { name: "Salvar limite" }).click();
   await expect.poll(savedLimit).toBe("2050");
 
+  // The daily upload limit starts at 100 files and is saved as a whole number.
+  const uploadLimit = page.getByRole("region", { name: "Limite de envios por cliente" });
+  await expect(uploadLimit.getByLabel("Arquivos por dia")).toHaveValue("100");
+  await uploadLimit.getByLabel("Arquivos por dia").fill("0");
+  await uploadLimit.getByRole("button", { name: "Salvar limite" }).click();
+  await expect(uploadLimit.getByText("Informe um número a partir de 1, como 100.")).toBeVisible();
+  await uploadLimit.getByLabel("Arquivos por dia").fill("150");
+  await uploadLimit.getByRole("button", { name: "Salvar limite" }).click();
+  await expect.poll(async () => (await testDatabase<{ files: number }>(`select daily_upload_limit as files from app_settings`))[0]?.files).toBe(150);
+
   // 3. Keeping access until the paid period ends: the cancellation waits for the last paid day.
   const accessEnd = page.getByRole("region", { name: "Quando o acesso termina" });
   await accessEnd.getByRole("radio", { name: /Manter até o fim do período pago/ }).check();
@@ -123,6 +133,7 @@ test("the owner sets Hotmart, the AI limit and the end of access in the panel, a
     "settings.ai_limit_changed",
     "settings.ai_limit_changed",
     "settings.hotmart_changed",
+    "settings.upload_limit_changed",
   ]);
   expect(JSON.stringify(audited)).not.toContain(panelHottok);
 

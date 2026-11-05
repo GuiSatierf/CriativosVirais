@@ -18,6 +18,7 @@ export type AccessEndPolicy = "immediate" | "end_of_period";
 export type PanelSettings = {
   hotmart: { configured: boolean; hasHottok: boolean; productIds: string[]; webhookUrl: string };
   aiMonthlyLimitCents: number;
+  dailyUploadLimit: number;
   accessEndPolicy: AccessEndPolicy;
 };
 
@@ -27,6 +28,9 @@ const productIdPattern = /^\d{1,20}$/;
 const reaisPattern = /^(\d{1,5})(?:,(\d{1,2}))?$/;
 const minAiLimitCents = 100;
 const maxAiLimitCents = 1_000_000;
+const uploadLimitPattern = /^\d{1,5}$/;
+const minDailyUploadLimit = 1;
+const maxDailyUploadLimit = 10_000;
 
 function saveSettings(body: Record<string, unknown>) {
   return api("/api/admin/settings", savedSchema, body, "PUT");
@@ -200,6 +204,38 @@ function AiLimitCard({ cents }: { cents: number }) {
   );
 }
 
+function UploadLimitCard({ limit }: { limit: number }) {
+  const { pending, error, setError, run } = useAction(() => undefined);
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const text = String(new FormData(event.currentTarget).get("limit") ?? "").replace(/[.\s]/g, "");
+    const files = uploadLimitPattern.test(text) ? Number(text) : null;
+    if (files == null || files < minDailyUploadLimit) return setError("Informe um número a partir de 1, como 100.");
+    if (files > maxDailyUploadLimit) return setError("O limite máximo é 10.000 arquivos por dia.");
+    await run(() => saveSettings({ section: "upload-limit", limit: files }), "Limite de envios salvo.");
+  }
+  return (
+    <SettingsCard title="Limite de envios por cliente">
+      <form onSubmit={submit} className="grid gap-4" noValidate>
+        <div className="grid gap-1.5">
+          <Label htmlFor="upload-limit">Arquivos por dia</Label>
+          <Input id="upload-limit" name="limit" inputMode="numeric" defaultValue={String(limit)} />
+          <p className="text-xs text-muted-foreground">
+            Vídeos e áudios que cada cliente pode enviar por dia. Quando passa do limite, o envio volta no dia seguinte. Vale para todos os clientes.
+          </p>
+        </div>
+        <FieldError error={error} />
+        <div>
+          <Button type="submit" disabled={pending}>
+            <Spinner pending={pending} />
+            Salvar limite
+          </Button>
+        </div>
+      </form>
+    </SettingsCard>
+  );
+}
+
 const policies: { value: AccessEndPolicy; title: string; extra?: string; description: string }[] = [
   {
     value: "immediate",
@@ -268,6 +304,7 @@ export function SettingsPanel({ settings, navigation }: { settings: PanelSetting
       <AdminHeading navigation={navigation} current="configuracoes" />
       <HotmartCard hotmart={settings.hotmart} />
       <AiLimitCard cents={settings.aiMonthlyLimitCents} />
+      <UploadLimitCard limit={settings.dailyUploadLimit} />
       <AccessEndCard policy={settings.accessEndPolicy} />
       <p className="text-xs text-muted-foreground">Só donos veem esta aba. Toda alteração fica registrada com quem fez e quando.</p>
     </div>

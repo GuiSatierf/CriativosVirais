@@ -2,16 +2,17 @@ import { z } from "zod";
 import { getAuth } from "./auth";
 import { authEnv } from "./env";
 import { provisionTenant } from "./provision-tenant";
-import { DomainError, HttpError } from "./errors";
+import { DomainError, HttpError, TooManyRequestsError } from "./errors";
 import { bigintReplacer } from "./json";
 import { logError } from "./log";
 export { HttpError } from "./errors";
-export function json(value: unknown, status = 200) {
+export function json(value: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(value, bigintReplacer), {
     status,
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": "no-store",
+      ...headers,
     },
   });
 }
@@ -65,6 +66,10 @@ export async function handle(fn: () => Promise<Response>) {
   try {
     return await fn();
   } catch (error) {
+    if (error instanceof TooManyRequestsError)
+      return json({ error: error.message }, error.status, {
+        "Retry-After": String(error.retryAfterInSeconds),
+      });
     if (error instanceof HttpError)
       return json({ error: error.message }, error.status);
     if (error instanceof DomainError) {
