@@ -3,7 +3,8 @@ import { LegalDocument } from "@/components/legal-document";
 import { privacyMarkdown } from "@/content/legal";
 import { legalPaths } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "Política de privacidade" };
+// Hidden draft: reachable only by its address, kept out of search engines.
+export const metadata: Metadata = { title: "Política de privacidade", robots: { index: false, follow: false } };
 
 export default function PrivacyPage() {
   return (

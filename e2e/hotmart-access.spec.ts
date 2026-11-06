@@ -54,7 +54,6 @@ test("a Hotmart purchase frees the email to sign up and a refund blocks the acco
   await expect(page.getByLabel("E-mail")).toHaveValue(email);
   await page.getByLabel("Nome").fill("Compradora Teste");
   await page.getByRole("textbox", { name: "Senha" }).fill(testPassword);
-  await page.getByLabel(/Li e aceito os/).check();
   await page.getByRole("button", { name: "Criar conta" }).click();
   await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
 

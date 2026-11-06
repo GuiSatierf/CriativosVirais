@@ -3,7 +3,6 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 import { signUp, testDatabase, testPassword, waitForSignUpSlot } from "./support";
-import { legalVersion, legalVersionHeader } from "../src/lib/legal";
 import { panelRequiresTwoFactor } from "../src/lib/staff";
 
 // playwright.config.ts points the app's email outbox here, so no message is really sent.
@@ -187,12 +186,12 @@ test("support enters a client's account without the password, changes its email 
   await waitForSignUpSlot();
   const unverified = await page.request.post("/api/auth/sign-up/email", {
     data: { name: "Unverified invite", email: invited, password: testPassword },
-    headers: { [legalVersionHeader]: String(legalVersion), Origin: baseURL! },
+    headers: { Origin: baseURL! },
   });
   expect(unverified.status()).toBe(403);
   const invalidToken = await page.request.post("/api/auth/sign-up/email", {
     data: { name: "Invalid invite", email: invited, password: testPassword },
-    headers: { [legalVersionHeader]: String(legalVersion), "x-team-invite-token": "A".repeat(43), Origin: baseURL! },
+    headers: { "x-team-invite-token": "A".repeat(43), Origin: baseURL! },
   });
   expect(invalidToken.status()).toBe(403);
   expect(await testDatabase(`select 1 from "user" where email = $1`, [invited])).toHaveLength(0);
@@ -207,7 +206,6 @@ test("support enters a client's account without the password, changes its email 
   await guestPage.goto(link.pathname + link.search);
   await guestPage.getByLabel("Nome").fill("Pessoa Convidada");
   await guestPage.getByRole("textbox", { name: "Senha" }).fill(testPassword);
-  await guestPage.getByLabel(/Li e aceito os/).check();
   await guestPage.getByRole("button", { name: "Criar conta" }).click();
   await expect(guestPage).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
   // With the temporary panel switch off, a mailbox-verified invite can enter without MFA setup.
