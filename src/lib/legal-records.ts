@@ -1,23 +1,7 @@
 import "server-only";
-import { and, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
-import { accessLog, legalAcceptances } from "@/db/schema";
-import { legalVersion } from "./legal";
+import { accessLog } from "@/db/schema";
 import { logError } from "./log";
-
-export async function hasAcceptedCurrentTerms(userId: string) {
-  const [acceptance] = await db
-    .select({ id: legalAcceptances.id })
-    .from(legalAcceptances)
-    .where(and(eq(legalAcceptances.userId, userId), gte(legalAcceptances.version, legalVersion)))
-    .limit(1);
-  return acceptance != null;
-}
-
-/** Records that this person accepted the current terms; accepting twice keeps the first record. */
-export async function recordTermsAcceptance(userId: string) {
-  await db.insert(legalAcceptances).values({ userId, version: legalVersion }).onConflictDoNothing();
-}
 
 type StartedSession = {
   userId: string;
