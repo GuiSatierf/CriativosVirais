@@ -3,7 +3,8 @@ import { LegalDocument } from "@/components/legal-document";
 import { termsMarkdown } from "@/content/legal";
 import { legalPaths } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "Termos de uso" };
+// Hidden draft: reachable only by its address, kept out of search engines.
+export const metadata: Metadata = { title: "Termos de uso", robots: { index: false, follow: false } };
 
 export default function TermsPage() {
   return (
