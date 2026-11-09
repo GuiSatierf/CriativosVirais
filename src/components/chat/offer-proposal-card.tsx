@@ -5,14 +5,12 @@ import type { z } from "zod";
 import { ArrowRight, Check } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { offerProposalSchema } from "@/lib/ai/schemas";
-import { api, formatCents, savedSchema, toastError } from "@/lib/client";
+import { api, formatCents, formatDay, savedSchema, spDay, toastError } from "@/lib/client";
 import { proposalInOffer, savedOfferSchema } from "@/lib/offer-proposal";
 import { cn } from "@/lib/utils";
 
 type OfferProposal = z.infer<typeof offerProposalSchema>;
 type CardState = "checking" | "pending" | "saving" | "confirmed" | "dismissed";
-
-const dayFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 
 function StatusBadge({ state, confirmedOn }: { state: CardState; confirmedOn: string | null }) {
   if (state === "confirmed")
@@ -70,7 +68,7 @@ export function OfferProposalCard({ proposal }: { proposal: OfferProposal }) {
     setState("saving");
     try {
       await api("/api/context", savedSchema, proposal, "PATCH");
-      setConfirmedOn(dayFormat.format(new Date()));
+      setConfirmedOn(formatDay(spDay()));
       setState("confirmed");
     } catch (error) {
       toastError(error, "Não foi possível salvar. Tente de novo.");
