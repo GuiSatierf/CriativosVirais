@@ -30,3 +30,15 @@ test("price and proofs reach the offer only after the client confirms them", asy
   await expect(page.getByRole("heading", { name: "Preço e provas salvos na sua oferta" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Confirmar e salvar" })).toHaveCount(0);
 });
+
+// An older card that a newer proposal replaced could be confirmed again and write the old values back.
+test("only the newest proposal can be confirmed", async ({ page }) => {
+  await signUp(page);
+  await sendMessage(page, "Eu vendo um curso de rotina para mães que trabalham fora.");
+  await sendMessage(page, "Corrigindo: eu vendo o curso de rotina por outro preço.");
+
+  await page.reload();
+
+  await expect(page.getByText("Substituído")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Confirmar e salvar" })).toHaveCount(1);
+});

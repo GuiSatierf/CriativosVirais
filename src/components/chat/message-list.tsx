@@ -299,6 +299,10 @@ const panels: Record<
   perfil: { href: "/perfil", title: "Perfil", description: "Foto, nome e senha", icon: UserRound },
 };
 
+function isOfferProposal(part: ChatMessage["parts"][number]) {
+  return part.type === "data-offerProposal";
+}
+
 const contextLabels: Record<string, string> = {
   produtoNome: "nome do produto",
   produto: "produto",
@@ -378,12 +382,17 @@ const AssistantMessage = memo(function AssistantMessage({
   message,
   streaming,
   last,
+  holdsLatestProposal,
 }: {
   message: ChatMessage;
   streaming: boolean;
   last: boolean;
+  holdsLatestProposal: boolean;
 }) {
   const text = messageText(message);
+  const latestProposalIndex = holdsLatestProposal
+    ? message.parts.findLastIndex(isOfferProposal)
+    : -1;
   return (
     <AssistantRow className="group/message">
       <AssistantLabel status={streaming ? "escrevendo…" : undefined} />
@@ -437,7 +446,11 @@ const AssistantMessage = memo(function AssistantMessage({
         if (part.type === "data-offerProposal") {
           const parsed = publicDataSchema.shape.offerProposal.safeParse(part.data);
           return parsed.success ? (
-            <OfferProposalCard key={index} proposal={parsed.data} />
+            <OfferProposalCard
+              key={index}
+              proposal={parsed.data}
+              current={index === latestProposalIndex}
+            />
           ) : null;
         }
         if (part.type === "data-generation") {
@@ -479,6 +492,10 @@ export const MessageList = memo(function MessageList({
   messages: ChatMessage[];
   streaming: boolean;
 }) {
+  // Only the newest proposal can be confirmed; an older card would write superseded values back.
+  const latestProposalMessageId = messages.findLast((message) =>
+    message.parts.some(isOfferProposal),
+  )?.id;
   return (
     <section aria-label="Mensagens da conversa" className="space-y-6">
       {messages.map((message, index) => {
@@ -491,6 +508,7 @@ export const MessageList = memo(function MessageList({
             message={message}
             last={last}
             streaming={last && streaming}
+            holdsLatestProposal={message.id === latestProposalMessageId}
           />
         );
       })}

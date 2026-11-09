@@ -10,7 +10,16 @@ import { proposalInOffer, savedOfferSchema } from "@/lib/offer-proposal";
 import { cn } from "@/lib/utils";
 
 type OfferProposal = z.infer<typeof offerProposalSchema>;
-type CardState = "checking" | "pending" | "saving" | "confirmed" | "dismissed";
+type CardState = "checking" | "pending" | "saving" | "confirmed" | "dismissed" | "replaced";
+
+const headings: Record<CardState, string> = {
+  checking: "Confira antes de eu usar nos roteiros",
+  pending: "Confira antes de eu usar nos roteiros",
+  saving: "Confira antes de eu usar nos roteiros",
+  confirmed: "Preço e provas salvos na sua oferta",
+  dismissed: "Confira antes de eu usar nos roteiros",
+  replaced: "Preço e provas de antes",
+};
 
 function StatusBadge({ state, confirmedOn }: { state: CardState; confirmedOn: string | null }) {
   if (state === "confirmed")
@@ -24,6 +33,12 @@ function StatusBadge({ state, confirmedOn }: { state: CardState; confirmedOn: st
     return (
       <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold">
         Não usado
+      </span>
+    );
+  if (state === "replaced")
+    return (
+      <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold">
+        Substituído
       </span>
     );
   // While checking, the badge keeps its place without claiming a state yet.
@@ -41,14 +56,23 @@ function StatusBadge({ state, confirmedOn }: { state: CardState; confirmedOn: st
 }
 
 /** Shows the price and proofs the assistant heard and saves them only when the client confirms. */
-export function OfferProposalCard({ proposal }: { proposal: OfferProposal }) {
+export function OfferProposalCard({
+  proposal,
+  current,
+}: {
+  proposal: OfferProposal;
+  /** Only the newest proposal of the conversation can still be confirmed. */
+  current: boolean;
+}) {
   const titleId = useId();
-  const [state, setState] = useState<CardState>("checking");
+  const [checkedState, setState] = useState<CardState>("checking");
+  const state: CardState = current ? checkedState : "replaced";
   const [confirmedOn, setConfirmedOn] = useState<string | null>(null);
   // Parts are re-created while the reply streams; the text keeps the check to one request.
   const signature = JSON.stringify(proposal);
 
   useEffect(() => {
+    if (current === false) return;
     let active = true;
     const expected = offerProposalSchema.parse(JSON.parse(signature));
     api("/api/context", savedOfferSchema)
@@ -62,7 +86,7 @@ export function OfferProposalCard({ proposal }: { proposal: OfferProposal }) {
     return () => {
       active = false;
     };
-  }, [signature]);
+  }, [signature, current]);
 
   async function confirm() {
     setState("saving");
@@ -89,11 +113,14 @@ export function OfferProposalCard({ proposal }: { proposal: OfferProposal }) {
           <StatusBadge state={state} confirmedOn={confirmedOn} />
         </p>
         <h4 id={titleId} className="text-sm font-semibold">
-          {state === "confirmed"
-            ? "Preço e provas salvos na sua oferta"
-            : "Confira antes de eu usar nos roteiros"}
+          {headings[state]}
         </h4>
-        {state === "confirmed" ? null : (
+        {state === "replaced" ? (
+          <p className="text-sm text-muted-foreground">
+            Uma conferência mais nova, mais abaixo na conversa, vale no lugar desta.
+          </p>
+        ) : null}
+        {state === "confirmed" || state === "replaced" ? null : (
           <p className="text-sm text-muted-foreground">
             Prova e preço aparecem no anúncio. Só uso o que você confirmar.
           </p>
