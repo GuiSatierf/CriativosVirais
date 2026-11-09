@@ -25,6 +25,7 @@ import {
   buildSystemPrompt,
   messageAttachments,
   messageText,
+  offerProposalNote,
 } from "@/lib/ai/system-prompt";
 import { chatTools } from "@/lib/ai/tools";
 import { logError } from "@/lib/log";
@@ -169,6 +170,7 @@ export function POST(request: Request) {
             role: assistant ? ("assistant" as const) : ("user" as const),
             content: [
               messageText(content),
+              assistant ? offerProposalNote(content) : "",
               attached.length ? `[Vídeos anexados nesta mensagem, asset_id: ${attached.join(", ")}]` : "",
             ].filter(Boolean).join("\n"),
           };
