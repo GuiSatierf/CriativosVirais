@@ -47,7 +47,9 @@ export function chatTools(
         // A wrong price or an invented proof would be spoken in an ad, so the client confirms them.
         const proposal = {
           ...(ticketCents === undefined ? {} : { ticketCents }),
-          ...(provasAutorizadas === undefined ? {} : { provasAutorizadas }),
+          ...(provasAutorizadas === undefined
+            ? {}
+            : { provasAutorizadas: provasAutorizadas.filter((proof) => proof !== "") }),
         };
         const awaitingConfirmation = Object.keys(proposal);
         if (awaitingConfirmation.length > 0)

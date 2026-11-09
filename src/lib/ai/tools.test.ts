@@ -45,4 +45,20 @@ describe("updateClientContext chat tool", () => {
     });
     expect(result).toEqual({ saved: ["produto"], awaitingConfirmation: ["ticketCents", "provasAutorizadas"] });
   });
+
+  it("leaves blank proofs out of the card", async () => {
+    const { chatTools } = await import("./tools");
+    const writer = { write: vi.fn() };
+    const tools = chatTools("tenant-1", "conversation-1", writer as never);
+
+    await tools.updateClientContext.execute?.(
+      { provasAutorizadas: ["", "Mais de 300 alunas"] },
+      { toolCallId: "call-2", messages: [] } as never,
+    );
+
+    expect(writer.write).toHaveBeenCalledWith({
+      type: "data-offerProposal",
+      data: { provasAutorizadas: ["Mais de 300 alunas"] },
+    });
+  });
 });
