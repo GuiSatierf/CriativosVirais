@@ -33,15 +33,26 @@ export function chatTools(
   return {
     updateClientContext: tool({
       description:
-        "Salve o contexto confirmado do negócio. Não invente provas nem ticket.",
+        "Salve o contexto do negócio. Ticket e provas não são salvos aqui: aparecem num cartão para o cliente conferir e confirmar. Não invente provas nem ticket.",
       inputSchema: contextPatchSchema,
       execute: async (patch) => {
-        await updateContext(tenantId, patch);
-        const fields = Object.keys(patch).filter(
-          (key) => patch[key as keyof typeof patch] !== undefined,
+        const { ticketCents, provasAutorizadas, ...direct } = patch;
+        const saved = Object.keys(direct).filter(
+          (key) => direct[key as keyof typeof direct] !== undefined,
         );
-        if (fields.length) writer.write({ type: "data-context", data: { fields } });
-        return { saved: true };
+        if (saved.length > 0) {
+          await updateContext(tenantId, direct);
+          writer.write({ type: "data-context", data: { fields: saved } });
+        }
+        // A wrong price or an invented proof would be spoken in an ad, so the client confirms them.
+        const proposal = {
+          ...(ticketCents === undefined ? {} : { ticketCents }),
+          ...(provasAutorizadas === undefined ? {} : { provasAutorizadas }),
+        };
+        const awaitingConfirmation = Object.keys(proposal);
+        if (awaitingConfirmation.length > 0)
+          writer.write({ type: "data-offerProposal", data: proposal });
+        return { saved, awaitingConfirmation };
       },
     }),
     showPanel: tool({

@@ -26,6 +26,7 @@ import { publicDataSchema } from "@/lib/ai/schemas";
 import { api } from "@/lib/client";
 import { pollDelay, whenVisible } from "@/lib/polling";
 import { cn } from "@/lib/utils";
+import { OfferProposalCard } from "./offer-proposal-card";
 import { StrategistAvatar, strategistName } from "./strategist";
 
 export const maxAttachedVideos = 5;
@@ -304,7 +305,7 @@ const contextLabels: Record<string, string> = {
   publico: "público",
   transformacao: "transformação",
   mecanismo: "mecanismo",
-  ticketCents: "ticket",
+  ticketCents: "preço",
   tipoFunil: "funil",
   proximoPassoFunil: "próximo passo",
   provasAutorizadas: "provas",
@@ -432,6 +433,12 @@ const AssistantMessage = memo(function AssistantMessage({
               icon={Storefront}
             />
           );
+        }
+        if (part.type === "data-offerProposal") {
+          const parsed = publicDataSchema.shape.offerProposal.safeParse(part.data);
+          return parsed.success ? (
+            <OfferProposalCard key={index} proposal={parsed.data} />
+          ) : null;
         }
         if (part.type === "data-generation") {
           const parsed = publicDataSchema.shape.generation.safeParse(part.data);
