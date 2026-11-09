@@ -123,10 +123,9 @@ export function OfferProposalCard({ proposal }: { proposal: OfferProposal }) {
       )}
       {waiting ? (
         <>
-          <div className="flex gap-2.5">
+          <div className="flex flex-col gap-2.5 sm:flex-row">
             <Button
               size="lg"
-              className="flex-1 sm:flex-none"
               disabled={state === "saving"}
               onClick={() => void confirm()}
             >
@@ -135,7 +134,6 @@ export function OfferProposalCard({ proposal }: { proposal: OfferProposal }) {
             <Button
               size="lg"
               variant="outline"
-              className="flex-1 sm:flex-none"
               disabled={state === "saving"}
               onClick={() => setState("dismissed")}
             >
