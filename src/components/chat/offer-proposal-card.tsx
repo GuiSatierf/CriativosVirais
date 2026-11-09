@@ -15,8 +15,6 @@ type CardState = "checking" | "pending" | "saving" | "confirmed" | "dismissed";
 const dayFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 
 function StatusBadge({ state, confirmedOn }: { state: CardState; confirmedOn: string | null }) {
-  if (state === "checking")
-    return <span aria-hidden className="block h-6 w-32 animate-pulse rounded-full bg-muted" />;
   if (state === "confirmed")
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-success px-2.5 py-1 text-xs font-semibold text-background">
@@ -30,8 +28,15 @@ function StatusBadge({ state, confirmedOn }: { state: CardState; confirmedOn: st
         Não usado
       </span>
     );
+  // While checking, the badge keeps its place without claiming a state yet.
   return (
-    <span className="inline-flex rounded-full bg-warning px-2.5 py-1 text-xs font-semibold text-background">
+    <span
+      aria-hidden={state === "checking"}
+      className={cn(
+        "inline-flex rounded-full bg-warning px-2.5 py-1 text-xs font-semibold text-background",
+        state === "checking" && "invisible",
+      )}
+    >
       Falta você conferir
     </span>
   );
@@ -74,7 +79,8 @@ export function OfferProposalCard({ proposal }: { proposal: OfferProposal }) {
   }
 
   const proofs = proposal.provasAutorizadas;
-  const waiting = state === "pending" || state === "saving";
+  // The buttons show while checking too: a card that grew after the reply ended left the chat above the bottom.
+  const waiting = state === "checking" || state === "pending" || state === "saving";
   return (
     <section
       aria-labelledby={titleId}
@@ -126,7 +132,7 @@ export function OfferProposalCard({ proposal }: { proposal: OfferProposal }) {
           <div className="flex flex-col gap-2.5 sm:flex-row">
             <Button
               size="lg"
-              disabled={state === "saving"}
+              disabled={state !== "pending"}
               onClick={() => void confirm()}
             >
               {state === "saving" ? "Salvando..." : "Confirmar e salvar"}
@@ -134,7 +140,7 @@ export function OfferProposalCard({ proposal }: { proposal: OfferProposal }) {
             <Button
               size="lg"
               variant="outline"
-              disabled={state === "saving"}
+              disabled={state !== "pending"}
               onClick={() => setState("dismissed")}
             >
               Não usar
