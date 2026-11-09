@@ -31,6 +31,18 @@ test("price and proofs reach the offer only after the client confirms them", asy
   await expect(page.getByRole("button", { name: "Confirmar e salvar" })).toHaveCount(0);
 });
 
+// "Não usar" lived only on the screen, so the same card asked again after a reload.
+test("a card the client set aside stays set aside after a reload", async ({ page }) => {
+  await signUp(page);
+  await sendMessage(page, "Eu vendo um curso de rotina para mães que trabalham fora.");
+  await page.getByRole("button", { name: "Não usar" }).click();
+
+  await page.reload();
+
+  await expect(page.getByText("Não usado")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirmar e salvar" })).toHaveCount(0);
+});
+
 // An older card that a newer proposal replaced could be confirmed again and write the old values back.
 test("only the newest proposal can be confirmed", async ({ page }) => {
   await signUp(page);

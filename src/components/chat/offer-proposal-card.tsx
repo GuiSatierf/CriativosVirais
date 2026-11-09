@@ -55,15 +55,37 @@ function StatusBadge({ state, confirmedOn }: { state: CardState; confirmedOn: st
   );
 }
 
+// Blocked storage (private mode, cleared site data) only means a dismissed card asks again.
+function readDismissed(key: string) {
+  try {
+    return window.localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveDismissed(key: string) {
+  try {
+    window.localStorage.setItem(key, "1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Shows the price and proofs the assistant heard and saves them only when the client confirms. */
 export function OfferProposalCard({
   proposal,
   current,
+  cardId,
 }: {
   proposal: OfferProposal;
   /** Only the newest proposal of the conversation can still be confirmed. */
   current: boolean;
+  /** Stable per card (message id and part position), to remember "Não usar" after a reload. */
+  cardId: string;
 }) {
+  const dismissedKey = `offer-proposal-dismissed:${cardId}`;
   const titleId = useId();
   const [checkedState, setState] = useState<CardState>("checking");
   const state: CardState = current ? checkedState : "replaced";
@@ -75,9 +97,14 @@ export function OfferProposalCard({
     if (current === false) return;
     let active = true;
     const expected = offerProposalSchema.parse(JSON.parse(signature));
-    api("/api/context", savedOfferSchema)
-      .then((offer) => {
-        if (active) setState(proposalInOffer(expected, offer) ? "confirmed" : "pending");
+    const next: Promise<CardState> = readDismissed(dismissedKey)
+      ? Promise.resolve("dismissed")
+      : api("/api/context", savedOfferSchema).then((offer) =>
+          proposalInOffer(expected, offer) ? "confirmed" : "pending",
+        );
+    next
+      .then((resolved) => {
+        if (active) setState(resolved);
       })
       // Without the saved offer the card cannot tell it was confirmed, so it asks again.
       .catch(() => {
@@ -86,7 +113,12 @@ export function OfferProposalCard({
     return () => {
       active = false;
     };
-  }, [signature, current]);
+  }, [signature, current, dismissedKey]);
+
+  function dismiss() {
+    saveDismissed(dismissedKey);
+    setState("dismissed");
+  }
 
   async function confirm() {
     setState("saving");
@@ -166,7 +198,7 @@ export function OfferProposalCard({
               size="lg"
               variant="outline"
               disabled={state !== "pending"}
-              onClick={() => setState("dismissed")}
+              onClick={dismiss}
             >
               Não usar
             </Button>

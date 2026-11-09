@@ -450,6 +450,7 @@ const AssistantMessage = memo(function AssistantMessage({
               key={index}
               proposal={parsed.data}
               current={index === latestProposalIndex}
+              cardId={`${message.id}:${index}`}
             />
           ) : null;
         }
