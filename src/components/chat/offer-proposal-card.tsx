@@ -17,7 +17,7 @@ const headings: Record<CardState, string> = {
   pending: "Confira antes de eu usar nos roteiros",
   saving: "Confira antes de eu usar nos roteiros",
   confirmed: "Preço e provas salvos na sua oferta",
-  dismissed: "Confira antes de eu usar nos roteiros",
+  dismissed: "Preço e provas que você não usou",
   replaced: "Preço e provas de antes",
 };
 
@@ -152,7 +152,7 @@ export function OfferProposalCard({
             Uma conferência mais nova, mais abaixo na conversa, vale no lugar desta.
           </p>
         ) : null}
-        {state === "confirmed" || state === "replaced" ? null : (
+        {state === "confirmed" || state === "replaced" || state === "dismissed" ? null : (
           <p className="text-sm text-muted-foreground">
             Prova e preço aparecem no anúncio. Só uso o que você confirmar.
           </p>
