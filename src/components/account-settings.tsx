@@ -16,8 +16,8 @@ import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
+import { maxPasswordLength, minPasswordLength } from "@/lib/password-rules";
 
-const minPassword = 12;
 const spin = "animate-spin motion-reduce:animate-none";
 
 /** Changes the password and signs out every other device. */
@@ -31,8 +31,8 @@ export function ChangePassword() {
   async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!current) return setError("Digite a sua senha atual.");
-    if (next.length < minPassword)
-      return setError(`A nova senha precisa ter pelo menos ${minPassword} caracteres.`);
+    if (next.length < minPasswordLength)
+      return setError(`A nova senha precisa ter pelo menos ${minPasswordLength} caracteres.`);
     if (next !== confirm) return setError("As novas senhas não são iguais.");
     setError(undefined);
     setPending(true);
@@ -83,15 +83,15 @@ export function ChangePassword() {
           autoComplete="new-password"
           enterKeyHint="next"
           required
-          minLength={minPassword}
-          maxLength={128}
-          aria-invalid={error && current && next.length < minPassword ? true : undefined}
+          minLength={minPasswordLength}
+          maxLength={maxPasswordLength}
+          aria-invalid={error && current && next.length < minPasswordLength ? true : undefined}
           aria-describedby={error ? "senha-nova-dica senha-erro" : "senha-nova-dica"}
           value={next}
           onChange={(event) => setNext(event.target.value)}
         />
         <p id="senha-nova-dica" className="text-xs text-muted-foreground">
-          Pelo menos {minPassword} caracteres.
+          Pelo menos {minPasswordLength} caracteres.
         </p>
       </div>
       <div className="grid gap-2">
@@ -101,7 +101,7 @@ export function ChangePassword() {
           autoComplete="new-password"
           enterKeyHint="done"
           required
-          aria-invalid={error && next.length >= minPassword && next !== confirm ? true : undefined}
+          aria-invalid={error && next.length >= minPasswordLength && next !== confirm ? true : undefined}
           aria-describedby={error ? "senha-erro" : undefined}
           value={confirm}
           onChange={(event) => setConfirm(event.target.value)}
