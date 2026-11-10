@@ -261,8 +261,7 @@ function parsePrice(input: string): ParsedPrice {
 }
 
 /** A half-typed thousands separator ("1.9") only counts as wrong once the person leaves the field. */
-function priceProblemWhileTyping(input: string) {
-  const parsed = parsePrice(input);
+function problemWhileTyping(parsed: ParsedPrice) {
   if ("cents" in parsed || parsed.problem === "format") return null;
   return parsed.problem;
 }
@@ -418,8 +417,8 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
 
   function setPrice(value: string) {
     setForm((state) => ({ ...state, price: value }));
-    setPriceError(priceProblemWhileTyping(value));
     const parsed = parsePrice(value);
+    setPriceError(problemWhileTyping(parsed));
     if ("problem" in parsed) return;
     queue({ ticketCents: parsed.cents });
   }
