@@ -1,5 +1,6 @@
 import "server-only";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, notExists, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { db } from "@/db";
 import { accessGrants, adminAuditLog, user } from "@/db/schema";
@@ -65,6 +66,9 @@ export function parsePurchaseEvent(body: unknown) {
   return purchaseEventSchema.safeParse(body).data ?? null;
 }
 
+// Every audit entry Hotmart writes for a refund or chargeback, whatever it did to the account.
+const reversalActions = ["account.blocked", "access.removed", "access.revoked", "access.revoke_skipped"];
+
 /** Hotmart may deliver an old approval after the refund of the same purchase; it must not undo it. */
 async function wasReversed(tx: Transaction, email: string, transaction: string) {
   const [reversal] = await tx
@@ -74,12 +78,52 @@ async function wasReversed(tx: Transaction, email: string, transaction: string) 
       and(
         eq(adminAuditLog.actorEmail, hotmartActor),
         eq(adminAuditLog.targetEmail, email),
-        inArray(adminAuditLog.action, ["account.blocked", "access.removed", "access.revoked"]),
+        inArray(adminAuditLog.action, reversalActions),
         sql`${adminAuditLog.details}->>'transaction' = ${transaction}`,
       ),
     )
     .limit(1);
   return reversal != null;
+}
+
+const laterReversal = alias(adminAuditLog, "later_reversal");
+
+/**
+ * Anyone can buy with someone else's email, so a reversal only ends access when no other purchase
+ * on that email is still paid: one Hotmart granted and never took back.
+ */
+async function hasOtherPaidPurchase(tx: Transaction, email: string, reversedTransaction: string) {
+  const takenBack = tx
+    .select({ id: laterReversal.id })
+    .from(laterReversal)
+    .where(
+      and(
+        eq(laterReversal.actorEmail, hotmartActor),
+        eq(laterReversal.targetEmail, email),
+        inArray(laterReversal.action, reversalActions),
+        sql`${laterReversal.details}->>'transaction' = ${adminAuditLog.details}->>'transaction'`,
+      ),
+    );
+  const [paid] = await tx
+    .select({ id: adminAuditLog.id })
+    .from(adminAuditLog)
+    .where(
+      and(
+        eq(adminAuditLog.actorEmail, hotmartActor),
+        eq(adminAuditLog.targetEmail, email),
+        eq(adminAuditLog.action, "access.granted"),
+        sql`${adminAuditLog.details}->>'transaction' <> ${reversedTransaction}`,
+        notExists(takenBack),
+      ),
+    )
+    .limit(1);
+  return paid != null;
+}
+
+/** Access the team gave by hand is not Hotmart's to take back. */
+async function grantedByTeam(tx: Transaction, email: string) {
+  const [grantRow] = await tx.select({ source: accessGrants.source }).from(accessGrants).where(eq(accessGrants.email, email));
+  return grantRow != null && grantRow.source !== "hotmart";
 }
 
 /** A purchase frees the email to sign up and lifts a block that a past refund put on it. */
@@ -113,6 +157,10 @@ export async function applyPurchaseEvent(event: HotmartPurchaseEvent | null, pro
   const outcome = await db.transaction(async (tx) => {
     await lockBuyer(tx, email);
     if (reason == null) return { result: "granted" as const, invite: await grant(tx, email, transaction) };
+    if ((await grantedByTeam(tx, email)) || (await hasOtherPaidPurchase(tx, email, transaction))) {
+      await auditHotmart(tx, "access.revoke_skipped", email, { reason, transaction });
+      return { result: "kept" as const, invite: false };
+    }
     await revokeBuyerAccess(tx, email, reason, { transaction });
     return { result: "revoked" as const, invite: false };
   });
