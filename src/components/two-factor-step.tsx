@@ -13,7 +13,7 @@ const appCode = /^\d{6}$/;
 const trustedDays = 30;
 
 /** Second step of sign-in for accounts with two-factor: the authenticator code, or a recovery code. */
-export function TwoFactorStep() {
+export function TwoFactorStep({ nextPage }: { nextPage: () => Promise<string> }) {
   const router = useRouter();
   const [recovery, setRecovery] = useState(false);
   const [remember, setRemember] = useState(false);
@@ -35,7 +35,7 @@ export function TwoFactorStep() {
         setError(recovery ? "Código de recuperação inválido." : "Código incorreto ou vencido. Use o número que está no app agora.");
         return;
       }
-      router.replace("/chat");
+      router.replace(await nextPage());
       router.refresh();
     } catch {
       setError("Não foi possível conectar. Verifique sua internet e tente novamente.");

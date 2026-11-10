@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { signUp, testDatabase, testPassword, waitForSignUpSlot } from "./support";
+import { signUp, testDatabase, testPassword, waitForAuthSlot, waitForSignUpSlot } from "./support";
 import { panelRequiresTwoFactor } from "../src/lib/staff";
 
 // playwright.config.ts points the app's email outbox here, so no message is really sent.
@@ -148,26 +148,52 @@ test("support enters a client's account without the password, changes its email 
   await expect(login).toHaveURL(/\/chat/);
   await clientAgain.close();
 
-  // 6. An owner adds the client to the team. The one-time activation code and the two-factor
-  // status appear only while the panel requires two-factor.
+  // 6. An owner adds that account to the team. Account emails are never verified (support just
+  // changed this one), so the role waits for the emailed link plus the account's own sign-in.
   await testDatabase(`update "user" set role = 'owner' where email = $1`, [staffEmail]);
   await page.goto("/admin?aba=equipe");
   await page.getByRole("button", { name: "Adicionar à equipe" }).click();
   await page.getByLabel("E-mail").fill(newEmail);
   await page.getByRole("button", { name: "Adicionar", exact: true }).click();
-  if (panelRequiresTwoFactor) {
-    await expect(page.getByText("Código de ativação, vale 24 horas:")).toBeVisible();
-    await page.getByRole("button", { name: "Pronto" }).click();
-  } else {
-    await expect(page.getByText(`${newEmail} agora é Suporte.`)).toBeVisible();
-    await expect(page.getByText("Código de ativação, vale 24 horas:")).toHaveCount(0);
+  await expect(page.getByText(`Convite enviado para ${newEmail}. A pessoa entra como Suporte depois de abrir o e-mail e entrar com a própria senha.`)).toBeVisible();
+  await expect(page.getByRole("region", { name: "Convites aguardando resposta" })).toContainText(newEmail);
+  const roleOf = async (email: string) => (await testDatabase<{ role: string | null }>(`select role from "user" where email = $1`, [email]))[0]?.role;
+  expect(await roleOf(newEmail)).toBeNull();
+
+  // Knowing the account's password without the mailbox (as support does here) gains nothing.
+  const member = await browser.newContext({ baseURL, locale: "pt-BR" });
+  const memberPage = await member.newPage();
+  await waitForAuthSlot("/sign-in/email");
+  await memberPage.goto("/login");
+  await memberPage.getByLabel("E-mail").fill(newEmail);
+  await memberPage.getByRole("textbox", { name: "Senha" }).fill(newPassword);
+  await memberPage.getByRole("button", { name: "Entrar" }).click();
+  await expect(memberPage).toHaveURL(/\/chat/);
+  const guessed = await memberPage.request.post("/api/team-invite", { data: { token: "A".repeat(43) }, headers: { Origin: baseURL! } });
+  expect(await guessed.json()).toEqual({ joined: false });
+  expect(await roleOf(newEmail)).toBeNull();
+
+  // The mailbox owner opens the emailed link and signs in: the account joins the team.
+  await expect.poll(async () => (await emailsTo(newEmail)).length).toBe(1);
+  const [teamInvite] = await emailsTo(newEmail);
+  expect(teamInvite.subject).toBe("Você foi convidado para a equipe do Criativos Virais");
+  const acceptLink = new URL(teamInvite.text.match(/https?:\/\/\S+\/login\?email=\S+/)?.[0] ?? "http://invalid");
+  await member.clearCookies();
+  await memberPage.goto(acceptLink.pathname + acceptLink.search);
+  await expect(memberPage.getByText("Você recebeu um convite para a equipe do Criativos Virais como Suporte.", { exact: false })).toBeVisible();
+  await expect(memberPage.getByLabel("E-mail")).toHaveValue(newEmail);
+  await waitForAuthSlot("/sign-in/email");
+  await memberPage.getByRole("textbox", { name: "Senha" }).fill(newPassword);
+  await memberPage.getByRole("button", { name: "Entrar" }).click();
+  await expect(memberPage).toHaveURL(/\/admin/);
+  await member.close();
+  expect(await roleOf(newEmail)).toBe("support");
+  await page.reload();
+  await expect(page.getByRole("row").filter({ hasText: newEmail })).toContainText(panelRequiresTwoFactor ? "Falta ativar" : "Suporte");
+  if (!panelRequiresTwoFactor) {
     await expect(page.getByRole("columnheader", { name: "Verificação em duas etapas" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Novo código" })).toHaveCount(0);
-    await expect(page.getByText("Todos usam verificação em duas etapas")).toHaveCount(0);
   }
-  await expect(page.getByRole("row").filter({ hasText: newEmail })).toContainText("Suporte");
-  const [role] = await testDatabase<{ role: string }>(`select role from "user" where email = $1`, [newEmail]);
-  expect(role.role).toBe("support");
 
   // 7. An email with no account is invited: it gets the team invite and joins with the role on sign-up.
   const invited = `convidado-${randomUUID()}@exemplo.test`;
@@ -175,7 +201,7 @@ test("support enters a client's account without the password, changes its email 
   await page.getByLabel("E-mail").fill(invited);
   await page.getByRole("button", { name: "Adicionar", exact: true }).click();
   await expect(page.getByText(`Convite enviado para ${invited}`)).toBeVisible();
-  await expect(page.getByRole("region", { name: "Convites aguardando cadastro" })).toContainText(invited);
+  await expect(page.getByRole("region", { name: "Convites aguardando resposta" })).toContainText(invited);
   await expect.poll(async () => (await emailsTo(invited)).length).toBe(1);
   const [invite] = await emailsTo(invited);
   expect(invite.subject).toBe("Você foi convidado para a equipe do Criativos Virais");
@@ -218,7 +244,7 @@ test("support enters a client's account without the password, changes its email 
   await page.reload();
   await expect(page.getByRole("row").filter({ hasText: invited })).toContainText(panelRequiresTwoFactor ? "Falta ativar" : "Suporte");
   // Only this test's invite: an earlier run may have left another pending one in the shared database.
-  await expect(page.getByRole("region", { name: "Convites aguardando cadastro" }).getByText(invited)).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Convites aguardando resposta" }).getByText(invited)).toHaveCount(0);
 
   // 8. An invite that expires unused takes back the access it freed.
   const unused = `sem-uso-${randomUUID()}@exemplo.test`;

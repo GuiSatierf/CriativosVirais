@@ -48,6 +48,20 @@ function needsTwoFactor(data: unknown) {
 }
 type FieldErrors = Partial<Record<Field, string>>;
 
+const acceptedSchema = z.object({ joined: z.boolean() });
+
+/** Signing in through a team invite link accepts the invite; a new team member lands on the panel. */
+async function pageAfterSignIn(inviteToken: string | undefined) {
+  if (inviteToken == null) return "/chat";
+  const response = await fetch("/api/team-invite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: inviteToken }),
+  });
+  const accepted = acceptedSchema.safeParse(await response.json().catch(() => null)).data;
+  return accepted?.joined === true ? "/admin" : "/chat";
+}
+
 function toFieldErrors(error: z.ZodError) {
   const errors: FieldErrors = {};
   for (const issue of error.issues) {
@@ -108,7 +122,7 @@ export function AuthForm({ mode, defaultEmail, inviteToken }: { mode: "login" | 
         setTwoFactor(true);
         return;
       }
-      router.replace("/chat");
+      router.replace(signup ? "/chat" : await pageAfterSignIn(inviteToken));
       router.refresh();
     } catch {
       setFormError(
@@ -135,7 +149,7 @@ export function AuthForm({ mode, defaultEmail, inviteToken }: { mode: "login" | 
     ) : null;
   }
 
-  if (twoFactor) return <TwoFactorStep />;
+  if (twoFactor) return <TwoFactorStep nextPage={() => pageAfterSignIn(inviteToken)} />;
 
   return (
     <div className="space-y-8">
