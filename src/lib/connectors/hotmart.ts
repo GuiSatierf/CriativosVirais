@@ -36,10 +36,13 @@ const statusOf: Record<string, SalesEventInput["status"]> = {
   PURCHASE_DELAYED: "pending",
 };
 
+// The buyer can edit these codes in the checkout link and the chat model later reads them, so
+// only a single code-like word is kept: free text with spaces never reaches the model.
+const creativeCodeShape = /^[\p{L}\p{N}_.:+-]{1,100}$/u;
+
 /** The creative code from the sales link: src on the sales page, sck on the checkout, xcod as custom. */
 function creativeKey(origin: { src?: string; sck?: string; xcod?: string } | undefined) {
-  const code = [origin?.src, origin?.sck, origin?.xcod].find((value) => value != null && value.length > 0);
-  return code ?? undefined;
+  return [origin?.src, origin?.sck, origin?.xcod].find((value) => value != null && creativeCodeShape.test(value));
 }
 
 /** Reais as Hotmart sends them (a double) to whole cents via the 2-decimal text, and null past the safe range. */
