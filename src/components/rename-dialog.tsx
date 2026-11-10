@@ -36,8 +36,8 @@ export function RenameDialog({
   const [name, setName] = useState(value);
   const [pending, setPending] = useState(false);
   const trimmed = name.trim();
-  // The field stops at the limit, which also cuts a pasted name without saying so.
-  const atLimit = name.length >= maxName;
+  // The field stops at the limit, which also cuts a pasted name without saying so; a name already that long is not news.
+  const atLimit = name.length >= maxName && name !== value;
   const limitId = `${id}-limit`;
 
   async function submit(event: React.SubmitEvent<HTMLFormElement>) {
