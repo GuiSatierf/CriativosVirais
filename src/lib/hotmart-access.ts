@@ -126,6 +126,23 @@ async function grantedByTeam(tx: Transaction, email: string) {
   return grantRow != null && grantRow.source !== "hotmart";
 }
 
+/** True when Hotmart already granted this transaction to the email, before any later block. */
+async function wasGranted(tx: Transaction, email: string, transaction: string) {
+  const [granted] = await tx
+    .select({ id: adminAuditLog.id })
+    .from(adminAuditLog)
+    .where(
+      and(
+        eq(adminAuditLog.actorEmail, hotmartActor),
+        eq(adminAuditLog.targetEmail, email),
+        eq(adminAuditLog.action, "access.granted"),
+        sql`${adminAuditLog.details}->>'transaction' = ${transaction}`,
+      ),
+    )
+    .limit(1);
+  return granted != null;
+}
+
 /** A purchase frees the email to sign up and lifts a block that a past refund put on it. */
 /** Records the grant; true when a new buyer without an account should get the invite email. */
 async function grant(tx: Transaction, email: string, transaction: string) {
@@ -133,12 +150,19 @@ async function grant(tx: Transaction, email: string, transaction: string) {
     await auditHotmart(tx, "access.grant_skipped", email, { transaction });
     return false;
   }
+  const account = await findBuyerAccount(tx, email);
+  // After a cancellation only a new payment reopens the account: Hotmart redelivers old approvals
+  // and sends PURCHASE_COMPLETE for the same paid transaction when its warranty ends.
+  const cancelled = account?.banned === true && account.banReason === hotmartBlockReasons.SUBSCRIPTION_CANCELLATION;
+  if (cancelled && (await wasGranted(tx, email, transaction))) {
+    await auditHotmart(tx, "access.grant_skipped", email, { transaction, reason: hotmartBlockReasons.SUBSCRIPTION_CANCELLATION });
+    return false;
+  }
   const [created] = await tx
     .insert(accessGrants)
     .values({ email, source: "hotmart", note: `Hotmart ${transaction}` })
     .onConflictDoNothing({ target: accessGrants.email })
     .returning({ id: accessGrants.id });
-  const account = await findBuyerAccount(tx, email);
   if (account?.banned === true && isHotmartBlock(account.banReason))
     await tx.update(user).set({ banned: false, banReason: null, banExpires: null }).where(eq(user.id, account.id));
   await auditHotmart(tx, "access.granted", email, { transaction });
