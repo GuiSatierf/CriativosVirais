@@ -36,6 +36,9 @@ export function RenameDialog({
   const [name, setName] = useState(value);
   const [pending, setPending] = useState(false);
   const trimmed = name.trim();
+  // The field stops at the limit, which also cuts a pasted name without saying so.
+  const atLimit = name.length >= maxName;
+  const limitId = `${id}-limit`;
 
   async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,12 +74,18 @@ export function RenameDialog({
               id={id}
               value={name}
               maxLength={maxName}
+              aria-describedby={atLimit ? limitId : undefined}
               autoFocus
               autoComplete="off"
               enterKeyHint="done"
               onFocus={(event) => event.currentTarget.select()}
               onChange={(event) => setName(event.target.value)}
             />
+            {atLimit && (
+              <p id={limitId} aria-live="polite" className="text-sm text-muted-foreground">
+                Limite de {maxName} caracteres atingido.
+              </p>
+            )}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
