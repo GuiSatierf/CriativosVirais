@@ -42,6 +42,15 @@ export function messageText(content: unknown) {
     })
     .join("\n");
 }
+const offerProposalReminder =
+  "[Mostrei um cartão para o cliente conferir ticket e provas. Se eles ainda não aparecem na oferta, ele não confirmou: lembre do cartão em vez de enviar os mesmos valores de novo.]";
+/** Reminds the model that a stored reply showed the price and proofs card, which its text omits. */
+export function offerProposalNote(content: unknown) {
+  const shown = stored(content).parts.some(
+    (part) => (part as { type?: unknown } | null)?.type === "data-offerProposal",
+  );
+  return shown ? offerProposalReminder : "";
+}
 /** Asset ids attached through message metadata. */
 export function messageAttachments(content: unknown) {
   return stored(content).metadata?.assetIds ?? [];

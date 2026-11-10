@@ -127,6 +127,14 @@ export const contextPatchSchema = z
     notas: z.array(z.string().trim().max(4000)).max(50).optional(),
   })
   .strict();
+/**
+ * Offer fields that become claims in an ad. The assistant only proposes them; they reach
+ * the offer after the client confirms the values on a chat card.
+ */
+export const offerProposalSchema = contextPatchSchema.pick({
+  ticketCents: true,
+  provasAutorizadas: true,
+});
 /** Panels the assistant can point to; each one opens over the conversation. */
 export const panelIds = [
   "levas",
@@ -143,6 +151,8 @@ export const publicDataSchema = z.object({
   panel: z.object({ panel: z.enum(panelIds) }),
   /** Names of the offer fields just saved; values stay out of the card. */
   context: z.object({ fields: z.array(z.string()) }),
+  /** Price and proofs waiting for the client's confirmation, shown with their values. */
+  offerProposal: offerProposalSchema,
 });
 export const opening =
   "Me conta o que você vende, como funciona sua operação e o que você quer melhorar nos seus anúncios. Pode escrever ou mandar um áudio.";

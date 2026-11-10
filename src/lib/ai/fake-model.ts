@@ -115,7 +115,7 @@ function replyAfterTool(message: PromptMessage) {
   if (result.toolName === "updateClientContext")
     return failed
       ? `${label} Não consegui salvar a sua oferta. Tente de novo.`
-      : `${label} Anotei a sua oferta. Quando quiser, peça: gere uma leva.`;
+      : `${label} Anotei a sua oferta. Confira o preço e as provas no cartão e toque em Confirmar; depois peça: gere uma leva.`;
   return `${label} Pronto.`;
 }
 
