@@ -23,6 +23,20 @@ export const assetJobSchema = z
   .object({ tenantId: z.uuid(), assetId: z.uuid() })
   .strict();
 const exec = promisify(execFile);
+const unreadableFileMessages = {
+  video: "Não conseguimos abrir este arquivo como vídeo. Confira se ele toca no seu celular ou computador e envie de novo.",
+  audio: "Não conseguimos abrir este arquivo como áudio. Confira se ele toca no seu celular ou computador e envie de novo.",
+} as const;
+
+/**
+ * Whether ffprobe refused the file itself (a renamed text file, a broken upload), which a retry cannot fix.
+ * A timeout or a missing binary is not the file's fault.
+ */
+export function probeRejectedFile(error: unknown) {
+  if (typeof error !== "object" || error === null) return false;
+  const { code, killed } = error as { code?: unknown; killed?: unknown };
+  return typeof code === "number" && code !== 0 && killed !== true;
+}
 const framesSchema = z.object({
   frames: z
     .array(
@@ -100,7 +114,11 @@ export async function analyzeVideo(data: unknown) {
         input,
       ],
       { timeout: 30_000, maxBuffer: 1_000_000 },
-    );
+    ).catch((error: unknown) => {
+      if (probeRejectedFile(error))
+        throw new DomainError("invalid_input", unreadableFileMessages[asset.kind === "audio" ? "audio" : "video"]);
+      throw error;
+    });
     const probeData = z
       .object({
         format: z.object({ duration: z.coerce.number().positive().optional() }),
