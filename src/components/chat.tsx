@@ -47,11 +47,23 @@ const videoPrompt = "Analise o vídeo que enviei.";
 class AiLimitError extends Error {}
 /** Too many messages in a short window; the same message goes through after a short wait. */
 class ChatThrottledError extends Error {}
+/** The request never reached the server, so the message can be sent again once the connection is back. */
+class ChatConnectionError extends Error {}
+
+async function fetchOrConnectionError(input: RequestInfo | URL, init?: RequestInit) {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    // A stopped reply rejects the same way and must still read as a stop.
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new ChatConnectionError("Chat request failed before reaching the server.", { cause: error });
+  }
+}
 
 // The chat transport only sees a failed response, so the budget refusal is told apart here;
 // the per-minute limit is the 429 that carries Retry-After.
 async function chatFetch(input: RequestInfo | URL, init?: RequestInit) {
-  const response = await fetch(input, init);
+  const response = await fetchOrConnectionError(input, init);
   if (response.status !== 429) return response;
   const body: unknown = await response.json().catch(() => null);
   const serverMessage =
@@ -720,7 +732,7 @@ export function Chat({
       <AlertTitle>Não foi possível gerar a resposta.</AlertTitle>
       <AlertDescription>
         {error instanceof ChatThrottledError && <p>{error.message}</p>}
-        {error instanceof TypeError && (
+        {error instanceof ChatConnectionError && (
           <p>Confira a sua conexão com a internet e tente novamente.</p>
         )}
         <Button
