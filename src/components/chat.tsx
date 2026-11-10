@@ -154,6 +154,9 @@ export function Chat({
               ? "Resposta interrompida."
               : "Resposta pronta.",
         );
+        // Without a connection the refresh falls back to a full page load, which replaces the chat
+        // with the browser's offline page and loses the message.
+        if (isError || isDisconnect) return;
         // Refreshes server data such as the conversation title in the history.
         router.refresh();
       },
@@ -717,6 +720,9 @@ export function Chat({
       <AlertTitle>Não foi possível gerar a resposta.</AlertTitle>
       <AlertDescription>
         {error instanceof ChatThrottledError && <p>{error.message}</p>}
+        {error instanceof TypeError && (
+          <p>Confira a sua conexão com a internet e tente novamente.</p>
+        )}
         <Button
           type="button"
           variant="outline"
