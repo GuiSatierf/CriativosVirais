@@ -18,17 +18,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (gate.status === "not-admin") notFound();
   return (
     <div className="min-h-dvh bg-background">
-      <header className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-2.5">
           <Link href="/chat" aria-label="Criativos Virais — voltar ao app" className="inline-flex shrink-0 rounded-md">
             <Brand className="h-5 sm:h-6" />
           </Link>
           <Badge variant="outline">{staffRoleLabel[gate.actor.role]}</Badge>
         </div>
-        <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+        <div className="ml-auto flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
           <Link href="/chat" className={buttonVariants({ variant: "ghost", size: "sm" })}>
             <ArrowLeft aria-hidden />
-            <span className="sr-only sm:not-sr-only">Voltar ao app</span>
+            Voltar ao app
           </Link>
           <span className="hidden truncate sm:inline">{gate.actor.name}</span>
           <AdminSignOut />

@@ -47,6 +47,12 @@ const inputSchema = z.object({
     .min(1)
     .max(100),
 });
+// A reply stopped before its first word would come back after a reload as an empty bubble.
+function isEmptyReply(message: UIMessage) {
+  return message.parts.every(
+    (part) => part.type === "step-start" || (part.type === "text" && part.text.trim() === ""),
+  );
+}
 export function POST(request: Request) {
   return handle(async () => {
     const { tenantId } = await apiTenant(request);
@@ -221,6 +227,7 @@ export function POST(request: Request) {
         },
         onEnd: async ({ responseMessage }) => {
           try {
+            if (isEmptyReply(responseMessage)) return;
             await db.insert(messages).values(
               tenantValues(tenantId, {
                 id: randomUUID(),
