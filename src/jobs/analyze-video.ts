@@ -29,7 +29,7 @@ const unreadableFileMessages = {
 } as const;
 
 /**
- * Whether ffprobe refused the file itself (a renamed text file, a broken upload), which a retry cannot fix.
+ * Whether ffprobe or ffmpeg refused the file itself (a renamed text file, a broken upload), which a retry cannot fix.
  * A timeout or a missing binary is not the file's fault.
  */
 export function probeRejectedFile(error: unknown) {
@@ -182,7 +182,7 @@ export async function analyzeVideo(data: unknown) {
         audio,
       ],
       { timeout: 120_000, maxBuffer: 1_000_000 },
-    );
+    ).catch(blameUnreadableFile);
     const transcript = await transcribe(
       await readFile(audio),
       "audio.mp3",
@@ -225,7 +225,7 @@ export async function analyzeVideo(data: unknown) {
         join(dir, "frame-%03d.jpg"),
       ],
       { timeout: 120_000, maxBuffer: 1_000_000 },
-    );
+    ).catch(blameUnreadableFile);
     const files = (await readdir(dir))
       .filter((f) => f.startsWith("frame-"))
       .sort();
