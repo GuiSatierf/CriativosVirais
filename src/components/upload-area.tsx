@@ -317,8 +317,8 @@ export function UploadArea({
 
   const formats =
     kind === "video"
-      ? "MP4, MOV ou WEBM até 250 MB"
-      : "MP3, M4A, OGG, WAV ou WEBM até 25 MB";
+      ? "Vídeo do celular (MP4 ou MOV), até 250 MB"
+      : "Áudio do celular, até 25 MB";
   const Icon = uploading ? Upload : kind === "video" ? Video : FileAudio;
   const label = uploading ? "Enviando…" : `Escolha ou arraste um ${noun}`;
 
@@ -399,8 +399,8 @@ export function UploadArea({
         </span>
         <span className="text-muted-foreground">
           {kind === "video"
-            ? "MP4, MOV ou WEBM até 250 MB"
-            : "MP3, M4A, OGG, WAV ou WEBM até 25 MB"}
+            ? "Vídeo do celular (MP4 ou MOV), até 250 MB"
+            : "Áudio do celular, até 25 MB"}
         </span>
       </div>
       {statusRow}

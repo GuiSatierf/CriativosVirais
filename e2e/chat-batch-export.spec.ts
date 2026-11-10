@@ -35,7 +35,7 @@ test("signup, chat, batch and .docx export", async ({ page }) => {
   }
 
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Exportar .docx" }).click();
+  await page.getByRole("link", { name: "Baixar em Word" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("leva-1.docx");
   const file = await readFile((await download.path())!);

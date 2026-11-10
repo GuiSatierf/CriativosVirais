@@ -248,7 +248,7 @@ export function Integrations({
             <IntegrationCard
               title="Passo 1 · Vendas de cada criativo"
               tag={<Badge>Necessário</Badge>}
-              description="Cada venda chega com o código do criativo. Conecte a Hotmart ou o webhook de outro checkout."
+              description="Cada venda chega com o código do roteiro. Conecte a Hotmart ou outro checkout."
               brings="Traz vendas e receita por criativo. Não traz o gasto com anúncio."
               badge={salesSource && <StatusBadge status={salesStatus} />}
               meta={
@@ -278,7 +278,7 @@ export function Integrations({
         <li>
           <IntegrationCard
             title="Passo 2 · Gasto de cada anúncio"
-            tag={<Badge>Necessário para o retorno</Badge>}
+            tag={<Badge>Para saber se o anúncio se paga</Badge>}
             description="Exporte do Gerenciador de Anúncios o mesmo período e importe aqui. Sem ela não há investimento, retorno nem custo por venda."
             brings="Traz investimento, cliques e impressões por anúncio."
             meta={csvDay ? `Dados até ${formatDay(csvDay)}` : undefined}
@@ -303,7 +303,7 @@ export function Integrations({
             <IntegrationCard
               title="Opcional · Totais da UTMify"
               tag={<Badge variant="outline">Opcional</Badge>}
-              description="Mostra o total do seu dashboard. Não separa por criativo, então não entra no ranking."
+              description="Mostra o total da sua conta na UTMify. Não separa por roteiro, então não entra na comparação entre roteiros."
               brings="Traz receita e investimento somados."
               badge={
                 utm && (
@@ -381,7 +381,7 @@ export function Integrations({
         )}
         {panel === "webhook" && (
           <SetupSheetContent
-            title="Webhook de vendas"
+            title="Outro checkout"
             description="Seu checkout envia cada venda, com o criativo que a gerou."
           >
             <WebhookPanel
@@ -447,7 +447,7 @@ function HotmartPanel({
     <div className="space-y-6 px-6 py-6">
       {hotmart && !url && <StatusBadge status={toStatus(hotmart.status)} />}
       <Steps>
-        <Step number={1} title="Copie o hottok na Hotmart">
+        <Step number={1} title="Copie o código Hottok na Hotmart">
           <p className="text-xs text-muted-foreground">
             Na Hotmart, abra Ferramentas → Webhook → Autenticação e copie o Hottok.
           </p>
@@ -590,10 +590,10 @@ function UtmifyPanel({
             só existe nos planos Monster, Scale e Enterprise.
           </p>
         </Step>
-        <Step number={2} title="Cole a chave de API">
+        <Step number={2} title="Cole o token da UTMify">
           <div className="space-y-1.5">
             <Label htmlFor="utm-key" className="sr-only">
-              Chave de API
+              Token da UTMify
             </Label>
             <PasswordInput
               id="utm-key"
@@ -602,7 +602,7 @@ function UtmifyPanel({
               spellCheck={false}
               enterKeyHint="next"
               name="utmify-api-key"
-              placeholder="Chave de API"
+              placeholder="Token da UTMify"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               required
@@ -611,10 +611,10 @@ function UtmifyPanel({
             />
           </div>
         </Step>
-        <Step number={3} title="Cole o ID do dashboard">
+        <Step number={3} title="Cole o código do dashboard">
           <div className="space-y-1.5">
             <Label htmlFor="utm-dashboard" className="sr-only">
-              ID do dashboard
+              Código do dashboard
             </Label>
             <Input
               id="utm-dashboard"
@@ -623,7 +623,7 @@ function UtmifyPanel({
               autoCapitalize="off"
               spellCheck={false}
               enterKeyHint="done"
-              placeholder="ID do dashboard"
+              placeholder="Código do dashboard"
               className="font-mono"
               value={dashboardId}
               onChange={(e) => {
@@ -688,7 +688,7 @@ function UtmifyPanel({
             <CircleAlert aria-hidden />
             <AlertTitle>A última sincronização falhou.</AlertTitle>
             <AlertDescription>
-              {utm.metadata?.warning ?? "Confira a chave e o ID do dashboard abaixo e conecte de novo."}
+              {utm.metadata?.warning ?? "Confira o token e o código do dashboard abaixo e conecte de novo."}
             </AlertDescription>
           </Alert>
         )}
