@@ -136,7 +136,7 @@ O servidor confirma que cada asset é um vídeo da própria operação (400 se a
 Na Hotmart, crie em Ferramentas → Webhook uma configuração versão 2.0.0 apontando para `https://SEU-DOMINIO/api/hotmart/access`, com os eventos de compra aprovada, completa, reembolsada e chargeback. A Hotmart manda o hottok no cabeçalho `X-HOTMART-HOTTOK`, conferido em tempo constante.
 
 - `PURCHASE_APPROVED` e `PURCHASE_COMPLETE` liberam o e-mail do comprador (origem Hotmart no painel) e tiram um bloqueio que um reembolso anterior tenha posto.
-- `PURCHASE_REFUNDED` e `PURCHASE_CHARGEBACK` bloqueiam a conta com o motivo e encerram as sessões; sem conta, removem a liberação. Contas da equipe nunca são alteradas, e um bloqueio feito pela equipe continua com o motivo dela (uma compra nova não o tira).
+- `PURCHASE_REFUNDED` e `PURCHASE_CHARGEBACK` bloqueiam a conta com o motivo e encerram as sessões; sem conta, removem a liberação. Como qualquer pessoa pode comprar com o e-mail de outra, isso só acontece quando não sobra nenhuma outra compra paga no mesmo e-mail (liberada pela Hotmart e não reembolsada); se sobrar, o reembolso só fica registrado. Contas da equipe e liberações feitas à mão pela equipe nunca são alteradas pela Hotmart, e um bloqueio feito pela equipe continua com o motivo dela (uma compra nova não o tira).
 - Produtos fora de `HOTMART_PRODUCT_IDS` e os demais eventos são ignorados. Cada ação fica no registro do painel com o autor "Hotmart". Repetições da Hotmart não mudam nada.
 - Cancelamento de assinatura ainda não bloqueia: falta decidir se o acesso termina na hora ou no fim do período pago.
 
