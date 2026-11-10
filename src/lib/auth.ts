@@ -16,6 +16,7 @@ import { hasAccessGrant, removeAccessGrant } from "./access";
 import { enrollmentHeader, isValidEnrollmentCode } from "./admin-enrollment";
 import { isClientOnlyPath, isStaffRole, staffRoles } from "./staff";
 import { recordAccess } from "./legal-records";
+import { clientIpOptions } from "./client-ip";
 import { applyTeamInvite, canAcceptTeamInvite } from "./team-invites";
 import { teamInviteTokenHeader } from "./team-invite-token";
 
@@ -144,6 +145,8 @@ function createAuth() {
     ],
     // Persist limits in Postgres so app replicas do not reset their counters independently.
     rateLimit: { enabled: true, storage: "database" },
+    // The visitor's real IP behind Cloudflare and Traefik; without it every visitor shares one limit.
+    advanced: { ipAddress: clientIpOptions },
     logger: { disabled: true },
   });
 }
