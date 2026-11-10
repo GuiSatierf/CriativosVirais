@@ -12,6 +12,7 @@ export function Brand({ className }: { className?: string }) {
         alt="Criativos Virais"
         {...logoSize}
         unoptimized
+        loading="eager"
         draggable={false}
         className="h-full w-auto dark:hidden"
       />
@@ -20,6 +21,7 @@ export function Brand({ className }: { className?: string }) {
         alt="Criativos Virais"
         {...logoSize}
         unoptimized
+        loading="eager"
         draggable={false}
         className="hidden h-full w-auto dark:block"
       />
