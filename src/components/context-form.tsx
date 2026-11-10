@@ -231,15 +231,44 @@ function centsToReais(cents: string | null) {
   return `${whole},${padded.slice(-2)}`;
 }
 
+/** The API stores at most 15 digits of cents. */
+const maxPriceCentsDigits = 15;
+const maxPriceLabel = centsToReais("9".repeat(maxPriceCentsDigits));
+
+type PriceProblem = "negative" | "notNumber" | "format" | "tooLarge";
+type ParsedPrice = { cents: string | null } | { problem: PriceProblem };
+
+const priceProblemMessages: Record<PriceProblem, string> = {
+  negative: "O preço não pode ser negativo. Digite só o valor, sem o sinal de menos. Ex.: 997,00",
+  notNumber: "Use só números, com vírgula para os centavos. Ex.: 1.997,00",
+  format: "Use só números, com vírgula para os centavos. Ex.: 1.997,00",
+  tooLarge: `Esse valor é alto demais. O máximo é R$ ${maxPriceLabel}. Confira se não sobrou algum número.`,
+};
+
 /** "997", "997,5", "1.997,00" or "R$ 997" → cents string; null if empty. */
-function reaisToCents(input: string): string | null | undefined {
+function parsePrice(input: string): ParsedPrice {
   const value = input.replace(/R\$|\s/g, "");
-  if (!value) return null;
+  if (value === "") return { cents: null };
+  if (value.startsWith("-")) return { problem: "negative" };
+  if (/^[\d.,]+$/.test(value) === false) return { problem: "notNumber" };
   const match = /^(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?$/.exec(value);
-  if (!match) return undefined;
+  if (match == null) return { problem: "format" };
   const cents = `${match[1].replaceAll(".", "")}${(match[2] ?? "").padEnd(2, "0")}`;
   const normalized = cents.replace(/^0+(?=\d)/, "");
-  return normalized.length <= 15 ? normalized : undefined;
+  if (normalized.length > maxPriceCentsDigits) return { problem: "tooLarge" };
+  return { cents: normalized };
+}
+
+/** A half-typed thousands separator ("1.9") only counts as wrong once the person leaves the field. */
+function priceProblemWhileTyping(input: string) {
+  const parsed = parsePrice(input);
+  if ("cents" in parsed || parsed.problem === "format") return null;
+  return parsed.problem;
+}
+
+function priceProblem(input: string) {
+  const parsed = parsePrice(input);
+  return "problem" in parsed ? parsed.problem : null;
 }
 
 function toState(values: ContextFormValues): FormState {
@@ -350,7 +379,7 @@ function preview(form: FormState, key: FieldKey) {
  */
 export function ContextForm({ initial }: { initial: ContextFormValues }) {
   const [form, setForm] = useState(() => toState(initial));
-  const [priceError, setPriceError] = useState(false);
+  const [priceError, setPriceError] = useState<PriceProblem | null>(null);
   // Resumes at the first unanswered question; the summary when all are done.
   const [step, setStep] = useState(() => {
     const state = toState(initial);
@@ -377,7 +406,7 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
   function go(next: number) {
     void flush();
     moved.current = true;
-    setPriceError(false);
+    setPriceError(null);
     setStep(Math.max(0, Math.min(next, steps.length)));
   }
 
@@ -388,10 +417,10 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
 
   function setPrice(value: string) {
     setForm((state) => ({ ...state, price: value }));
-    const cents = reaisToCents(value);
-    if (cents === undefined) return;
-    setPriceError(false);
-    queue({ ticketCents: cents });
+    setPriceError(priceProblemWhileTyping(value));
+    const parsed = parsePrice(value);
+    if ("problem" in parsed) return;
+    queue({ ticketCents: parsed.cents });
   }
 
   function setList(key: ListKey, items: string[]) {
@@ -401,11 +430,9 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
 
   function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (
-      current?.field.key === "price" &&
-      reaisToCents(form.price) === undefined
-    ) {
-      setPriceError(true);
+    const problem = current?.field.key === "price" ? priceProblem(form.price) : null;
+    if (problem != null) {
+      setPriceError(problem);
       document.getElementById("ctx-price")?.focus();
       return;
     }
@@ -466,7 +493,11 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
               {current.section.title} · {current.index + 1} de{" "}
               {current.section.fields.length}
             </p>
-            <SaveIndicator status={status} onRetry={() => void flush()} />
+            <SaveIndicator
+              status={status}
+              rejected={current.field.key === "price" && priceProblem(form.price) != null}
+              onRetry={() => void flush()}
+            />
           </div>
 
           <FieldRow
@@ -477,7 +508,7 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
             onText={setText}
             onPrice={setPrice}
             onPriceBlur={() =>
-              setPriceError(reaisToCents(form.price) === undefined)
+              setPriceError(priceProblem(form.price))
             }
             onList={setList}
             onBlur={() => void flush()}
@@ -610,11 +641,21 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
 
 function SaveIndicator({
   status,
+  rejected = false,
   onRetry,
 }: {
   status: SaveStatus;
+  /** The value on screen was refused, so the last saved one is still in place. */
+  rejected?: boolean;
   onRetry: () => void;
 }) {
+  if (rejected)
+    return (
+      <p role="status" className="flex items-center gap-2 text-sm">
+        <CircleAlert className="size-4 text-destructive" aria-hidden />
+        <span className="text-destructive">Não salvo</span>
+      </p>
+    );
   if (status === "error")
     return (
       <p role="status" className="flex items-center gap-2 text-sm">
@@ -663,7 +704,7 @@ function FieldRow({
 }: {
   field: Field;
   form: FormState;
-  priceError: boolean;
+  priceError: PriceProblem | null;
   onText: (key: TextKey, value: string) => void;
   onPrice: (value: string) => void;
   onPriceBlur: () => void;
@@ -673,7 +714,7 @@ function FieldRow({
   const key = field.key;
   const id = `ctx-${key}`;
   const hintId = `${id}-hint`;
-  const invalid = key === "price" && priceError;
+  const invalid = key === "price" && priceError != null;
   const describedBy =
     [field.hint ? hintId : undefined, invalid ? `${id}-error` : undefined]
       .filter(Boolean)
@@ -778,8 +819,8 @@ function FieldRow({
         />
       )}
       {invalid && (
-        <p id={`${id}-error`} className="text-sm text-destructive">
-          Use só números, com vírgula para os centavos. Ex.: 1.997,00
+        <p id={`${id}-error`} aria-live="polite" className="text-sm text-destructive">
+          {priceProblemMessages[priceError]}
         </p>
       )}
     </div>
