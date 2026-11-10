@@ -94,6 +94,11 @@ export async function analyzeVideo(data: unknown) {
         ? ["-enable_drefs", "0", "-use_absolute_path", "0"]
         : []),
     ];
+    const unreadableFile = unreadableFileMessages[asset.kind === "audio" ? "audio" : "video"];
+    const blameUnreadableFile = (error: unknown): never => {
+      if (probeRejectedFile(error)) throw new DomainError("invalid_input", unreadableFile);
+      throw error;
+    };
     const input = join(dir, "input");
     await pipeline(
       response.Body as Readable,
@@ -114,11 +119,7 @@ export async function analyzeVideo(data: unknown) {
         input,
       ],
       { timeout: 30_000, maxBuffer: 1_000_000 },
-    ).catch((error: unknown) => {
-      if (probeRejectedFile(error))
-        throw new DomainError("invalid_input", unreadableFileMessages[asset.kind === "audio" ? "audio" : "video"]);
-      throw error;
-    });
+    ).catch(blameUnreadableFile);
     const probeData = z
       .object({
         format: z.object({ duration: z.coerce.number().positive().optional() }),
@@ -141,7 +142,7 @@ export async function analyzeVideo(data: unknown) {
         "-v", "error", "-protocol_whitelist", "file,pipe",
         "-show_entries", "packet=pts_time,duration_time", "-of", "csv=p=0",
         ...guardedInput, input,
-      ], { timeout: 30_000, maxBuffer: 16_000_000 });
+      ], { timeout: 30_000, maxBuffer: 16_000_000 }).catch(blameUnreadableFile);
       measuredDuration = 0;
       for (const line of packets.stdout.split("\n")) {
         const [pts, length] = line.split(",").map(Number);
