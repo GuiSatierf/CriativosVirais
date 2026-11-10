@@ -78,9 +78,6 @@ async function chatFetch(input: RequestInfo | URL, init?: RequestInit) {
 function isCsv(file: File) {
   return /\.csv$/i.test(file.name) || file.type === "text/csv";
 }
-// Parar takes Enviar's place as soon as a message goes out, so the second click of a
-// double click on Enviar would cancel the reply it just asked for.
-const stopIgnoredAfterSendInMs = 600;
 /** Distance from the bottom (px) that still counts as following the reply. */
 const stickThreshold = 96;
 
@@ -153,11 +150,16 @@ export function Chat({
   );
   const router = useRouter();
   const [announcement, setAnnouncement] = useState("");
+  // Set by onError, which the chat calls before onFinish for the same request.
+  const connectionLost = useRef(false);
   const { messages, sendMessage, regenerate, status, stop, error } =
     useChat<ChatMessage>({
       id: conversationId,
       messages: initialMessages as ChatMessage[],
       transport,
+      onError: (failure) => {
+        connectionLost.current = failure instanceof ChatConnectionError;
+      },
       onFinish: ({ isAbort, isError, isDisconnect }) => {
         setAnnouncement(
           isError || isDisconnect
@@ -168,7 +170,7 @@ export function Chat({
         );
         // Without a connection the refresh falls back to a full page load, which replaces the chat
         // with the browser's offline page and loses the message.
-        if (isError || isDisconnect) return;
+        if (isDisconnect || (isError && connectionLost.current)) return;
         // Refreshes server data such as the conversation title in the history.
         router.refresh();
       },
@@ -199,7 +201,6 @@ export function Chat({
   // the page out differently). A position from the top stays right when new messages arrive below.
   const readingTop = useRef(0);
   const busy = status === "submitted" || status === "streaming";
-  const busySince = useRef(0);
   const unavailable = !configured;
   const transcribing = audioUploading || Boolean(audioAsset);
   const empty = messages.length === 0;
@@ -214,10 +215,6 @@ export function Chat({
     !voice.recording &&
     !audioUploading &&
     analysing.length === 0;
-
-  useEffect(() => {
-    if (busy) busySince.current = Date.now();
-  }, [busy]);
 
   // Follows the reply only while the reader is already at the bottom.
   useEffect(() => {
@@ -689,8 +686,10 @@ export function Chat({
               size="icon"
               className={sendButton}
               aria-label="Parar resposta"
-              onClick={() => {
-                if (Date.now() - busySince.current < stopIgnoredAfterSendInMs) return;
+              onClick={(event) => {
+                // Parar takes Enviar's place as soon as a message goes out, so the second click
+                // of a double click on Enviar would cancel the reply it just asked for.
+                if (event.detail > 1) return;
                 void stop();
               }}
             >
