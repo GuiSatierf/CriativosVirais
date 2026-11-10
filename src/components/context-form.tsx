@@ -238,10 +238,11 @@ const maxPriceLabel = centsToReais("9".repeat(maxPriceCentsDigits));
 type PriceProblem = "negative" | "notNumber" | "format" | "tooLarge";
 type ParsedPrice = { cents: string | null } | { problem: PriceProblem };
 
+const priceFormatMessage = "Use só números, com vírgula para os centavos. Ex.: 1.997,00";
 const priceProblemMessages: Record<PriceProblem, string> = {
   negative: "O preço não pode ser negativo. Digite só o valor, sem o sinal de menos. Ex.: 997,00",
-  notNumber: "Use só números, com vírgula para os centavos. Ex.: 1.997,00",
-  format: "Use só números, com vírgula para os centavos. Ex.: 1.997,00",
+  notNumber: priceFormatMessage,
+  format: priceFormatMessage,
   tooLarge: `Esse valor é alto demais. O máximo é R$ ${maxPriceLabel}. Confira se não sobrou algum número.`,
 };
 
