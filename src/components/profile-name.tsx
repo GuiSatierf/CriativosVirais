@@ -24,6 +24,8 @@ export function ProfileName({
   const value = name.trim();
   const changed = value !== saved;
   const empty = value === "";
+  // The field stops at the limit, which also cuts a pasted name without saying so.
+  const atLimit = name.length >= maxName;
 
   async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,7 +58,7 @@ export function ProfileName({
             autoComplete="name"
             enterKeyHint="done"
             aria-invalid={empty || undefined}
-            aria-describedby={empty ? "profile-name-error" : undefined}
+            aria-describedby={[empty && "profile-name-error", atLimit && "profile-name-limit"].filter(Boolean).join(" ") || undefined}
             onChange={(event) => setName(event.target.value)}
           />
           {changed && (
@@ -83,6 +85,11 @@ export function ProfileName({
         {empty && (
           <p id="profile-name-error" className="text-sm text-destructive">
             Escreva seu nome.
+          </p>
+        )}
+        {atLimit && (
+          <p id="profile-name-limit" aria-live="polite" className="text-sm text-muted-foreground">
+            Limite de {maxName} caracteres atingido.
           </p>
         )}
       </div>

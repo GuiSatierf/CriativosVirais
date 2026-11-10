@@ -5,6 +5,8 @@ import { signUp } from "./support";
 test("pages name themselves in the tab title", async ({ page }) => {
   await page.goto("/login");
   await expect(page).toHaveTitle("Entrar · Criativos Virais");
+  await page.goto("/signup");
+  await expect(page).toHaveTitle("Criar conta · Criativos Virais");
 
   await signUp(page);
   await expect(page).toHaveTitle("Conversa · Criativos Virais");

@@ -20,7 +20,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { metricText } from "@/components/metrics/metric-labels";
 import { Details, Step, Steps } from "@/components/integrations/shared";
-import { api, recentPeriod, toastError } from "@/lib/client";
+import { api, recentPeriod } from "@/lib/client";
 import { metricNames } from "@/lib/connectors/types";
 import { cn } from "@/lib/utils";
 
@@ -228,12 +228,15 @@ export function CsvImport({
   const [decimal, setDecimal] = useState<"comma" | "dot">("comma");
   const [unit, setUnit] = useState<"major" | "cents">("major");
   const [pending, setPending] = useState(false);
+  // Shown next to Importar: a toast sat on top of the button in the sheet.
+  const [importError, setImportError] = useState<string>();
   const [definitions, setDefinitions] = useState<Record<string, string>>({});
   const [fileError, setFileError] = useState<string>();
   const [fileName, setFileName] = useState<string>();
 
   async function readFile(file: File | undefined) {
     setFileError(undefined);
+    setImportError(undefined);
     setHeaders([]);
     setRows([]);
     setCsv("");
@@ -348,6 +351,7 @@ export function CsvImport({
           return;
         }
         setPending(true);
+        setImportError(undefined);
         try {
           const result = await api(
             "/api/metrics/import",
@@ -384,7 +388,9 @@ export function CsvImport({
           );
           onImported(period.to);
         } catch (error) {
-          toastError(error, "Não foi possível importar. Tente novamente.");
+          setImportError(
+            error instanceof Error && error.message !== "" ? error.message : "Não foi possível importar. Tente novamente.",
+          );
         } finally {
           setPending(false);
         }
@@ -577,6 +583,11 @@ export function CsvImport({
         {ready && !mapping.creative_key && (
           <p className="text-sm text-muted-foreground">
             Escolha a coluna do código do criativo.
+          </p>
+        )}
+        {importError && (
+          <p role="alert" className="text-sm text-destructive">
+            {importError}
           </p>
         )}
         <Button

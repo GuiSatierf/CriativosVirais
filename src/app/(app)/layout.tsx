@@ -4,8 +4,6 @@ import { AppShell } from "@/components/app-shell";
 import { avatarUrl } from "@/lib/avatar";
 import { describeSupportVisit } from "@/lib/admin-accounts";
 import { SupportBanner } from "@/components/support-banner";
-import { headers } from "next/headers";
-import { panelReloadScript } from "@/components/panel-reload-script";
 import { isStaffRole } from "@/lib/staff";
 export const dynamic = "force-dynamic";
 export default async function AppLayout({
@@ -22,11 +20,8 @@ export default async function AppLayout({
     getRecentConversations(tenantId, 50),
     describeSupportVisit({ session, user }),
   ]);
-  // The Content-Security-Policy only runs inline scripts carrying this request's nonce.
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <>
-      <script nonce={nonce} dangerouslySetInnerHTML={{ __html: panelReloadScript }} />
       <AppShell
         user={{
           name: user.name,

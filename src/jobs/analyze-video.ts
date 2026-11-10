@@ -23,6 +23,20 @@ export const assetJobSchema = z
   .object({ tenantId: z.uuid(), assetId: z.uuid() })
   .strict();
 const exec = promisify(execFile);
+const unreadableFileMessages = {
+  video: "Não conseguimos abrir este arquivo como vídeo. Confira se ele toca no seu celular ou computador e envie de novo.",
+  audio: "Não conseguimos abrir este arquivo como áudio. Confira se ele toca no seu celular ou computador e envie de novo.",
+} as const;
+
+/**
+ * Whether ffprobe or ffmpeg refused the file itself (a renamed text file, a broken upload), which a retry cannot fix.
+ * A timeout or a missing binary is not the file's fault.
+ */
+export function probeRejectedFile(error: unknown) {
+  if (typeof error !== "object" || error === null) return false;
+  const { code, killed } = error as { code?: unknown; killed?: unknown };
+  return typeof code === "number" && code !== 0 && killed !== true;
+}
 const framesSchema = z.object({
   frames: z
     .array(
@@ -80,6 +94,11 @@ export async function analyzeVideo(data: unknown) {
         ? ["-enable_drefs", "0", "-use_absolute_path", "0"]
         : []),
     ];
+    const unreadableFile = unreadableFileMessages[asset.kind === "audio" ? "audio" : "video"];
+    const blameUnreadableFile = (error: unknown): never => {
+      if (probeRejectedFile(error)) throw new DomainError("invalid_input", unreadableFile);
+      throw error;
+    };
     const input = join(dir, "input");
     await pipeline(
       response.Body as Readable,
@@ -100,7 +119,7 @@ export async function analyzeVideo(data: unknown) {
         input,
       ],
       { timeout: 30_000, maxBuffer: 1_000_000 },
-    );
+    ).catch(blameUnreadableFile);
     const probeData = z
       .object({
         format: z.object({ duration: z.coerce.number().positive().optional() }),
@@ -123,7 +142,7 @@ export async function analyzeVideo(data: unknown) {
         "-v", "error", "-protocol_whitelist", "file,pipe",
         "-show_entries", "packet=pts_time,duration_time", "-of", "csv=p=0",
         ...guardedInput, input,
-      ], { timeout: 30_000, maxBuffer: 16_000_000 });
+      ], { timeout: 30_000, maxBuffer: 16_000_000 }).catch(blameUnreadableFile);
       measuredDuration = 0;
       for (const line of packets.stdout.split("\n")) {
         const [pts, length] = line.split(",").map(Number);
@@ -163,7 +182,7 @@ export async function analyzeVideo(data: unknown) {
         audio,
       ],
       { timeout: 120_000, maxBuffer: 1_000_000 },
-    );
+    ).catch(blameUnreadableFile);
     const transcript = await transcribe(
       await readFile(audio),
       "audio.mp3",
@@ -206,7 +225,7 @@ export async function analyzeVideo(data: unknown) {
         join(dir, "frame-%03d.jpg"),
       ],
       { timeout: 120_000, maxBuffer: 1_000_000 },
-    );
+    ).catch(blameUnreadableFile);
     const files = (await readdir(dir))
       .filter((f) => f.startsWith("frame-"))
       .sort();
