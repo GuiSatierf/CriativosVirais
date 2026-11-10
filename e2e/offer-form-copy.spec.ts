@@ -28,3 +28,20 @@ test("a refused price is flagged next to the field while typing and never shows 
   await expect(page.getByText("Salvo", { exact: true })).toBeVisible();
   await expect(page.getByText("Não salvo")).toBeHidden();
 });
+
+// Leaving the step kept a refused price on screen while the saved one stayed different.
+test("leaving the step after a refused price puts the saved price back", async ({ page }) => {
+  await signUp(page);
+  await page.goto("/configuracoes");
+  await page.getByLabel("Qual é o nome do produto?").fill("Curso de teste");
+  await page.getByRole("button", { name: "Continuar" }).click();
+  const price = page.getByLabel("Quanto custa?");
+  await price.fill("197");
+  await expect(page.getByText("Salvo", { exact: true })).toBeVisible();
+
+  await price.fill("-50");
+  await page.getByRole("button", { name: "Voltar" }).click();
+  await page.getByRole("button", { name: "Continuar" }).click();
+
+  await expect(price).toHaveValue("197");
+});

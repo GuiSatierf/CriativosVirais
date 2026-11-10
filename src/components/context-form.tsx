@@ -388,6 +388,8 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
   });
   const { status, queue, flush } = useAutosave();
   const moved = useRef(false);
+  // A refused price is never saved, so leaving its step puts the last accepted one back on screen.
+  const lastAcceptedPrice = useRef(form.price);
 
   const done = steps.filter(({ field }) => filled(form, field.key)).length;
   const total = steps.length;
@@ -407,6 +409,7 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
     void flush();
     moved.current = true;
     setPriceError(null);
+    if (priceProblem(form.price) != null) setForm((state) => ({ ...state, price: lastAcceptedPrice.current }));
     setStep(Math.max(0, Math.min(next, steps.length)));
   }
 
@@ -420,6 +423,7 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
     const parsed = parsePrice(value);
     setPriceError(problemWhileTyping(parsed));
     if ("problem" in parsed) return;
+    lastAcceptedPrice.current = value;
     queue({ ticketCents: parsed.cents });
   }
 
@@ -494,8 +498,9 @@ export function ContextForm({ initial }: { initial: ContextFormValues }) {
               {current.section.fields.length}
             </p>
             <SaveIndicator
-              status={status}
-              rejected={current.field.key === "price" && priceProblem(form.price) != null}
+              // A half-typed price is not saved yet but has no warning either, so the badge stays neutral.
+              status={current.field.key === "price" && priceError == null && priceProblem(form.price) != null ? "idle" : status}
+              rejected={current.field.key === "price" && priceError != null}
               onRetry={() => void flush()}
             />
           </div>
