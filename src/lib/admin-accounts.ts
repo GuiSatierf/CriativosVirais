@@ -76,10 +76,14 @@ export async function changeClientEmail(actor: AdminActor, userId: string, email
   await audit(actor, "account.email_changed", next, { from: previous });
 }
 
-/** Sets a new password the team tells the client; it never reaches the audit log. */
+/**
+ * Sets a new password the team tells the client; it never reaches the audit log. The team does this
+ * mostly when someone else got into the account, so every open session ends, as on the client's own reset.
+ */
 export async function setClientPassword(actor: AdminActor, requestHeaders: Headers, userId: string, password: string) {
   const client = await findClient(userId);
   await getAuth().api.setUserPassword({ body: { userId, newPassword: password }, headers: requestHeaders });
+  await db.delete(session).where(eq(session.userId, userId));
   await audit(actor, "account.password_set", client.email);
 }
 
