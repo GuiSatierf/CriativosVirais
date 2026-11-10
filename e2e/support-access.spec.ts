@@ -19,6 +19,8 @@ test("support enters a client's account without the password, changes its email 
   const clientName = `Cliente ${randomUUID().slice(0, 8)}`;
   const clientContext = await browser.newContext({ baseURL, locale: "pt-BR" });
   await signUp(await clientContext.newPage(), clientEmail);
+  // The client's own device stays signed in until the team sets a new password (step 5).
+  const clientDevice = await clientContext.storageState();
   await clientContext.close();
   await testDatabase(`update "user" set name = $2 where email = $1`, [clientEmail, clientName]);
 
@@ -139,6 +141,10 @@ test("support enters a client's account without the password, changes its email 
   );
   expect(audited.map((entry) => entry.action).sort()).toEqual(["account.email_changed", "account.password_set"]);
   expect(JSON.stringify(audited)).not.toContain(newPassword);
+  // Whoever was inside the account with the old password is signed out, as on the client's own reset.
+  const oldDevice = await browser.newContext({ baseURL, storageState: clientDevice });
+  expect(await (await oldDevice.request.get("/api/auth/get-session")).json()).toBeNull();
+  await oldDevice.close();
   const clientAgain = await browser.newContext({ baseURL, locale: "pt-BR" });
   const login = await clientAgain.newPage();
   await login.goto("/login");
