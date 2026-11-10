@@ -6,36 +6,44 @@ import { dailyUploadLimit } from "./app-settings";
 import { TooManyRequestsError } from "./errors";
 import { tenantWhere } from "./tenant-scope";
 
-const windowInMs = 60_000;
+const minuteInMs = 60_000;
+const dayInMs = 24 * 60 * minuteInMs;
 const saoPauloDayStart = sql`date_trunc('day', now() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo'`;
 
 // Per account and per minute: far above what a person does by hand, low enough to stop a loop.
+// assetRetry counts per file and per day: each retry runs paid transcription and video analysis again.
 const requestLimits = {
-  chat: { max: 20, message: "Você enviou muitas mensagens em pouco tempo. Aguarde um minuto e tente de novo." },
-  upload: { max: 30, message: "Você enviou muitos arquivos em pouco tempo. Aguarde um minuto e tente de novo." },
-  import: { max: 10, message: "Você importou muitas planilhas em pouco tempo. Aguarde um minuto e tente de novo." },
+  chat: { max: 20, windowInMs: minuteInMs, message: "Você enviou muitas mensagens em pouco tempo. Aguarde um minuto e tente de novo." },
+  upload: { max: 30, windowInMs: minuteInMs, message: "Você enviou muitos arquivos em pouco tempo. Aguarde um minuto e tente de novo." },
+  import: { max: 10, windowInMs: minuteInMs, message: "Você importou muitas planilhas em pouco tempo. Aguarde um minuto e tente de novo." },
+  assetRetry: {
+    max: 3,
+    windowInMs: dayInMs,
+    message: "Este arquivo já foi tentado de novo 3 vezes hoje. Envie o arquivo outra vez ou fale com o suporte.",
+  },
 } as const;
 type LimitedRoute = keyof typeof requestLimits;
 
 /**
- * Counts one request from the account on the route and refuses it past the route's limit.
+ * Counts one request on the route for the given scope and refuses it past the route's limit.
  *
  * @remarks
- * Fixed one-minute windows kept in Better Auth's `rate_limit` table, so every app process
- * shares the count. The `app:` key prefix never matches Better Auth's own `<ip><path>` keys,
- * and `last_request` holds the window start here.
+ * Fixed windows (one minute, or one day for asset retries) kept in Better Auth's `rate_limit`
+ * table, so every app process shares the count. The `app:` key prefix never matches Better Auth's
+ * own `<ip><path>` keys, and `last_request` holds the window start here.
  *
- * @param tenantId - The account resolved from the server session.
+ * @param scopeId - The account resolved from the server session, or the asset for `assetRetry`.
  * @param route - Which limited route the request is for.
- * @throws {TooManyRequestsError} When the account already used the route's limit in this window.
+ * @throws {TooManyRequestsError} When the scope already used the route's limit in this window.
  */
-export async function assertRequestLimit(tenantId: string, route: LimitedRoute) {
+export async function assertRequestLimit(scopeId: string, route: LimitedRoute) {
+  const { windowInMs } = requestLimits[route];
   const now = Date.now();
   const windowStart = now - windowInMs;
   const expired = sql`${rateLimit.lastRequest} <= ${windowStart}`;
   const [row] = await db
     .insert(rateLimit)
-    .values({ id: randomUUID(), key: `app:${route}:${tenantId}`, count: 1, lastRequest: now })
+    .values({ id: randomUUID(), key: `app:${route}:${scopeId}`, count: 1, lastRequest: now })
     .onConflictDoUpdate({
       target: rateLimit.key,
       set: {
