@@ -127,9 +127,10 @@ export async function applyTeamInvite(account: { id: string; email: string }, to
       .returning({ id: verification.id });
     if (consumed.length === 0) return false;
     // A team member's role changes only on the Equipe tab, so an old link cannot demote an owner.
+    // The emailed token also proves the mailbox, so the email counts as confirmed.
     const joined = await transaction
       .update(user)
-      .set({ role: open.invite.role })
+      .set({ role: open.invite.role, emailVerified: true })
       .where(and(eq(user.id, account.id), or(isNull(user.role), eq(user.role, "user"))))
       .returning({ id: user.id });
     if (joined.length === 0) return false;

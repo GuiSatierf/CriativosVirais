@@ -39,7 +39,9 @@ const explainedRefusals = new Set(["NO_ACCESS_GRANT", "BANNED_USER", "INVALID_TE
 function refusalMessage(error: { code?: string; message?: string }, signup: boolean) {
   if (error.code !== undefined && explainedRefusals.has(error.code) && error.message !== undefined)
     return error.message;
-  if (signup) return "Não foi possível criar a conta. Se você já tem cadastro, entre com seu e-mail e senha.";
+  // Also the path back for a buyer whose email someone else signed up with: the reset link reaches only her.
+  if (signup)
+    return 'Não foi possível criar a conta. Se este e-mail já tem cadastro, entre com ele ou use "Esqueceu a senha?" na tela de entrar.';
   return "E-mail ou senha incorretos.";
 }
 

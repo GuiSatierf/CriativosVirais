@@ -8,6 +8,8 @@ test("deleting the account requires the password on the server", async ({ page, 
     await signUp(page);
     const session = await (await page.request.get("/api/auth/get-session")).json();
     const headers = { Origin: baseURL! };
+    // Deletion also waits for a confirmed email; this case is about the password, so the email is confirmed.
+    await pool.query(`update "user" set email_verified = true where id = $1`, [session.user.id]);
 
     // A fresh session used to be enough: the call below deleted everything without a password.
     const withoutPassword = await page.request.post("/api/auth/delete-user", { data: {}, headers });
