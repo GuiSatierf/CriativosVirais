@@ -258,7 +258,7 @@ export function CsvImport({
     const columns = parsed.meta.fields ?? [];
     if (parsed.errors.length || columns.length === 0) {
       setFileError(
-        "Não conseguimos ler este arquivo. Confira se é um CSV com cabeçalho na primeira linha.",
+        "Não conseguimos ler este arquivo. Se ele é do Excel (.xlsx), volte ao Gerenciador de Anúncios, clique em Exportar, escolha CSV e envie o arquivo novo aqui.",
       );
       return;
     }
@@ -428,7 +428,7 @@ export function CsvImport({
               </span>
             </div>
             <p id="csv-file-hint" className="text-xs text-muted-foreground">
-              CSV de até 5 MB, com os nomes das colunas na primeira linha.
+              A planilha do Gerenciador de Anúncios, até 5 MB. Na hora de exportar, escolha CSV.
             </p>
             {fileError && (
               <Alert variant="destructive">
@@ -582,7 +582,8 @@ export function CsvImport({
       <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t bg-background px-6 py-4">
         {ready && !mapping.creative_key && (
           <p className="text-sm text-muted-foreground">
-            Escolha a coluna do código do criativo.
+            Escolha a coluna do código do criativo. Se a planilha não tiver, exporte de novo no
+            Gerenciador com a coluna Nome do anúncio.
           </p>
         )}
         {importError && (
