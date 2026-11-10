@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { themeCookie, themeSchema } from "@/lib/theme";
+import { panelReloadScript } from "@/components/panel-reload-script";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -37,9 +38,15 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const theme =
     themeSchema.safeParse(cookieStore.get(themeCookie)?.value).data ?? "system";
+  // The Content-Security-Policy only runs inline scripts carrying this request's nonce.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     // The panel reload script marks <html> before hydration (src/components/panel-reload-script.ts).
-    <html lang="pt-BR" className={cn("font-sans", inter.variable, theme)} suppressHydrationWarning>
+    <html lang="pt-BR" className={cn("font-sans", inter.variable, theme)} suppressHydrationWarning data-scroll-behavior="smooth">
+      <head>
+        {/* Here and not in the app layout: a script rendered on a client navigation never runs and React warns about it. */}
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: panelReloadScript }} />
+      </head>
       <body>
         <a className="skip-link" href="#main-content">
           Ir para o conteúdo
