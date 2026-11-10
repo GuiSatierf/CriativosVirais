@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { z } from "zod";
 import { AuthForm } from "@/components/auth-form";
 import { teamInviteTokenSchema } from "@/lib/team-invite-token";
+
+export const metadata: Metadata = { title: "Criar conta" };
 
 const invitedEmail = z.email().max(254);
 
