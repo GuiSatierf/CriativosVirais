@@ -66,6 +66,9 @@ async function chatFetch(input: RequestInfo | URL, init?: RequestInit) {
 function isCsv(file: File) {
   return /\.csv$/i.test(file.name) || file.type === "text/csv";
 }
+// Parar takes Enviar's place as soon as a message goes out, so the second click of a
+// double click on Enviar would cancel the reply it just asked for.
+const stopIgnoredAfterSendInMs = 600;
 /** Distance from the bottom (px) that still counts as following the reply. */
 const stickThreshold = 96;
 
@@ -181,6 +184,7 @@ export function Chat({
   // the page out differently). A position from the top stays right when new messages arrive below.
   const readingTop = useRef(0);
   const busy = status === "submitted" || status === "streaming";
+  const busySince = useRef(0);
   const unavailable = !configured;
   const transcribing = audioUploading || Boolean(audioAsset);
   const empty = messages.length === 0;
@@ -195,6 +199,10 @@ export function Chat({
     !voice.recording &&
     !audioUploading &&
     analysing.length === 0;
+
+  useEffect(() => {
+    if (busy) busySince.current = Date.now();
+  }, [busy]);
 
   // Follows the reply only while the reader is already at the bottom.
   useEffect(() => {
@@ -666,7 +674,10 @@ export function Chat({
               size="icon"
               className={sendButton}
               aria-label="Parar resposta"
-              onClick={() => stop()}
+              onClick={() => {
+                if (Date.now() - busySince.current < stopIgnoredAfterSendInMs) return;
+                void stop();
+              }}
             >
               <Square className="size-3.5 fill-current" aria-hidden />
             </Button>
