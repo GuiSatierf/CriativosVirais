@@ -236,6 +236,7 @@ export function CsvImport({
 
   async function readFile(file: File | undefined) {
     setFileError(undefined);
+    setImportError(undefined);
     setHeaders([]);
     setRows([]);
     setCsv("");
