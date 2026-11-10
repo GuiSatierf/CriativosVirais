@@ -504,10 +504,10 @@ function HotmartPanel({
             </p>
           )}
         </Step>
-        <Step number={4} title="Ponha o código do criativo nos links">
+        <Step number={4} title="Ponha o código do roteiro no link de cada anúncio">
           <p className="text-xs text-muted-foreground">
-            No link de cada anúncio para a página de vendas, acrescente <code>src</code> com o código do
-            criativo, por exemplo <code>?src=L01-C02</code>.
+            No fim do link de vendas de cada anúncio, cole <code>?src=</code> e o código do roteiro que está
+            na leva. Exemplo: <code>?src=L01-C02</code>. Use o mesmo código como nome do anúncio.
           </p>
         </Step>
       </Steps>
