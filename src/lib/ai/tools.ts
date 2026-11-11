@@ -1,6 +1,6 @@
 import { tool, type UIMessageStreamWriter } from "ai";
 import { z } from "zod";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   creatives,
@@ -147,13 +147,14 @@ export function chatTools(
             tenantWhere(creatives, tenantId, eq(creatives.id, videoAnalyses.creativeId)),
           )
           .where(
+            // Either list matches, as in the system prompt: a creative's videos plus loose attachments.
             tenantWhere(
               videoAnalyses,
               tenantId,
-              creativeKeys
-                ? inArray(creatives.creativeKey, creativeKeys)
-                : undefined,
-              assetIds ? inArray(videoAnalyses.assetId, assetIds) : undefined,
+              or(
+                creativeKeys ? inArray(creatives.creativeKey, creativeKeys) : undefined,
+                assetIds ? inArray(videoAnalyses.assetId, assetIds) : undefined,
+              ),
             ),
           );
       },

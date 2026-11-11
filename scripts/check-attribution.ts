@@ -21,6 +21,7 @@ async function main() {
   const { getBenchmark } = await import("../src/lib/benchmark");
   const { getBatchResults } = await import("../src/lib/results");
   const { availableMetricWindows } = await import("../src/lib/default-period");
+  const { chatTools } = await import("../src/lib/ai/tools");
   const migrationDir = await mkdtemp(join(tmpdir(), "creatives-migrations-"));
   let tenantId: string | undefined;
   let otherTenantId: string | undefined;
@@ -109,6 +110,18 @@ async function main() {
         { source: "csv", from: "2026-10-01", to: "2026-10-01" },
       ],
     );
+
+    // Asking for a creative's videos and a loose attachment together used to return neither.
+    const analysisOf = async (creativeId: string | null, key: string) => {
+      const asset = await pool.query("insert into assets(tenant_id,creative_id,kind,s3_key,mime,size,status) values ($1,$2,'video',$3,'video/mp4',1,'done') returning id", [tenantId, creativeId, key]);
+      await pool.query("insert into video_analyses(tenant_id,asset_id,creative_id,transcript,narrative,awareness_entry,awareness_exit,skeleton,format,cta) values ($1,$2,$3,'','','','','','','')", [tenantId, asset.rows[0].id, creativeId]);
+      return asset.rows[0].id as string;
+    };
+    await analysisOf(legacyCreative.rows[0].id, `${tenantId}/creative.mp4`);
+    const looseAsset = await analysisOf(null, `${tenantId}/loose.mp4`);
+    const videoTools = chatTools(tenantId!, "conversation", { write: () => undefined } as never);
+    const analyses = await videoTools.getVideoAnalyses.execute!({ creativeKeys: ["AD-1"], assetIds: [looseAsset] }, { toolCallId: "check", messages: [] } as never);
+    assert.equal((analyses as unknown[]).length, 2);
 
     // Ranking sample rules: a tiny spend or audience cannot top ROAS or CTR, refunds compare as a
     // rate among creatives that sold, and ties go to the larger sample instead of the key's order.
