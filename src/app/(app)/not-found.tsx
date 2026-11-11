@@ -6,7 +6,7 @@ export default function NotFound() {
   return (
     <div className="flex flex-col items-center px-4 py-12 text-center">
       <span className="mb-4 flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <SearchX strokeWidth={1.75} className="size-5" aria-hidden />
+        <SearchX className="size-5" aria-hidden />
       </span>
       <h1 className="section-title">Página não encontrada</h1>
       <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">

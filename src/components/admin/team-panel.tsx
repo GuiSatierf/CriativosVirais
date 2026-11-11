@@ -10,13 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { api, toastError } from "@/lib/client";
 import { panelRequiresTwoFactor, staffRoleLabel, type StaffRole } from "@/lib/staff";
 import { cn } from "@/lib/utils";
+import { spDayBr } from "@/lib/dates";
 import { AdminHeading, type AdminNavigation } from "./admin-heading";
 import { AddMemberDialog, ChangeRoleDialog, NewCodeDialog, RemoveMemberDialog, type TeamRow } from "./team-dialogs";
 
 export type TeamInvite = { email: string; role: StaffRole; expiresAt: string };
 
 const doneSchema = z.object({}).loose();
-const dayFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 
 /** Team invites not accepted yet; the role applies at sign-up or when the person signs in through the link. */
 function PendingInvites({ invites }: { invites: TeamInvite[] }) {
@@ -46,7 +46,7 @@ function PendingInvites({ invites }: { invites: TeamInvite[] }) {
             <div className="min-w-0">
               <p className="truncate font-medium">{invite.email}</p>
               <p className="text-xs text-muted-foreground">
-                Entra como {staffRoleLabel[invite.role]} ao aceitar o convite · vale até {dayFormat.format(new Date(invite.expiresAt))}
+                Entra como {staffRoleLabel[invite.role]} ao aceitar o convite · vale até {spDayBr(new Date(invite.expiresAt))}
               </p>
             </div>
             <Button variant="ghost" size="sm" disabled={cancelling === invite.email} onClick={() => cancel(invite.email)}>

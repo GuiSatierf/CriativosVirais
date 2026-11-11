@@ -18,7 +18,7 @@ export default function AppError({
   return (
     <div className="flex flex-col items-center px-4 py-12 text-center">
       <span className="mb-4 flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <TriangleAlert strokeWidth={1.75} className="size-5" aria-hidden />
+        <TriangleAlert className="size-5" aria-hidden />
       </span>
       <h1 className="section-title">Algo deu errado</h1>
       <p role="alert" className="mt-1.5 max-w-sm text-sm text-muted-foreground">

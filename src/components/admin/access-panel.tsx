@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, toastError } from "@/lib/client";
+import { spDayBr } from "@/lib/dates";
 import { can, staffRoleLabel, staffRoles, type StaffRole } from "@/lib/staff";
 import { cn } from "@/lib/utils";
 import { BlockDialog, GrantDialog, RemoveDialog } from "./access-dialogs";
@@ -47,7 +48,6 @@ const filters: { value: Filter; label: string }[] = [
   { value: "active", label: statusLabel.active },
   { value: "blocked", label: statusLabel.blocked },
 ];
-const dayFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 const doneSchema = z.object({}).loose();
 const accessListSchema = z.object({
   total: z.number(),
@@ -209,7 +209,7 @@ export function AccessPanel({
                     <TableCell className="font-medium break-all whitespace-normal">{row.email}</TableCell>
                     <TableCell className="text-muted-foreground">{origin(row)}</TableCell>
                     <TableCell><StatusPill row={row} /></TableCell>
-                    <TableCell className="tabular-nums">{dayFormat.format(new Date(row.createdAt))}</TableCell>
+                    <TableCell className="tabular-nums">{spDayBr(new Date(row.createdAt))}</TableCell>
                     <TableCell className="text-right">{action(row)}</TableCell>
                   </TableRow>
                 ))}
@@ -220,7 +220,7 @@ export function AccessPanel({
             {access.map((row) => (
               <li key={row.id} className="space-y-2 rounded-xl border bg-card p-4">
                 <p className="font-medium break-all">{row.email}</p>
-                <p className="text-xs text-muted-foreground">{origin(row)} · {dayFormat.format(new Date(row.createdAt))}</p>
+                <p className="text-xs text-muted-foreground">{origin(row)} · {spDayBr(new Date(row.createdAt))}</p>
                 <div className="flex items-center justify-between gap-2">
                   <StatusPill row={row} />
                   {action(row)}

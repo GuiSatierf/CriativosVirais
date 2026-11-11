@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
-import { XIcon } from "@/components/icons";
+import { X } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -69,7 +69,7 @@ function SheetContent({
               />
             }
           >
-            <XIcon />
+            <X aria-hidden />
             <span className="sr-only">Fechar</span>
           </SheetPrimitive.Close>
         )}

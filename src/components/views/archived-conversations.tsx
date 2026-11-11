@@ -7,10 +7,7 @@ import { requireTenant, tenantWhere } from "@/lib/tenant";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ConversationActions } from "@/components/conversation-actions";
-
-function formatDate(date: Date) {
-  return date.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
-}
+import { spDayBr } from "@/lib/dates";
 
 export async function ArchivedConversationsView() {
   const { tenantId } = await requireTenant();
@@ -50,7 +47,7 @@ export async function ArchivedConversationsView() {
                   <span className="block text-xs text-muted-foreground">
                     Arquivada em{" "}
                     <time dateTime={row.archivedAt.toISOString()}>
-                      {formatDate(row.archivedAt)}
+                      {spDayBr(row.archivedAt)}
                     </time>
                   </span>
                 )}
