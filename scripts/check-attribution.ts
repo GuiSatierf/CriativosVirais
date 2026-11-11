@@ -122,6 +122,10 @@ async function main() {
     const videoTools = chatTools(tenantId!, "conversation", { write: () => undefined } as never);
     const analyses = await videoTools.getVideoAnalyses.execute!({ creativeKeys: ["AD-1"], assetIds: [looseAsset] }, { toolCallId: "check", messages: [] } as never);
     assert.equal((analyses as unknown[]).length, 2);
+    // Every analysis of a creative went whole into each tool step; now the newest fit a budget.
+    for (let version = 0; version < 14; version++) await analysisOf(legacyCreative.rows[0].id, `${tenantId}/version-${version}.mp4`);
+    const many = await videoTools.getVideoAnalyses.execute!({ creativeKeys: ["AD-1"] }, { toolCallId: "check", messages: [] } as never);
+    assert.equal((many as unknown[]).length, 12);
 
     // Ranking sample rules: a tiny spend or audience cannot top ROAS or CTR, refunds compare as a
     // rate among creatives that sold, and ties go to the larger sample instead of the key's order.

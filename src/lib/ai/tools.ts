@@ -1,6 +1,6 @@
 import { tool, type UIMessageStreamWriter } from "ai";
 import { z } from "zod";
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   creatives,
@@ -18,6 +18,7 @@ import {
   panelIds,
 } from "./schemas";
 import { analysisColumns } from "./analysis-columns";
+import { fitSection } from "./prompt-sections";
 import { getBenchmark } from "../benchmark";
 import { startBatchGeneration } from "../batches";
 import { getBatchResults } from "../results";
@@ -25,6 +26,9 @@ import { periodSchema } from "../connectors/types";
 import { updateContext } from "../context";
 import { tenantValues, tenantWhere } from "../tenant-scope";
 const keys = z.array(z.string().min(1).max(200)).min(1).max(12);
+/** Same cap and size as the analyses the system prompt carries. */
+const maxAnalysesPerCall = 12;
+const analysesBudgetInCharacters = 24_000;
 
 type ContextAnswers = Omit<z.infer<typeof contextPatchSchema>, "ticketCents" | "provasAutorizadas">;
 
@@ -156,7 +160,11 @@ export function chatTools(
                 assetIds ? inArray(videoAnalyses.assetId, assetIds) : undefined,
               ),
             ),
-          );
+          )
+          // Each analysis carries a transcript of up to 100k characters and every step resends it.
+          .orderBy(desc(videoAnalyses.createdAt))
+          .limit(maxAnalysesPerCall)
+          .then((rows) => fitSection(rows, analysesBudgetInCharacters));
       },
     }),
     generateBatch: tool({
