@@ -22,7 +22,7 @@ export default function ErrorPage({
       className="flex min-h-svh flex-col items-center justify-center px-4 py-16 text-center outline-none"
     >
       <span className="mb-4 flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <TriangleAlert strokeWidth={1.75} className="size-5" aria-hidden />
+        <TriangleAlert className="size-5" aria-hidden />
       </span>
       <h1 className="section-title">Algo deu errado</h1>
       <p role="alert" className="mt-1.5 max-w-sm text-sm text-muted-foreground">

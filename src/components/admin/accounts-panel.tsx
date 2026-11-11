@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/client";
+import { spDay, spDayBr } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { Spinner } from "./access-dialogs";
 import { ChangeEmailDialog, SetPasswordDialog } from "./account-dialogs";
@@ -37,18 +38,16 @@ const doneSchema = z.object({}).loose();
 const minimumReason = 3;
 const zone = "America/Sao_Paulo";
 const timeFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: zone, hour: "2-digit", minute: "2-digit" });
-const dayFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: zone });
-const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: zone });
 
 /** "hoje, 14:02", "ontem, 19:40" or the date. */
 function formatLastAccess(value: string | null) {
   // Sessions are deleted on sign-out, so no open session does not mean never signed in.
   if (value == null) return "Sem sessão aberta";
   const date = new Date(value);
-  const day = dayKey.format(date);
-  if (day === dayKey.format(new Date())) return `hoje, ${timeFormat.format(date)}`;
-  if (day === dayKey.format(new Date(Date.now() - 86_400_000))) return `ontem, ${timeFormat.format(date)}`;
-  return dayFormat.format(date);
+  const day = spDay(date);
+  if (day === spDay()) return `hoje, ${timeFormat.format(date)}`;
+  if (day === spDay(new Date(Date.now() - 86_400_000))) return `ontem, ${timeFormat.format(date)}`;
+  return spDayBr(date);
 }
 
 function StatusPill({ row }: { row: AccountRow }) {

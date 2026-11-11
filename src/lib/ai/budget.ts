@@ -18,6 +18,16 @@ type ModelUsage = {
   inputTokens: { total: number | undefined; cacheRead: number | undefined };
   outputTokens: { total: number | undefined };
 };
+type WrapStream = NonNullable<LanguageModelMiddleware["wrapStream"]>;
+type StreamPart = Awaited<ReturnType<Parameters<WrapStream>[0]["doStream"]>>["stream"] extends ReadableStream<infer Part>
+  ? Part
+  : never;
+
+/** What a streamed step used: the provider's count, or an estimate when the stream stopped before reporting it. */
+export type StreamUsage = { reported: ModelUsage } | { estimated: { inputTokens: number; outputTokens: number } };
+
+// Fewer characters per token than Portuguese text really uses, so an estimate errs toward counting more.
+const estimatedCharsPerToken = 3;
 
 const monthName = new Intl.DateTimeFormat("pt-BR", { month: "long", timeZone: "UTC" });
 const monthStart = sql`date_trunc('month', now() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo'`;
@@ -67,8 +77,13 @@ export async function assertAiBudget(tenantId: string) {
   );
 }
 
-async function recordAiUsage(call: MeteredCall, usage: ModelUsage) {
-  const tokens = tokenCounts(usage);
+async function recordAiUsage(call: MeteredCall, usage: StreamUsage) {
+  // An estimate only prices the step; its token counts stay unknown (NULL) instead of looking measured.
+  const tokens = "reported" in usage ? tokenCounts(usage.reported) : { input: null, cachedInput: null, output: null };
+  const cost =
+    "reported" in usage
+      ? costMillicents(tokens)
+      : costMillicents({ input: usage.estimated.inputTokens, cachedInput: 0, output: usage.estimated.outputTokens });
   try {
     await db.insert(aiUsage).values(
       tenantValues(call.tenantId, {
@@ -76,7 +91,7 @@ async function recordAiUsage(call: MeteredCall, usage: ModelUsage) {
         inputTokens: tokens.input,
         cachedInputTokens: tokens.cachedInput,
         outputTokens: tokens.output,
-        costMillicents: costMillicents(tokens),
+        costMillicents: cost,
       }),
     );
   } catch (error) {
@@ -85,27 +100,64 @@ async function recordAiUsage(call: MeteredCall, usage: ModelUsage) {
   }
 }
 
+/**
+ * Passes a model stream through and reports its usage exactly once.
+ *
+ * @remarks
+ * The provider reports usage only in the final `finish` part. When the client closes the tab or the
+ * turn times out, the stream is cancelled before that part, yet the provider already read the prompt
+ * and wrote part of the answer, so the step is then estimated from the prompt and the text received.
+ *
+ * @param promptChars - Length of everything sent to the model in this step (prompt and tools).
+ */
+export function meterStream(
+  stream: ReadableStream<StreamPart>,
+  promptChars: number,
+  record: (usage: StreamUsage) => Promise<void>,
+) {
+  let outputChars = 0;
+  let recorded = false;
+  const recordOnce = async (usage: StreamUsage) => {
+    if (recorded) return;
+    recorded = true;
+    await record(usage);
+  };
+  const recordEstimate = () =>
+    recordOnce({
+      estimated: {
+        inputTokens: Math.ceil(promptChars / estimatedCharsPerToken),
+        outputTokens: Math.ceil(outputChars / estimatedCharsPerToken),
+      },
+    });
+  // TypeScript's DOM types still lack the transformer's cancel hook, which Node 22 calls when the
+  // reader cancels or the provider stream fails; a variable avoids the literal's excess property check.
+  const transformer = {
+    async transform(part: StreamPart, controller: TransformStreamDefaultController<StreamPart>) {
+      if (part.type === "finish") await recordOnce({ reported: part.usage });
+      if (part.type === "text-delta" || part.type === "reasoning-delta" || part.type === "tool-input-delta")
+        outputChars += part.delta.length;
+      controller.enqueue(part);
+    },
+    flush: recordEstimate,
+    cancel: recordEstimate,
+  };
+  return stream.pipeThrough(new TransformStream<StreamPart, StreamPart>(transformer));
+}
+
 /** Checks the budget before every model call and records what each one cost. */
 export function meteringMiddleware(call: MeteredCall): LanguageModelMiddleware {
   return {
     wrapGenerate: async ({ doGenerate }) => {
       await assertAiBudget(call.tenantId);
       const result = await doGenerate();
-      await recordAiUsage(call, result.usage);
+      await recordAiUsage(call, { reported: result.usage });
       return result;
     },
-    wrapStream: async ({ doStream }) => {
+    wrapStream: async ({ doStream, params }) => {
       await assertAiBudget(call.tenantId);
       const { stream, ...rest } = await doStream();
-      const metered = stream.pipeThrough(
-        new TransformStream({
-          async transform(part, controller) {
-            if (part.type === "finish") await recordAiUsage(call, part.usage);
-            controller.enqueue(part);
-          },
-        }),
-      );
-      return { stream: metered, ...rest };
+      const promptChars = JSON.stringify(params.prompt).length + JSON.stringify(params.tools ?? []).length;
+      return { stream: meterStream(stream, promptChars, (usage) => recordAiUsage(call, usage)), ...rest };
     },
   };
 }
