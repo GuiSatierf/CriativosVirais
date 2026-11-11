@@ -8,7 +8,6 @@ import {
   ArrowLeftIcon as PhArrowLeft,
   ArrowRightIcon as PhArrowRight,
   ArrowUpIcon as PhArrowUp,
-  ArrowUpRightIcon as PhArrowUpRight,
   ArrowsClockwiseIcon as PhArrowsClockwise,
   BookOpenIcon as PhBookOpen,
   BoxArrowUpIcon as PhBoxArrowUp,
@@ -16,7 +15,6 @@ import {
   CameraIcon as PhCamera,
   CaretDownIcon as PhCaretDown,
   CaretRightIcon as PhCaretRight,
-  CaretUpDownIcon as PhCaretUpDown,
   ChartBarIcon as PhChartBar,
   ChatCircleIcon as PhChatCircle,
   CheckIcon as PhCheck,
@@ -50,7 +48,6 @@ import {
   PlugsIcon as PhPlugs,
   PlusIcon as PhPlus,
   ProhibitIcon as PhProhibit,
-  SidebarSimpleIcon as PhSidebarSimple,
   SignInIcon as PhSignIn,
   SignOutIcon as PhSignOut,
   SlidersHorizontalIcon as PhSlidersHorizontal,
@@ -96,7 +93,6 @@ export const ArrowDown = icon(PhArrowDown, "bold");
 export const ArrowLeft = icon(PhArrowLeft, "bold");
 export const ArrowRight = icon(PhArrowRight, "bold");
 export const ArrowUp = icon(PhArrowUp, "bold");
-export const ArrowUpRight = icon(PhArrowUpRight, "bold");
 export const Ban = icon(PhProhibit, "duotone");
 export const BookOpen = icon(PhBookOpen, "duotone");
 export const CalendarDays = icon(PhCalendarDots, "duotone");
@@ -104,11 +100,8 @@ export const Camera = icon(PhCamera, "duotone");
 export const ChartColumn = icon(PhChartBar, "duotone");
 export const Check = icon(PhCheck, "bold");
 export const CheckCircle2 = icon(PhCheckCircle, "duotone");
-export const CheckIcon = icon(PhCheck, "bold");
 export const ChevronDown = icon(PhCaretDown, "bold");
-export const ChevronDownIcon = icon(PhCaretDown, "bold");
-export const ChevronRightIcon = icon(PhCaretRight, "bold");
-export const ChevronsUpDown = icon(PhCaretUpDown, "bold");
+export const ChevronRight = icon(PhCaretRight, "bold");
 export const CircleAlert = icon(PhWarningCircle, "duotone");
 export const Clock = icon(PhClock, "duotone");
 export const Columns3 = icon(PhColumns, "duotone");
@@ -125,7 +118,6 @@ export const Film = icon(PhFilmStrip, "duotone");
 export const House = icon(PhHouse, "duotone");
 export const KeyRound = icon(PhKey, "duotone");
 export const Layers = icon(PhStack, "duotone");
-export const Loader2 = icon(PhCircleNotch, "bold");
 export const LoaderCircle = icon(PhCircleNotch, "bold");
 export const LogIn = icon(PhSignIn, "duotone");
 export const LogOut = icon(PhSignOut, "duotone");
@@ -134,8 +126,6 @@ export const MessageSquare = icon(PhChatCircle, "duotone");
 export const Mic = icon(PhMicrophone, "duotone");
 export const Monitor = icon(PhMonitor, "duotone");
 export const Moon = icon(PhMoon, "duotone");
-export const PanelLeftClose = icon(PhSidebarSimple, "duotone");
-export const PanelLeftOpen = icon(PhSidebarSimple, "duotone");
 export const Paperclip = icon(PhPaperclip, "bold");
 export const Pencil = icon(PhPencilSimple, "duotone");
 export const Plug = icon(PhPlug, "duotone");
@@ -159,7 +149,6 @@ export const UserRound = icon(PhUserCircle, "duotone");
 export const Video = icon(PhVideoCamera, "duotone");
 export const Webhook = icon(PhWebhooksLogo, "duotone");
 export const X = icon(PhX, "bold");
-export const XIcon = icon(PhX, "bold");
 export const Storefront = icon(PhStorefront, "duotone");
 export const Sparkle = icon(PhSparkle, "duotone");
 export const ShieldCheck = icon(PhShieldCheck, "duotone");

@@ -12,7 +12,7 @@ import {
   CircleAlert,
   Copy,
   Layers,
-  Loader2,
+  LoaderCircle,
   Plug,
   Storefront,
   UserRound,
@@ -281,7 +281,7 @@ function GenerationCard({ id, title }: { id: string; title: string }) {
     );
   return (
     <BatchStatusCard
-      icon={<Loader2 className="size-4 motion-safe:animate-spin" aria-hidden />}
+      icon={<LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden />}
       title={`Gerando a ${title}`}
       note="Pode continuar conversando. A leva aparece aqui quando ficar pronta."
     />
