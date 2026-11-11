@@ -3,6 +3,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
 import { decryptStream, encryptStream } from "./encryption";
+import { uploadEncrypted } from "./objects";
 import { copiesOfRemovedFiles, deletedFileDaysToPurge, dumpDaysToDelete } from "./retention";
 
 const key = randomBytes(32);
@@ -71,3 +72,25 @@ describe("files removed from the app", () => {
     expect(copiesOfRemovedFiles(new Set(), [], "files/")).toEqual([]);
   });
 });
+
+describe("encrypted upload", () => {
+  // The refusal was only read after the copy, which by then had failed with a bare "aborted",
+  // so the log hid why the backup failed and the refusal sat unhandled in the meantime.
+  it("fails with the storage refusal when storage refuses mid-copy", async () => {
+    const refused = new Error("storage refused the upload");
+    // Storage answers over the network, so every reply, the refusal included, arrives later.
+    const client = { config: { requestChecksumCalculation: async () => "WHEN_REQUIRED" }, send: async () => { await new Promise((resolve) => setTimeout(resolve, 5)); throw refused; } };
+    const chunk = randomBytes(1024 * 1024);
+    const input = Readable.from((function* () {
+      for (let i = 0; i < 64; i++) yield chunk;
+    })());
+
+    const upload = uploadEncrypted(
+      { client: client as never, bucket: "backups" },
+      { objectKey: "db/2026-11-10.dump.enc", input, key: randomBytes(32) },
+    );
+
+    await expect(upload).rejects.toThrow("storage refused the upload");
+  });
+});
+

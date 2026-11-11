@@ -75,13 +75,14 @@ export async function uploadEncrypted(
   const body = new PassThrough();
   const upload = new Upload({ client, params: { Bucket: bucket, Key: objectKey, Body: body } });
   const uploaded = upload.done();
+  // Handled from the start: a refusal mid-copy stops the copy and is the error the backup reports.
+  const copied = pipeline([input, ...(check ? [check] : []), encryptStream(key), body]);
   try {
-    await pipeline([input, ...(check ? [check] : []), encryptStream(key), body]);
-    await uploaded;
+    await Promise.all([copied, uploaded]);
   } catch (error) {
     // The original failure is what matters; abort and the settled upload only clean up.
     await upload.abort().catch(() => undefined);
-    await uploaded.catch(() => undefined);
+    await Promise.allSettled([copied, uploaded]);
     throw error;
   }
 }
