@@ -14,11 +14,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { requireTenant } from "@/lib/tenant";
 import { getBatch } from "@/lib/batches";
+import { spDayBr } from "@/lib/dates";
 import { batchText, creativeText } from "@/lib/export";
-
-function formatDate(date: Date) {
-  return date.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
-}
 
 export async function BatchView({
   params,
@@ -41,7 +38,7 @@ export async function BatchView({
     `Rodada ${batch.roundNumber}`,
     batch.produtoNome,
     handle && `@${handle}`,
-    formatDate(batch.createdAt),
+    spDayBr(batch.createdAt),
     // The generated title already names product and date; skip repeats.
   ].filter((part): part is string => Boolean(part) && !batch.title.includes(part as string));
   // Only the fields the client needs cross the server/client boundary.

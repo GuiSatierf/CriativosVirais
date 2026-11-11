@@ -8,10 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-
-function formatDate(date: Date) {
-  return date.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
-}
+import { spDayBr } from "@/lib/dates";
 
 export async function BatchesView({
   searchParams,
@@ -147,7 +144,7 @@ export async function BatchesView({
                     {batch.scripts === 1 ? "roteiro" : "roteiros"}
                   </span>
                   <time dateTime={batch.createdAt.toISOString()}>
-                    {formatDate(batch.createdAt)}
+                    {spDayBr(batch.createdAt)}
                   </time>
                 </span>
               </Link>
