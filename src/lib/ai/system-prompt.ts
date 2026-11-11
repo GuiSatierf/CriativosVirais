@@ -52,6 +52,27 @@ export function offerProposalNote(content: unknown) {
   return shown ? offerProposalReminder : "";
 }
 /** Asset ids attached through message metadata. */
+/** Characters of chat history sent with each turn, about 35k tokens beside the system prompt. */
+export const historyBudgetInCharacters = 120_000;
+
+/**
+ * Keeps the newest messages (oldest first) whose text fits the budget; the newest one always stays.
+ * Forty long pasted messages used to overflow the model's context on every later turn.
+ */
+export function recentWithinBudget<T extends { content: string }>(
+  oldestFirst: readonly T[],
+  budgetInCharacters = historyBudgetInCharacters,
+) {
+  const kept: T[] = [];
+  let used = 0;
+  for (const message of oldestFirst.toReversed()) {
+    used += message.content.length;
+    if (kept.length > 0 && used > budgetInCharacters) break;
+    kept.push(message);
+  }
+  return kept.toReversed();
+}
+
 export function messageAttachments(content: unknown) {
   return stored(content).metadata?.assetIds ?? [];
 }

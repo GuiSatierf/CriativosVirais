@@ -26,6 +26,7 @@ import {
   messageAttachments,
   messageText,
   offerProposalNote,
+  recentWithinBudget,
 } from "@/lib/ai/system-prompt";
 import { chatTools } from "@/lib/ai/tools";
 import { logError } from "@/lib/log";
@@ -167,7 +168,7 @@ export function POST(request: Request) {
         .limit(40);
       // History comes exclusively from this tenant's database. Client-supplied assistant/tool messages are ignored.
       // Attachment ids reach the model only in this copy, never in the stored or displayed text.
-      const modelMessages = stored
+      const modelMessages = recentWithinBudget(stored
         .reverse()
         .map(({ content }) => {
           const assistant = (content as Partial<UIMessage>).role === "assistant";
@@ -181,7 +182,7 @@ export function POST(request: Request) {
             ].filter(Boolean).join("\n"),
           };
         })
-        .filter((m) => m.content);
+        .filter((m) => m.content));
       const system = await buildSystemPrompt(tenantId, input.conversationId, {
         embedConversation: false,
       });
