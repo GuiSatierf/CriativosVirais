@@ -73,4 +73,21 @@ describe("tenant benchmark interpretation", () => {
     expect(silent?.groups).toEqual(["ctr"]);
     expect(silent?.attentionStrongSalesWeak).toBe(true);
   });
+
+  // With four creatives every one was in the top five, so a 90% refund rate was listed as what worked.
+  it("lists a refund rate as what worked only when it is zero or no worse than the average", () => {
+    const rate = (creative_key: string, value: string, rank: number, percentile: number) =>
+      ({ creative_key, metric: "refund_rate", value, rank, percentile });
+
+    const result = summarizeRankings([
+      rate("clean", "0", 1, 0),
+      rate("low", "0.02", 2, 1 / 3),
+      rate("high", "0.4", 3, 2 / 3),
+      rate("worst", "0.9", 4, 1),
+    ]);
+    const alone = summarizeRankings([rate("only", "0.9", 1, 0)]);
+
+    expect(result.top.refund_rate.map((r) => r.creative_key)).toEqual(["clean", "low"]);
+    expect(alone.top.refund_rate).toBeUndefined();
+  });
 });
