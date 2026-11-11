@@ -5,12 +5,14 @@ import { admin } from "better-auth/plugins/admin";
 import { adminAc, defaultAc, userAc } from "better-auth/plugins/admin/access";
 import { twoFactor as twoFactorPlugin } from "better-auth/plugins/two-factor";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { user, session, account, verification, rateLimit, twoFactor } from "@/db/schema";
 import { authEnv } from "./env";
 import { provisionTenant } from "./provision-tenant";
 import { deleteAccountData } from "./account-deletion";
 import { sendPasswordResetEmail } from "./password-reset-email";
+import { sendEmailConfirmation } from "./email-confirmation-email";
 import { maxPasswordLength, minPasswordLength, resetLinkLifetimeSeconds } from "./password-rules";
 import { hasAccessGrant, removeAccessGrant } from "./access";
 import { enrollmentHeader, isValidEnrollmentCode } from "./admin-enrollment";
@@ -40,7 +42,24 @@ const accessRules = createAuthMiddleware(async (ctx) => {
   if (twoFactorEnrollment.has(ctx.path)) await requireEnrollmentCode(ctx);
   if (isClientOnlyPath(ctx.path)) await refuseWhileInsideClientAccount(ctx);
   if (ctx.path === "/delete-user") requireDeletionPassword(ctx.body?.password);
+  if (mailboxProofPaths.has(ctx.path)) await requireConfirmedEmail(ctx);
 });
+
+/**
+ * Sign-up asks for no proof that the email is the person's, so anyone who knows a buyer's address
+ * could create that account first. Whoever does so must not lock the real owner out: changing the
+ * password, deleting the account (which drops the grant) and two-factor wait for a confirmed email.
+ * The owner can always take the account back through the reset link, which confirms the email.
+ */
+const mailboxProofPaths = new Set(["/change-password", "/delete-user", "/two-factor/enable"]);
+async function requireConfirmedEmail(ctx: Parameters<typeof getSessionFromCtx>[0]) {
+  const current = await getSessionFromCtx(ctx);
+  if (current == null || current.user.emailVerified === true) return;
+  throw new APIError("FORBIDDEN", {
+    message: 'Para sua segurança, confirme seu e-mail antes. Toque em "Enviar link de confirmação" e abra o link que chegar no seu e-mail.',
+    code: "EMAIL_NOT_CONFIRMED",
+  });
+}
 
 // Better Auth deletes a fresh session's account without a password; this app always
 // demands it, so a session left open on another device cannot erase the account.
@@ -100,6 +119,16 @@ function createAuth() {
       // emails and reveal which ones exist. The sender logs its own failures.
       sendResetPassword: async ({ user, url }) => {
         void sendPasswordResetEmail(user, url);
+      },
+      // The reset link reached the mailbox, which is the same proof as the confirmation link.
+      onPasswordReset: async ({ user: resetUser }) => {
+        await db.update(user).set({ emailVerified: true }).where(eq(user.id, resetUser.id));
+      },
+    },
+    emailVerification: {
+      expiresIn: 60 * 60,
+      sendVerificationEmail: async ({ user, url }) => {
+        await sendEmailConfirmation(user, url);
       },
     },
     user: {

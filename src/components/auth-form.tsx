@@ -39,7 +39,9 @@ const explainedRefusals = new Set(["NO_ACCESS_GRANT", "BANNED_USER", "INVALID_TE
 function refusalMessage(error: { code?: string; message?: string }, signup: boolean) {
   if (error.code !== undefined && explainedRefusals.has(error.code) && error.message !== undefined)
     return error.message;
-  if (signup) return "Não foi possível criar a conta. Se você já tem cadastro, entre com seu e-mail e senha.";
+  // Also the path back for a buyer whose email someone else signed up with: the reset link reaches only her.
+  if (signup)
+    return 'Não foi possível criar a conta. Se este e-mail já tem cadastro, entre com ele ou use "Esqueceu a senha?" na tela de entrar.';
   return "E-mail ou senha incorretos.";
 }
 
@@ -47,6 +49,20 @@ function needsTwoFactor(data: unknown) {
   return typeof data === "object" && data !== null && "twoFactorRedirect" in data && data.twoFactorRedirect === true;
 }
 type FieldErrors = Partial<Record<Field, string>>;
+
+const acceptedSchema = z.object({ joined: z.boolean() });
+
+/** Signing in through a team invite link accepts the invite; a new team member lands on the panel. */
+async function pageAfterSignIn(inviteToken: string | undefined) {
+  if (inviteToken == null) return "/chat";
+  const response = await fetch("/api/team-invite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: inviteToken }),
+  });
+  const accepted = acceptedSchema.safeParse(await response.json().catch(() => null)).data;
+  return accepted?.joined === true ? "/admin" : "/chat";
+}
 
 function toFieldErrors(error: z.ZodError) {
   const errors: FieldErrors = {};
@@ -108,7 +124,7 @@ export function AuthForm({ mode, defaultEmail, inviteToken }: { mode: "login" | 
         setTwoFactor(true);
         return;
       }
-      router.replace("/chat");
+      router.replace(signup ? "/chat" : await pageAfterSignIn(inviteToken));
       router.refresh();
     } catch {
       setFormError(
@@ -135,7 +151,7 @@ export function AuthForm({ mode, defaultEmail, inviteToken }: { mode: "login" | 
     ) : null;
   }
 
-  if (twoFactor) return <TwoFactorStep />;
+  if (twoFactor) return <TwoFactorStep nextPage={() => pageAfterSignIn(inviteToken)} />;
 
   return (
     <div className="space-y-8">

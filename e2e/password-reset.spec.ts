@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { signUp } from "./support";
+import { signUp, testDatabase } from "./support";
 
 // playwright.config.ts points the app's email outbox here, so no message is really sent.
 const outbox = "test-results/outbox";
@@ -50,6 +50,10 @@ test("a forgotten password is replaced through the emailed link, once", async ({
   const otherSession = await otherDevice.request.get("/api/auth/get-session");
   expect(await otherSession.json()).toBeNull();
   await otherDevice.close();
+  // The link reached the mailbox, so the email now counts as confirmed: the owner's way to take
+  // back an account someone else created with her email.
+  const [confirmed] = await testDatabase<{ email_verified: boolean }>(`select email_verified from "user" where email = $1`, [email]);
+  expect(confirmed.email_verified).toBe(true);
 
   await signIn(page, email, newPassword);
   await expect(page).toHaveURL(/\/chat/);
