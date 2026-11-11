@@ -8,6 +8,7 @@ import { PassThrough, type Readable, type Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { backupEnv } from "@/lib/env";
 import { BackupError } from "@/lib/errors";
+import { storageTimeouts } from "@/lib/storage";
 import { encryptStream } from "./encryption";
 
 export type Bucket = { client: S3Client; bucket: string };
@@ -22,6 +23,9 @@ export function backupTarget() {
     endpoint: env.BACKUP_S3_ENDPOINT,
     region: env.BACKUP_S3_REGION,
     forcePathStyle: env.BACKUP_S3_FORCE_PATH_STYLE === "true",
+    // Without them a hung connection kept the backup handler running, and pg-boss gives that
+    // worker no new backup until it returns, so every later night was skipped.
+    requestHandler: storageTimeouts,
     credentials: {
       accessKeyId: env.BACKUP_S3_ACCESS_KEY,
       secretAccessKey: env.BACKUP_S3_SECRET_KEY,
