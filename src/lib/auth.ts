@@ -27,6 +27,8 @@ const noAccessMessage =
 
 /** Only granted emails sign up; the plugin's admin endpoints are reachable only from server code. */
 const accessRules = createAuthMiddleware(async (ctx) => {
+  if (ctx.path === "/sign-up/email" || (ctx.path === "/update-user" && ctx.body?.name !== undefined))
+    requireSensibleName(ctx.body?.name);
   if (ctx.path === "/sign-up/email") {
     const email: unknown = ctx.body?.email;
     if (typeof email === "string") {
@@ -59,6 +61,14 @@ async function requireConfirmedEmail(ctx: Parameters<typeof getSessionFromCtx>[0
     message: 'Para sua segurança, confirme seu e-mail antes. Toque em "Enviar link de confirmação" e abra o link que chegar no seu e-mail.',
     code: "EMAIL_NOT_CONFIRMED",
   });
+}
+
+/** Same limit as the profile and sign-up screens; Better Auth itself accepts any length. */
+const maxNameLength = 100;
+// The name shows in the team's account list, dialogs and emails, so a direct API call must not store megabytes.
+function requireSensibleName(name: unknown) {
+  if (typeof name === "string" && name.trim() !== "" && name.trim().length <= maxNameLength) return;
+  throw new APIError("BAD_REQUEST", { message: `Informe um nome de até ${maxNameLength} caracteres.` });
 }
 
 // Better Auth deletes a fresh session's account without a password; this app always
