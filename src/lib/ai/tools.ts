@@ -25,6 +25,26 @@ import { periodSchema } from "../connectors/types";
 import { updateContext } from "../context";
 import { tenantValues, tenantWhere } from "../tenant-scope";
 const keys = z.array(z.string().min(1).max(200)).min(1).max(12);
+
+type ContextAnswers = Omit<z.infer<typeof contextPatchSchema>, "ticketCents" | "provasAutorizadas">;
+
+/**
+ * The model fills unknown answers with "", [] or null; that means "not known yet", never
+ * "erase what the client wrote". Clearing a field stays with the client, in the offer form.
+ */
+function withoutBlanks(answers: ContextAnswers): ContextAnswers {
+  const kept: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(answers)) {
+    if (value == null || value === "") continue;
+    if (Array.isArray(value)) {
+      const items = value.filter((item) => item !== "");
+      if (items.length > 0) kept[key] = items;
+      continue;
+    }
+    kept[key] = value;
+  }
+  return kept as ContextAnswers;
+}
 export function chatTools(
   tenantId: string,
   conversationId: string,
@@ -36,17 +56,19 @@ export function chatTools(
         "Salve o contexto do negócio. Ticket e provas não são salvos aqui: aparecem num cartão para o cliente conferir e confirmar. Não invente provas nem ticket.",
       inputSchema: contextPatchSchema,
       execute: async (patch) => {
-        const { ticketCents, provasAutorizadas, ...direct } = patch;
-        const saved = Object.keys(direct).filter(
-          (key) => direct[key as keyof typeof direct] !== undefined,
-        );
+        const { ticketCents, provasAutorizadas, ...answers } = patch;
+        const direct = withoutBlanks(answers);
+        const saved = Object.keys(direct);
         if (saved.length > 0) {
           await updateContext(tenantId, direct);
           writer.write({ type: "data-context", data: { fields: saved } });
         }
         // A wrong price or an invented proof would be spoken in an ad, so the client confirms them.
         const proposal = {
-          ...(ticketCents === undefined ? {} : { ticketCents }),
+          // "029700" is saved as 29700, so the card compares equal once the offer reloads.
+          ...(ticketCents === undefined
+            ? {}
+            : { ticketCents: ticketCents === null ? null : BigInt(ticketCents).toString() }),
           ...(provasAutorizadas === undefined
             ? {}
             : { provasAutorizadas: provasAutorizadas.filter((proof) => proof !== "") }),

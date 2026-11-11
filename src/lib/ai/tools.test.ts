@@ -61,4 +61,33 @@ describe("updateClientContext chat tool", () => {
       data: { provasAutorizadas: ["Mais de 300 alunas"] },
     });
   });
+
+  // The model sends "" or [] for what it does not know yet; that used to erase the client's answers.
+  it("never erases saved answers with blank values from the model", async () => {
+    updateContext.mockClear();
+    const { chatTools } = await import("./tools");
+    const writer = { write: vi.fn() };
+    const tools = chatTools("tenant-1", "conversation-1", writer as never);
+
+    const result = await tools.updateClientContext.execute?.(
+      { produto: "", publico: "Mães que trabalham fora", objecoes: [], restricoes: ["", "Sem promessa de renda"], estadoCliente: null },
+      { toolCallId: "call-3", messages: [] } as never,
+    );
+
+    expect(updateContext).toHaveBeenCalledExactlyOnceWith("tenant-1", {
+      publico: "Mães que trabalham fora",
+      restricoes: ["Sem promessa de renda"],
+    });
+    expect(result).toMatchObject({ saved: ["publico", "restricoes"] });
+  });
+
+  it("proposes a price without leading zeros, as the offer will store it", async () => {
+    const { chatTools } = await import("./tools");
+    const writer = { write: vi.fn() };
+    const tools = chatTools("tenant-1", "conversation-1", writer as never);
+
+    await tools.updateClientContext.execute?.({ ticketCents: "029700" }, { toolCallId: "call-4", messages: [] } as never);
+
+    expect(writer.write).toHaveBeenCalledWith({ type: "data-offerProposal", data: { ticketCents: "29700" } });
+  });
 });
