@@ -1,4 +1,4 @@
-import { desc, eq, inArray, or, sql } from "drizzle-orm";
+import { desc, eq, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -7,7 +7,6 @@ import {
   batchItems,
   learnings,
   sharedPatterns,
-  creativeMetrics,
   integrations,
   conversations,
   messages,
@@ -15,6 +14,7 @@ import {
   videoAnalyses,
   creatives,
 } from "@/db/schema";
+import { availableMetricWindows } from "../default-period";
 import { tenantWhere } from "../tenant-scope";
 import { analysisColumns } from "./analysis-columns";
 import { masterDocument } from "./master-document";
@@ -188,15 +188,7 @@ export async function buildSystemPrompt(
     .from(sharedPatterns)
     .where(eq(sharedPatterns.evidenceLevel, "hipotese"))
     .limit(12);
-  const sources = await db
-    .select({
-      source: creativeMetrics.source,
-      from: sql<string>`min(${creativeMetrics.periodFrom})::text`,
-      to: sql<string>`max(${creativeMetrics.periodTo})::text`,
-    })
-    .from(creativeMetrics)
-    .where(tenantWhere(creativeMetrics, tenantId))
-    .groupBy(creativeMetrics.source);
+  const sources = await availableMetricWindows(tenantId);
   const definitions = await db
     .select({
       provider: integrations.provider,

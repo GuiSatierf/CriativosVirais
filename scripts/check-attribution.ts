@@ -20,6 +20,7 @@ async function main() {
   const { getCreatives } = await import("../src/lib/creatives");
   const { getBenchmark } = await import("../src/lib/benchmark");
   const { getBatchResults } = await import("../src/lib/results");
+  const { availableMetricWindows } = await import("../src/lib/default-period");
   const migrationDir = await mkdtemp(join(tmpdir(), "creatives-migrations-"));
   let tenantId: string | undefined;
   let otherTenantId: string | undefined;
@@ -99,6 +100,15 @@ async function main() {
     assert.ok((await getBenchmark(tenantId!, { ...csvPeriod, campaignKey: "A" })).top.approved_sales.some((row) => row.creative_key === "SINGLE"));
     await assert.rejects(() => saveMetrics(tenantId!, [{ ...single[0], period_to: "2026-10-02" }]), /sobreposto/);
     await saveMetrics(tenantId!, [{ ...single[0], campaign_key: "B", period_to: "2026-10-02" }]); // Different campaigns can overlap.
+    // The assistant used to get one merged CSV window (min start, max end) that matched no import.
+    assert.deepEqual(
+      (await availableMetricWindows(tenantId!)).filter((window) => window.source === "csv"),
+      [
+        { source: "csv", from: "2026-10-02", to: "2026-10-02" },
+        { source: "csv", from: "2026-10-01", to: "2026-10-02" },
+        { source: "csv", from: "2026-10-01", to: "2026-10-01" },
+      ],
+    );
 
     // Ranking sample rules: a tiny spend or audience cannot top ROAS or CTR, refunds compare as a
     // rate among creatives that sold, and ties go to the larger sample instead of the key's order.
