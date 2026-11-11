@@ -82,7 +82,7 @@ export async function syncMetrics(
           : {
               warning: rejected
                 ? error.message
-                : "Não foi possível sincronizar com a UTMify. Confira a chave e o ID do dashboard.",
+                : "Não foi possível sincronizar com a UTMify. Confira o token e o código do dashboard.",
             },
       })
       .where(where);

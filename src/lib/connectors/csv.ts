@@ -29,6 +29,26 @@ export const csvImportSchema = z
   .refine((v) => v.from <= v.to);
 export type CsvInput = z.input<typeof csvImportSchema>;
 const maxRows = 5000;
+const maxColumns = 300;
+// Enough to step over blank lines before the header; Papa counts skipped lines toward `preview`.
+const headerScanRows = 50;
+
+/**
+ * Papa renames repeated header cells with work that grows with the square of their number, and
+ * only afterwards can the duplicates be refused, so a crafted header could block the server for
+ * minutes. The header row is read on its own first (a cheap, bounded parse) and checked here.
+ */
+function checkHeader(csv: string) {
+  const firstRows = Papa.parse<string[]>(csv, { header: false, preview: headerScanRows, skipEmptyLines: "greedy" });
+  const header = firstRows.data[0]?.map((cell) => cell.trim().replace(/^﻿/, ""));
+  if (header == null) throw new DomainError("invalid_input", "Não encontramos o cabeçalho nas primeiras linhas da planilha.");
+  if (header.length > maxColumns)
+    throw new DomainError(
+      "invalid_input",
+      `A planilha tem ${header.length} colunas; o máximo é ${maxColumns}. Exporte só as colunas do relatório.`,
+    );
+  if (new Set(header).size !== header.length) throw new DomainError("invalid_input", "Colunas repetidas no CSV.");
+}
 
 // A stored ratio goes stale once a re-import replaces one of its inputs, so it is rewritten too.
 const ratioInputs = {
@@ -85,6 +105,7 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
   for (const metric of ["hook_rate", "body_rate"] as const)
     if (p.mapping[metric] && !p.metricDefinitions[metric])
       throw new DomainError("invalid_input", `Informe a fórmula de ${metricLabels[metric]} antes de importar.`);
+  checkHeader(p.csv);
   // No `preview` cap: Papa counts skipped blank lines toward it, so a file with blank lines would
   // lose its last rows silently instead of being refused. The 5 MB limit already bounds the parse.
   const parsed = Papa.parse<Record<string, string>>(p.csv, {

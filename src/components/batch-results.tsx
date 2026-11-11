@@ -181,7 +181,7 @@ export function BatchResults({
         <EmptyState
           icon={FileSpreadsheet}
           title="Ainda sem resultados nesta leva"
-          description="Use o código de cada roteiro como nome do anúncio e no utm_content do link. Depois importe a planilha do mesmo período."
+          description="Cole o código de cada roteiro como nome do anúncio e no fim do link de vendas (?src= na Hotmart). Depois importe a planilha do Gerenciador do mesmo período."
           action={
             <Link className={buttonVariants()} href="/integracoes">
               <FileUp aria-hidden />
