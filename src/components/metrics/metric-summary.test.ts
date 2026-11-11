@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { summaryTotal } from "./metric-summary";
+import { summaryHint, summaryTotal } from "./metric-summary";
 
 const metrics = (approved_sales: string | null) => ({ spend_cents: null, revenue_cents: null, approved_sales });
 
@@ -20,5 +20,18 @@ describe("KPI totals", () => {
 
   it("stays unknown when no row reported the value", () => {
     expect(summaryTotal([{ key: "L01-C01", metrics: metrics(null) }], "approved_sales")).toEqual({ value: null, reported: 0 });
+  });
+});
+
+describe("KPI hint", () => {
+  // With more than 1,000 rows the server sends only the first ones and the tiles looked complete.
+  it("says the total is partial when the server cut the rows", () => {
+    const hint = summaryHint({ reported: 20, count: 20, unit: ["criativo", "criativos"], truncated: true });
+
+    expect(hint).toBe("Soma só das linhas abaixo");
+  });
+
+  it("stays quiet for a complete total", () => {
+    expect(summaryHint({ reported: 20, count: 20, unit: ["criativo", "criativos"], truncated: false })).toBeUndefined();
   });
 });

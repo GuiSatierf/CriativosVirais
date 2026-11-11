@@ -35,6 +35,24 @@ export function summaryTotal(rows: SummaryRow[], name: keyof SummaryMetrics) {
   return { value: anyValue ? sum.toString() : null, reported: [...keys].filter((key) => incomplete.has(key) === false).length };
 }
 
+/** Only a partial total gets a hint; a complete one speaks for itself. */
+export function summaryHint({
+  reported,
+  count,
+  unit,
+  truncated,
+}: {
+  reported: number;
+  count: number;
+  unit: [string, string];
+  truncated: boolean;
+}) {
+  if (truncated) return "Soma só das linhas abaixo";
+  if (reported >= count) return undefined;
+  if (reported === 0) return `Soma parcial de ${plural(count, ...unit)}`;
+  return `Soma de ${reported.toLocaleString("pt-BR")} de ${plural(count, ...unit)}`;
+}
+
 /** Keeps "por R$ 1" small so the Retorno number stays readable in a tile. */
 function KpiValue({ text }: { text: string }) {
   const [amount, per] = text.split(" por ");
@@ -57,18 +75,16 @@ function KpiValue({ text }: { text: string }) {
 export function MetricSummary({
   rows,
   unit = ["criativo", "criativos"],
+  truncated = false,
 }: {
   rows: SummaryRow[];
   unit?: [string, string];
+  /** The server sent only the first rows, so every total covers just those. */
+  truncated?: boolean;
 }) {
   const withResults = rows.filter((row) => row.metrics !== null);
   const count = new Set(withResults.map((row) => row.key)).size;
-  // Only a partial total gets a hint; a complete one speaks for itself.
-  const hint = (reported: number) => {
-    if (reported >= count) return undefined;
-    if (reported === 0) return `Soma parcial de ${plural(count, ...unit)}`;
-    return `Soma de ${reported.toLocaleString("pt-BR")} de ${plural(count, ...unit)}`;
-  };
+  const hint = (reported: number) => summaryHint({ reported, count, unit, truncated });
 
   const spend = summaryTotal(withResults, "spend_cents");
   const revenue = summaryTotal(withResults, "revenue_cents");

@@ -350,6 +350,7 @@ export function CreativeTable({
               key: row.creative_key,
               metrics: row.period_from ? row : null,
             }))}
+            truncated={data.truncated}
           />
 
           <DataTable
@@ -362,8 +363,10 @@ export function CreativeTable({
                 {data.truncated && (
                   <span role="status">
                     {" "}
-                    · mostrando os primeiros 1.000. Diminua o período para ver
-                    todos.
+                    · mostrando as primeiras 1.000 linhas.{" "}
+                    {filters.source === "csv"
+                      ? "Filtre por campanha para ver as outras."
+                      : "Diminua o período para ver todas."}
                   </span>
                 )}
               </>
