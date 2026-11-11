@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { ConfirmEmailNotice, emailNotConfirmed } from "@/components/confirm-email-notice";
 import { authClient } from "@/lib/auth-client";
 import { QrCode } from "./qr-code";
 
@@ -32,6 +33,7 @@ export function TwoFactorSetup() {
   const [step, setStep] = useState<Step>({ name: "password" });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsConfirmedEmail, setNeedsConfirmedEmail] = useState(false);
   // Kept only in memory for this flow: resuming needs them again to issue the recovery codes.
   const password = useRef("");
 
@@ -56,6 +58,7 @@ export function TwoFactorSetup() {
       if (pendingKey.data != null) return setStep({ name: "scan", totpURI: pendingKey.data.totpURI, backupCodes: null });
       if (pendingKey.error?.code !== "TOTP_NOT_ENABLED") return setError(refusal(pendingKey.error?.code));
       const result = await authClient.twoFactor.enable({ password: password.current, method: "totp", fetchOptions });
+      if (result.error?.code === emailNotConfirmed) return setNeedsConfirmedEmail(true);
       if (result.error || result.data == null) return setError(refusal(result.error?.code));
       if (result.data.method !== "totp") return setError("Não foi possível iniciar a verificação. Tente novamente.");
       setStep({ name: "scan", totpURI: result.data.totpURI, backupCodes: result.data.backupCodes });
@@ -119,6 +122,7 @@ export function TwoFactorSetup() {
             <p id="admin-enrollment-hint" className="text-xs text-muted-foreground">Quem tornou você admin recebeu este código no servidor e passou só para você.</p>
           </div>
           {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+          {needsConfirmedEmail && <ConfirmEmailNotice />}
           <Button type="submit" className="w-full" disabled={pending}>{spinner}Continuar</Button>
         </form>
       )}

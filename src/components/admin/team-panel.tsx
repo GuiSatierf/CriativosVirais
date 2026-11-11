@@ -18,7 +18,7 @@ export type TeamInvite = { email: string; role: StaffRole; expiresAt: string };
 const doneSchema = z.object({}).loose();
 const dayFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 
-/** Emails added to the team that have not signed up yet; the role applies at sign-up. */
+/** Team invites not accepted yet; the role applies at sign-up or when the person signs in through the link. */
 function PendingInvites({ invites }: { invites: TeamInvite[] }) {
   const router = useRouter();
   const [cancelling, setCancelling] = useState<string | null>(null);
@@ -39,14 +39,14 @@ function PendingInvites({ invites }: { invites: TeamInvite[] }) {
 
   return (
     <section aria-labelledby="pending-invites" className="space-y-2.5">
-      <h2 id="pending-invites" className="section-title">Convites aguardando cadastro</h2>
+      <h2 id="pending-invites" className="section-title">Convites aguardando resposta</h2>
       <ul className="grid gap-2.5">
         {invites.map((invite) => (
           <li key={invite.email} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-4">
             <div className="min-w-0">
               <p className="truncate font-medium">{invite.email}</p>
               <p className="text-xs text-muted-foreground">
-                Entra como {staffRoleLabel[invite.role]} ao criar a conta · vale até {dayFormat.format(new Date(invite.expiresAt))}
+                Entra como {staffRoleLabel[invite.role]} ao aceitar o convite · vale até {dayFormat.format(new Date(invite.expiresAt))}
               </p>
             </div>
             <Button variant="ghost" size="sm" disabled={cancelling === invite.email} onClick={() => cancel(invite.email)}>

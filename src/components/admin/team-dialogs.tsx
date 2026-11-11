@@ -25,7 +25,7 @@ export type TeamRow = { id: string; name: string; email: string; role: StaffRole
 
 const doneSchema = z.object({}).loose();
 const codeSchema = z.object({ code: z.string().nullable() });
-const addSchema = codeSchema.extend({ invited: z.boolean() });
+const addSchema = z.object({ hasAccount: z.boolean() });
 const emailSchema = z.email();
 
 const roleHint: Record<StaffRole, string> = {
@@ -80,15 +80,11 @@ export function AddMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
   const [role, setRole] = useState<StaffRole>("support");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [code, setCode] = useState<string | null>(null);
-  const [added, setAdded] = useState(false);
 
   function close() {
     onOpenChange(false);
     setRole("support");
     setError(null);
-    setCode(null);
-    setAdded(false);
   }
 
   async function submit(event: React.SubmitEvent<HTMLFormElement>) {
@@ -100,14 +96,12 @@ export function AddMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
     try {
       const result = await api("/api/admin/team", addSchema, { email, role });
       router.refresh();
-      if (result.invited) {
-        toast.success(`Convite enviado para ${email}. Quando a pessoa criar a conta, ela entra como ${staffRoleLabel[role]}.`);
-        return close();
-      }
-      toast.success(`${email} agora é ${staffRoleLabel[role]}.`);
-      if (result.code == null) return close();
-      setCode(result.code);
-      setAdded(true);
+      toast.success(
+        result.hasAccount
+          ? `Convite enviado para ${email}. A pessoa entra como ${staffRoleLabel[role]} depois de abrir o e-mail e entrar com a própria senha.`
+          : `Convite enviado para ${email}. Quando a pessoa criar a conta, ela entra como ${staffRoleLabel[role]}.`,
+      );
+      close();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Não foi possível adicionar. Tente novamente.");
     } finally {
@@ -118,41 +112,28 @@ export function AddMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
   return (
     <AlertDialog open={open} onOpenChange={(next) => { if (!pending && !next) close(); }}>
       <AlertDialogContent>
-        {added && code != null ? (
-          <div className="grid gap-4">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Pessoa adicionada à equipe</AlertDialogTitle>
-              <AlertDialogDescription>Falta ela ativar a verificação em duas etapas no primeiro acesso ao painel.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <CodeNotice code={code} />
-            <AlertDialogFooter>
-              <Button onClick={close}>Pronto</Button>
-            </AlertDialogFooter>
+        <form onSubmit={submit} noValidate className="grid gap-4">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Adicionar à equipe</AlertDialogTitle>
+            <AlertDialogDescription>
+              A pessoa recebe um convite por e-mail e só entra na equipe depois de abrir o link e entrar com a própria senha.
+              {panelRequiresTwoFactor && " No primeiro acesso ao painel, ela ativa a verificação em duas etapas com o código de ativação que você gera na lista da equipe."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="member-email">E-mail</Label>
+            <Input id="member-email" name="email" type="email" autoComplete="off" required autoFocus disabled={pending} aria-invalid={error ? true : undefined} />
           </div>
-        ) : (
-          <form onSubmit={submit} noValidate className="grid gap-4">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Adicionar à equipe</AlertDialogTitle>
-              <AlertDialogDescription>
-                Se a pessoa ainda não tem conta, ela recebe um convite por e-mail.
-                {panelRequiresTwoFactor && " No primeiro acesso ao painel, ela ativa a verificação em duas etapas com o código de ativação que você gera aqui."}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="grid gap-2">
-              <Label htmlFor="member-email">E-mail</Label>
-              <Input id="member-email" name="email" type="email" autoComplete="off" required autoFocus disabled={pending} aria-invalid={error ? true : undefined} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="member-role">Papel</Label>
-              <RoleSelect id="member-role" value={role} onChange={setRole} disabled={pending} />
-            </div>
-            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
-              <Button type="submit" disabled={pending}><Spinner pending={pending} />Adicionar</Button>
-            </AlertDialogFooter>
-          </form>
-        )}
+          <div className="grid gap-2">
+            <Label htmlFor="member-role">Papel</Label>
+            <RoleSelect id="member-role" value={role} onChange={setRole} disabled={pending} />
+          </div>
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
+            <Button type="submit" disabled={pending}><Spinner pending={pending} />Adicionar</Button>
+          </AlertDialogFooter>
+        </form>
       </AlertDialogContent>
     </AlertDialog>
   );
