@@ -204,7 +204,7 @@ export function useVoiceRecorder() {
       // Browser permission errors are English DOMExceptions; show our own copy.
       toastError(
         e instanceof DOMException ? null : e,
-        "Permita acesso ao microfone para gravar.",
+        "O microfone está bloqueado. Toque no cadeado ao lado do endereço do site, permita o microfone e toque no microfone de novo.",
       );
     } finally {
       starting.current = false;

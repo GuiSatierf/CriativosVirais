@@ -305,18 +305,18 @@ function isOfferProposal(part: ChatMessage["parts"][number]) {
 
 const contextLabels: Record<string, string> = {
   produtoNome: "nome do produto",
-  produto: "produto",
-  publico: "público",
-  transformacao: "transformação",
-  mecanismo: "mecanismo",
+  produto: "o que a pessoa recebe",
+  publico: "quem compra",
+  transformacao: "o que muda para a pessoa",
+  mecanismo: "seu método",
   ticketCents: "preço",
-  tipoFunil: "funil",
-  proximoPassoFunil: "próximo passo",
+  tipoFunil: "para onde o anúncio leva",
+  proximoPassoFunil: "o que fazer depois do vídeo",
   provasAutorizadas: "provas",
-  objecoes: "objeções",
-  restricoes: "restrições",
+  objecoes: "o que faz hesitar",
+  restricoes: "o que nunca dizer",
   estadoCliente: "momento atual",
-  especialistaHandle: "especialista",
+  especialistaHandle: "perfil do especialista",
   notas: "observações",
 };
 

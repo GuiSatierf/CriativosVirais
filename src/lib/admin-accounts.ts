@@ -1,7 +1,7 @@
 import "server-only";
-import { and, desc, eq, ilike, isNull, max, notInArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, like, max, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accessGrants, session, user } from "@/db/schema";
+import { accessGrants, session, user, verification } from "@/db/schema";
 import { normalizeEmail } from "./access";
 import { audit, containsPattern, type AdminActor } from "./admin";
 import { getAuth } from "./auth";
@@ -69,6 +69,10 @@ export async function changeClientEmail(actor: AdminActor, userId: string, email
   if (taken != null) throw new HttpError(409, "Já existe uma conta com este e-mail.");
   await db.transaction(async (transaction) => {
     await transaction.update(user).set({ email: next, emailVerified: false }).where(eq(user.id, userId));
+    // A reset link sent to the old address would still open this account and confirm the new one.
+    await transaction
+      .delete(verification)
+      .where(and(like(verification.identifier, "reset-password:%"), eq(verification.value, userId)));
     const [grantForNext] = await transaction.select({ id: accessGrants.id }).from(accessGrants).where(eq(accessGrants.email, next));
     if (grantForNext != null) return transaction.delete(accessGrants).where(eq(accessGrants.email, previous));
     await transaction.update(accessGrants).set({ email: next }).where(eq(accessGrants.email, previous));
