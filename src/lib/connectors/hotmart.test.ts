@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { hotmartSale } from "./hotmart";
 
 const purchase = (
@@ -39,5 +39,26 @@ describe("Hotmart sale", () => {
 
     expect(sale).toMatchObject({ status: "approved", revenue: 9700 });
     expect(sale).not.toHaveProperty("creative_key");
+  });
+
+  it("counts a sale whose price or origin comes as null, with those parts unknown", () => {
+    const body = purchase({ value: 1, currency_value: "BRL" });
+    const withoutPrice = { ...body, data: { purchase: { transaction: "HP2", price: null, origin: null } } };
+
+    const sale = hotmartSale(withoutPrice);
+
+    expect(sale).toMatchObject({ status: "approved", revenue: null });
+    expect(sale).not.toHaveProperty("creative_key");
+  });
+
+  it("logs a sale event it cannot read instead of dropping it silently", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const body = { ...purchase({ value: 1, currency_value: "BRL" }), data: { purchase: {} } };
+
+    const sale = hotmartSale(body);
+
+    expect(sale).toBeNull();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("[hotmart-sale]"));
+    log.mockRestore();
   });
 });

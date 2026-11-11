@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { z } from "zod";
 import { toast } from "sonner";
-import { CircleAlert, FileUp, Loader2, TriangleAlert } from "@/components/icons";
+import { CircleAlert, FileUp, LoaderCircle, TriangleAlert } from "@/components/icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -596,7 +596,7 @@ export function CsvImport({
           className="w-full sm:w-auto"
           disabled={pending || !ready}
         >
-          {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
+          {pending && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
           {pending ? "Importando…" : "Importar"}
         </Button>
       </div>

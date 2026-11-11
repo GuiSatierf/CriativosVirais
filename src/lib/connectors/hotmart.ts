@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { logError } from "../log";
 import type { SalesEventInput } from "../sales-events";
 
 /** Hotmart proves who it is only with the account's hottok; compared in constant time. */
@@ -19,8 +20,15 @@ const purchaseSaleSchema = z.object({
   data: z.object({
     purchase: z.object({
       transaction: z.string().min(1).max(100),
-      price: z.object({ value: z.number().nonnegative(), currency_value: z.string() }).optional(),
-      origin: z.object({ src: trackingCode, sck: trackingCode, xcod: trackingCode }).optional(),
+      // A missing or malformed amount or origin leaves that part unknown; the sale itself still counts.
+      price: z
+        .object({ value: z.number().nonnegative(), currency_value: z.string() })
+        .optional()
+        .catch(undefined),
+      origin: z
+        .object({ src: trackingCode, sck: trackingCode, xcod: trackingCode })
+        .optional()
+        .catch(undefined),
     }),
   }),
 });
@@ -35,6 +43,11 @@ const statusOf: Record<string, SalesEventInput["status"]> = {
   PURCHASE_BILLET_PRINTED: "pending",
   PURCHASE_DELAYED: "pending",
 };
+
+function isSaleEvent(body: unknown) {
+  if (typeof body !== "object" || body === null || "event" in body === false) return false;
+  return typeof body.event === "string" && Object.hasOwn(statusOf, body.event);
+}
 
 // The buyer can edit these codes in the checkout link and the chat model later reads them, so
 // only a single code-like word is kept: free text with spaces never reaches the model.
@@ -58,7 +71,11 @@ function reaisToCents(value: number) {
  */
 export function hotmartSale(body: unknown): SalesEventInput | null {
   const parsed = purchaseSaleSchema.safeParse(body);
-  if (!parsed.success) return null;
+  if (parsed.success === false) {
+    // A sale Hotmart will not resend is otherwise lost without a trace.
+    if (isSaleEvent(body)) logError("hotmart-sale", parsed.error);
+    return null;
+  }
   const { event, creation_date: createdAt, data } = parsed.data;
   const status = statusOf[event];
   if (status == null) return null;

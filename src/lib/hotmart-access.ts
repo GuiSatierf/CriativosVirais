@@ -10,6 +10,7 @@ import { sendAccessInvite } from "./access-invite-email";
 import { hotmartAccessConfig, subscriptionEndPolicy } from "./app-settings";
 import { sameHottok } from "./connectors/hotmart";
 import { HttpError } from "./errors";
+import { logError } from "./log";
 import {
   auditHotmart,
   findBuyerAccount,
@@ -48,7 +49,8 @@ const cancellationEventSchema = z.object({
     product: z.object({ id: z.union([z.number().int(), z.string()]) }),
     subscriber: z.object({ email: z.email().max(254) }),
     subscription: z.object({ id: z.union([z.number().int(), z.string().trim().min(1).max(100)]) }),
-    date_next_charge: z.number().int().positive().nullish(),
+    // A date it cannot read ends access now, the safe side, instead of dropping the cancellation.
+    date_next_charge: z.number().int().positive().nullish().catch(null),
   }),
 });
 export type HotmartCancellationEvent = z.infer<typeof cancellationEventSchema>;
@@ -63,7 +65,18 @@ export async function requireHotmart(hottok: string | null) {
 
 /** Null for anything that is not a purchase event; Hotmart retries every non-2xx answer forever. */
 export function parsePurchaseEvent(body: unknown) {
-  return purchaseEventSchema.safeParse(body).data ?? null;
+  const parsed = purchaseEventSchema.safeParse(body);
+  if (parsed.success) return parsed.data;
+  if (isAccessEvent(body)) logError("hotmart-access", parsed.error);
+  return null;
+}
+
+/** Hotmart does not resend an acknowledged event, so one about access that we cannot read must leave a trace. */
+function isAccessEvent(body: unknown) {
+  if (typeof body !== "object" || body === null || "event" in body === false) return false;
+  const event = body.event;
+  if (typeof event !== "string") return false;
+  return grantingEvents.has(event) || Object.hasOwn(reversalReasons, event) || event === "SUBSCRIPTION_CANCELLATION";
 }
 
 // Every audit entry Hotmart writes for a refund or chargeback, whatever it did to the account.
