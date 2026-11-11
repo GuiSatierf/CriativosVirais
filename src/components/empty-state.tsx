@@ -22,11 +22,7 @@ export function EmptyState({
       )}
     >
       {Icon && (
-        <Icon
-          strokeWidth={1.75}
-          className="mb-3 size-5 text-muted-foreground"
-          aria-hidden
-        />
+        <Icon className="mb-3 size-5 text-muted-foreground" aria-hidden />
       )}
       <h2 className="section-title">{title}</h2>
       <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">

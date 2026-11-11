@@ -381,17 +381,9 @@ export function UploadArea({
         {uploading ? (
           <Upload className="size-6 text-muted-foreground" aria-hidden />
         ) : kind === "video" ? (
-          <Video
-            className="size-6 text-muted-foreground"
-            strokeWidth={1.5}
-            aria-hidden
-          />
+          <Video className="size-6 text-muted-foreground" aria-hidden />
         ) : (
-          <FileAudio
-            className="size-6 text-muted-foreground"
-            strokeWidth={1.5}
-            aria-hidden
-          />
+          <FileAudio className="size-6 text-muted-foreground" aria-hidden />
         )}
         <span className="font-medium">
           {uploading ? "Enviando…" : `Escolha ou arraste um ${noun}`}
