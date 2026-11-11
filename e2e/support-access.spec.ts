@@ -122,6 +122,11 @@ test("support enters a client's account without the password, changes its email 
 
   // 5. From the panel, support changes the client's email and sets a new password the client signs in with.
   const newEmail = `novo-${randomUUID()}@exemplo.test`;
+  // A reset link sent to the old address before the change must not open the account afterwards.
+  await testDatabase(
+    `insert into verification (id, identifier, value, expires_at) values ($1, $2, $3, now() + interval '1 hour')`,
+    [randomUUID(), `reset-password:${randomUUID()}`, clientAccount.id],
+  );
   const newPassword = "senha-nova-do-suporte";
   const clientRow = () => page.getByRole("row").filter({ hasText: clientName });
   await clientRow().getByRole("button", { name: `Mais ações para ${clientName}` }).click();
@@ -140,6 +145,11 @@ test("support enters a client's account without the password, changes its email 
     [newEmail],
   );
   expect(audited.map((entry) => entry.action).sort()).toEqual(["account.email_changed", "account.password_set"]);
+  const pendingResets = await testDatabase(
+    `select 1 from verification where identifier like 'reset-password:%' and value = $1`,
+    [clientAccount.id],
+  );
+  expect(pendingResets).toEqual([]);
   expect(JSON.stringify(audited)).not.toContain(newPassword);
   // Whoever was inside the account with the old password is signed out, as on the client's own reset.
   const oldDevice = await browser.newContext({ baseURL, storageState: clientDevice });
