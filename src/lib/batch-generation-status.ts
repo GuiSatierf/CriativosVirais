@@ -21,6 +21,11 @@ export function visibleGenerationStatus(
   return status;
 }
 
+/** Oldest creation time a queued or running generation may have and still be in progress. */
+export function oldestPendingGeneration(now: Date = new Date()) {
+  return new Date(now.getTime() - abandonedAfterMs);
+}
+
 /** Oldest creation time a queued generation may have for the worker to still start it. */
 export function latestGenerationStart(now: Date = new Date()) {
   return new Date(now.getTime() - latestStartMs);

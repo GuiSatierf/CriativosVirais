@@ -33,7 +33,7 @@ export type Home = {
 
 const integrationNames: Record<string, string> = {
   utmify: "UTMify",
-  webhook: "Webhook de vendas",
+  webhook: "Outro checkout",
   vkmetrics: "VK Metrics",
 };
 
@@ -127,7 +127,7 @@ export async function getHome(tenantId: string): Promise<Home> {
     !onboarding.results && {
       id: "csv",
       title: "Importar planilha",
-      description: "O CSV do Gerenciador de Anúncios",
+      description: "Os resultados do Gerenciador de Anúncios",
       icon: "csv",
       action: { type: "attach", kind: "csv" },
     },
@@ -162,7 +162,7 @@ export async function getHome(tenantId: string): Promise<Home> {
     !onboarding.results && {
       id: "integrations",
       title: "Conectar vendas",
-      description: "Hotmart ou webhook do checkout",
+      description: "Hotmart ou outro checkout",
       icon: "integrations",
       action: { type: "link", href: "/integracoes" },
     },

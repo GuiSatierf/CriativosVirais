@@ -5,6 +5,7 @@ import { assets } from "@/db/schema";
 import { handle, apiTenant, json, HttpError } from "@/lib/http";
 import { analysisQueue, getJobs } from "@/jobs";
 import { tenantWhere } from "@/lib/tenant-scope";
+import { assertRequestLimit } from "@/lib/request-limit";
 export function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -20,6 +21,10 @@ export function POST(
       throw new HttpError(404, "Arquivo não encontrado.");
     if (asset.status !== "error")
       throw new HttpError(409, "O arquivo não está em erro.");
+    // Every retry pays for transcription and video analysis again, and a file that always fails
+    // could otherwise be retried forever while holding the analysis queue every client shares.
+    await assertRequestLimit(tenantId, "upload");
+    await assertRequestLimit(id, "assetRetry");
     const boss = await getJobs();
     await boss.send(
       analysisQueue(asset.kind),

@@ -109,7 +109,7 @@ export async function BatchView({
                 href={`/api/export/batch/${batch.id}`}
               >
                 <Download aria-hidden />
-                Exportar .docx
+                Baixar em Word
               </a>
               <BatchActions
                 batch={{

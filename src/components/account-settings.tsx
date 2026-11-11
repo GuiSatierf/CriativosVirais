@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
+import { ConfirmEmailNotice, emailNotConfirmed } from "@/components/confirm-email-notice";
 import { authClient } from "@/lib/auth-client";
 import { maxPasswordLength, minPasswordLength } from "@/lib/password-rules";
 
@@ -26,6 +27,7 @@ export function ChangePassword() {
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string>();
+  const [needsConfirmedEmail, setNeedsConfirmedEmail] = useState(false);
   const [pending, setPending] = useState(false);
 
   async function submit(event: React.SubmitEvent<HTMLFormElement>) {
@@ -42,6 +44,7 @@ export function ChangePassword() {
         newPassword: next,
         revokeOtherSessions: true,
       });
+      if (result.error?.code === emailNotConfirmed) return setNeedsConfirmedEmail(true);
       if (result.error) {
         setError(
           result.error.status === 400 || result.error.status === 401
@@ -112,6 +115,7 @@ export function ChangePassword() {
           {error}
         </p>
       )}
+      {needsConfirmedEmail && <ConfirmEmailNotice />}
       <Button type="submit" className="w-fit" disabled={pending}>
         {pending && <LoaderCircle className={spin} aria-hidden />}
         {pending ? "Salvando…" : "Trocar senha"}
@@ -126,6 +130,7 @@ export function DeleteAccount() {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string>();
+  const [needsConfirmedEmail, setNeedsConfirmedEmail] = useState(false);
   const [pending, setPending] = useState(false);
 
   async function submit(event: React.SubmitEvent<HTMLFormElement>) {
@@ -135,6 +140,7 @@ export function DeleteAccount() {
     setError(undefined);
     try {
       const result = await authClient.deleteUser({ password });
+      if (result.error?.code === emailNotConfirmed) return setNeedsConfirmedEmail(true);
       if (result.error) {
         setError(
           result.error.status === 400 || result.error.status === 401
@@ -197,6 +203,7 @@ export function DeleteAccount() {
                 </p>
               )}
             </div>
+            {needsConfirmedEmail && <ConfirmEmailNotice />}
             <AlertDialogFooter>
               <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
               <Button

@@ -29,7 +29,7 @@ function SupportNotice() {
         className={buttonVariants({ variant: "outline", className: "w-full" })}
       >
         <ArrowLeft aria-hidden />
-        Voltar para o login
+        Voltar para Entrar
       </Link>
     </div>
   );

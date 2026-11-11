@@ -8,7 +8,7 @@ import { sendAccessInvite } from "./access-invite-email";
 import { issueEnrollmentCode } from "./admin-enrollment";
 import { deleteTeamInvite, saveTeamInvite, teamInviteNote } from "./team-invites";
 import { HttpError } from "./errors";
-import { isStaffRole, panelRequiresTwoFactor, staffRoleLabel, staffRoles, type StaffRole } from "./staff";
+import { isStaffRole, staffRoleLabel, staffRoles, type StaffRole } from "./staff";
 
 /** Everyone with a team role, owners first. */
 export async function listTeam() {
@@ -53,12 +53,6 @@ function refuseSelf(actor: AdminActor, userId: string) {
   throw new HttpError(400, "Você não pode mudar o seu próprio papel. Peça a outro dono.");
 }
 
-/** A code only while the panel requires two-factor and the person still has to turn it on; it is shown once to the owner. */
-async function enrollmentCodeFor(member: { id: string; twoFactorEnabled: boolean | null }) {
-  if (panelRequiresTwoFactor === false || member.twoFactorEnabled === true) return null;
-  return issueEnrollmentCode(member.id);
-}
-
 /** Someone without an account: free the email, keep the role for their sign-up and email the invite. */
 async function inviteTeamMember(actor: AdminActor, email: string, role: StaffRole) {
   await db
@@ -68,23 +62,28 @@ async function inviteTeamMember(actor: AdminActor, email: string, role: StaffRol
   const token = await saveTeamInvite(email, role, actor.email);
   await audit(actor, "team.invited", email, { role });
   // Not awaited: a slow email must not hold the panel; the sender logs its own failures.
-  void sendAccessInvite(email, staffRoleLabel[role], token);
-  return { code: null, invited: true };
+  void sendAccessInvite(email, { teamRole: staffRoleLabel[role], token });
+  return { code: null, invited: true, hasAccount: false };
 }
 
-/** Puts an account on the team, or invites the email when it has no account yet. */
+/**
+ * Invites the email to the team. Account emails are never verified (staff can even change them),
+ * so an existing account also gets the role only through the emailed link plus its own sign-in.
+ */
 export async function addTeamMember(actor: AdminActor, email: string, role: StaffRole) {
   const normalized = normalizeEmail(email);
   const [account] = await db
-    .select({ id: user.id, email: user.email, role: user.role, banned: user.banned, twoFactorEnabled: user.twoFactorEnabled })
+    .select({ email: user.email, role: user.role, banned: user.banned })
     .from(user)
     .where(sql`lower(${user.email}) = ${normalized}`);
   if (account == null) return inviteTeamMember(actor, normalized, role);
   if (isStaffRole(account.role)) throw new HttpError(409, `Esta pessoa já é ${staffRoleLabel[account.role]} na equipe.`);
   if (account.banned === true) throw new HttpError(409, "Esta conta está bloqueada. Desbloqueie antes de pôr na equipe.");
-  await db.update(user).set({ role }).where(eq(user.id, account.id));
-  await audit(actor, "team.added", account.email, { role });
-  return { code: await enrollmentCodeFor(account), invited: false };
+  const token = await saveTeamInvite(normalized, role, actor.email);
+  await audit(actor, "team.invited", account.email, { role });
+  // Not awaited: a slow email must not hold the panel; the sender logs its own failures.
+  void sendAccessInvite(normalized, { teamRole: staffRoleLabel[role], token, hasAccount: true });
+  return { code: null, invited: true, hasAccount: true };
 }
 
 export async function changeTeamRole(actor: AdminActor, userId: string, role: StaffRole) {

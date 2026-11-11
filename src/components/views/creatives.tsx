@@ -47,7 +47,7 @@ export async function CreativesView({
     <div className="space-y-6">
       <PageHeader
         title="Resultados"
-        description="Como cada criativo performou no período escolhido."
+        description="Quanto cada anúncio vendeu no período escolhido."
       />
       <CreativeTable
         key={`${filters.from}|${filters.to}|${filters.source}|${filters.campaignKey ?? ""}`}

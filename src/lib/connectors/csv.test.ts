@@ -96,6 +96,11 @@ describe("CSV normalization", () => {
     expect(() => parseCsv({ ...input, csv: "key,campaign,sales\nAD-1,,1\nAD-1,A,2" })).toThrow("todas as linhas");
     expect(() => parseCsv({ ...input, csv: "key,campaign,sales\nAD-1,A,1\nAD-1,,2" })).toThrow("todas as linhas");
   });
+  it("refuses a header with too many columns before the slow renaming of repeated ones", () => {
+    const header = ["key", ...Array.from({ length: 3000 }, (_, i) => `key_${i + 1}`), ...Array<string>(12000).fill("key")];
+    expect(() => parseCsv({ ...base, csv: `${header.join(";")}\nAD-1` })).toThrow("o máximo é 300");
+    expect(() => parseCsv({ ...base, csv: "key;spend;key;profit\nAD-1;10;1;2" })).toThrow("Colunas repetidas");
+  });
   it("rejects missing keys, repeated keys, duplicate headers and invalid dates", () => {
     expect(() =>
       parseCsv({ ...base, csv: "key;spend;sales;profit\n;10;1;2" }),

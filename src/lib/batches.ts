@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, gt, inArray, sql } from "drizzle-orm";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { db } from "@/db";
@@ -9,13 +9,16 @@ import { batchSchema, batchItemSchema } from "./ai/schemas";
 import { textModel, providerOptions } from "./ai/model";
 import { buildSystemPrompt, untrusted } from "./ai/system-prompt";
 import { reviseUntilApproved } from "./batch-revision";
+import { oldestPendingGeneration } from "./batch-generation-status";
 import { spDayBr } from "./dates";
 import { DomainError } from "./errors";
 import { bigintReplacer } from "./json";
 import { tenantValues, tenantWhere } from "./tenant-scope";
 const maxRound = 2147483647;
 const missingContext =
-  "Confirme produto, público, transformação, ticket, funil e próximo passo antes de gerar.";
+  "Antes de gerar a leva, responda em Minha oferta: o que a pessoa recebe ao comprar, quem compra, o que muda na vida dela, quanto custa, para onde o anúncio leva e o que ela deve fazer depois do vídeo.";
+const generationInProgress =
+  "Já tem uma leva sendo gerada nesta conta. Espere ela aparecer pronta no cartão e peça a próxima.";
 type ClientContext = typeof clientContexts.$inferSelect;
 function contextReady(context: ClientContext | undefined): context is ClientContext {
   return Boolean(
@@ -232,6 +235,22 @@ export async function startBatchGeneration(
   const title = `Leva ${String(lastRound + 1).padStart(2, "0")} · ${titlePart(context.produtoNome || context.produto!)}`;
   const boss = await getJobs();
   return jobTransaction(async (tx, connection) => {
+    // The worker runs generations of every client from one first-come queue, so one account
+    // asking for many at once would hold the others until they missed their start time.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${tenantId}, 7))`);
+    const [pending] = await tx
+      .select({ id: batchGenerations.id })
+      .from(batchGenerations)
+      .where(
+        tenantWhere(
+          batchGenerations,
+          tenantId,
+          inArray(batchGenerations.status, ["queued", "running"]),
+          gt(batchGenerations.createdAt, oldestPendingGeneration()),
+        ),
+      )
+      .limit(1);
+    if (pending != null) throw new DomainError("invalid_input", generationInProgress);
     const [generation] = await tx
       .insert(batchGenerations)
       .values(tenantValues(tenantId, { conversationId, quantity, instructions, title }))
