@@ -127,7 +127,10 @@ function ScriptDetail({
               />
             </span>
             <span className="text-xs text-muted-foreground">
-              Use como nome do anúncio e no utm_content do link
+              Cole como nome do anúncio e no fim do link de vendas:{" "}
+              <span className="whitespace-nowrap">?src={script.creativeKey}</span> na Hotmart,{" "}
+              <span className="whitespace-nowrap">?utm_content={script.creativeKey}</span> nos outros
+              checkouts
             </span>
           </div>
         </div>
