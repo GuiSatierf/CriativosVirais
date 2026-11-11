@@ -488,9 +488,9 @@ export function Chat({
           >
             <FileSpreadsheet className="size-5 shrink-0 text-muted-foreground" aria-hidden />
             <span>
-              <span className="block font-medium">Importar planilha CSV</span>
+              <span className="block font-medium">Importar planilha</span>
               <span className="block text-xs text-muted-foreground">
-                Resultados do Gerenciador de Anúncios
+                Resultados do Gerenciador de Anúncios, exportados em CSV
               </span>
             </span>
           </button>

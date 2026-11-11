@@ -16,7 +16,7 @@ import { bigintReplacer } from "./json";
 import { tenantValues, tenantWhere } from "./tenant-scope";
 const maxRound = 2147483647;
 const missingContext =
-  "Confirme produto, público, transformação, ticket, funil e próximo passo antes de gerar.";
+  "Antes de gerar a leva, responda em Minha oferta: o que a pessoa recebe ao comprar, quem compra, o que muda na vida dela, quanto custa, para onde o anúncio leva e o que ela deve fazer depois do vídeo.";
 const generationInProgress =
   "Já tem uma leva sendo gerada nesta conta. Espere ela aparecer pronta no cartão e peça a próxima.";
 type ClientContext = typeof clientContexts.$inferSelect;
