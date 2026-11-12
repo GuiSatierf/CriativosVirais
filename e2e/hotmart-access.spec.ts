@@ -127,3 +127,30 @@ test("a Hotmart reversal never blocks access the team granted by hand", async ({
   const [account] = await testDatabase<{ banned: boolean }>(`select banned from "user" where email = $1`, [email]);
   expect(account.banned).toBe(false);
 });
+
+test("after a subscription cancellation only a new payment reopens the account, not an old purchase delivered again", async ({ page, request }) => {
+  const email = `assinante-${randomUUID()}@exemplo.test`;
+  const send = (body: unknown) => request.post("/api/hotmart/access", { data: body, headers: { "X-HOTMART-HOTTOK": "e2e-hottok" } });
+  const block = async () =>
+    (await testDatabase<{ banned: boolean; ban_reason: string | null }>(`select banned, ban_reason from "user" where email = $1`, [email]))[0];
+  const paid = purchase("PURCHASE_APPROVED", email);
+  await send(paid);
+  await signUp(page, email);
+  const cancellation = {
+    id: randomUUID(),
+    creation_date: Date.now(),
+    event: "SUBSCRIPTION_CANCELLATION",
+    version: "2.0.0",
+    data: { product: { id: 1234567 }, subscriber: { email }, subscription: { id: 471681 }, date_next_charge: null },
+  };
+
+  expect((await (await send(cancellation)).json()).result).toBe("revoked");
+  await send(paid);
+  await send({ ...paid, id: randomUUID(), event: "PURCHASE_COMPLETE" });
+  const afterOldPurchase = await block();
+  await send(purchase("PURCHASE_APPROVED", email));
+  const afterNewPayment = await block();
+
+  expect(afterOldPurchase).toEqual({ banned: true, ban_reason: "assinatura cancelada na Hotmart" });
+  expect(afterNewPayment).toEqual({ banned: false, ban_reason: null });
+});
