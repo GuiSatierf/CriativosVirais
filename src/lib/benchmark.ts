@@ -14,6 +14,10 @@ export type RankedMetric = {
 // For rates where less is better, zero is the best result; for everything else zero or less won nothing.
 const lowerIsBetter = new Set(["refund_rate", "chargeback_rate"]);
 
+const TOP_RANK_LIMIT = 5;
+// A rate average over fewer creatives says nothing about what is better than usual.
+const MIN_CREATIVES_FOR_RATE_AVERAGE = 2;
+
 type RateAverage = { count: number; average: number };
 
 /**
@@ -22,11 +26,11 @@ type RateAverage = { count: number; average: number };
  * of at least two creatives; otherwise, with four creatives, a 90% refund rate was listed as what worked.
  */
 function isWinner(r: RankedMetric, averages: ReadonlyMap<string, RateAverage>) {
-  if (r.rank > 5) return false;
+  if (r.rank > TOP_RANK_LIMIT) return false;
   if (lowerIsBetter.has(r.metric) === false) return Number(r.value) > 0;
   if (Number(r.value) === 0) return true;
   const rates = averages.get(r.metric);
-  return rates !== undefined && rates.count >= 2 && Number(r.value) <= rates.average;
+  return rates !== undefined && rates.count >= MIN_CREATIVES_FOR_RATE_AVERAGE && Number(r.value) <= rates.average;
 }
 
 function rateAverages(rows: readonly RankedMetric[]) {
