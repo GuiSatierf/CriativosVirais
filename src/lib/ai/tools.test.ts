@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 const generation = { id: "4f1c2f8e-6a0c-4f5e-9d2b-1a2b3c4d5e6f", title: "Leva 02 · Curso" };
 // The full generation (model calls plus quality review) can take longer than the chat request may live.
@@ -8,6 +8,11 @@ vi.mock("../batches", () => ({
 }));
 const { updateContext } = vi.hoisted(() => ({ updateContext: vi.fn(async () => undefined) }));
 vi.mock("../context", () => ({ updateContext }));
+
+// The first import transforms the whole tool module graph, which can pass 5 s on a busy machine.
+beforeAll(async () => {
+  await import("./tools");
+}, 60_000);
 
 describe("generateBatch chat tool", () => {
   it("answers right away and leaves the generation to the worker", async () => {
