@@ -27,6 +27,13 @@ export function metricWindow(p: Period, cols: MetricColumns = m) {
       : sql`${cols.periodFrom}>=${p.from}::date AND ${cols.periodTo}<=${p.to}::date AND ${cols.approvedSales} IS NOT NULL`,
   )!;
 }
+/**
+ * A snapshot with at least one observed value. Days rebuilt by migration 0005 kept a webhook row
+ * whose counts are all NULL, which must not count as "has results".
+ */
+export function hasObservedValue(cols: MetricColumns = m) {
+  return sql`num_nonnulls(${cols.spendCents}, ${cols.impressions}, ${cols.clicks}, ${cols.ctr}, ${cols.hookRate}, ${cols.bodyRate}, ${cols.leads}, ${cols.checkouts}, ${cols.approvedSales}, ${cols.revenueCents}, ${cols.profitCents}, ${cols.roas}, ${cols.refunds}, ${cols.chargebacks}) > 0`;
+}
 export function campaignFilter(p: Period, cols: MetricColumns = m): SQL | undefined {
   return p.campaignKey ? sql`${cols.campaignKey}=${p.campaignKey}` : undefined;
 }

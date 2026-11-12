@@ -22,10 +22,12 @@ async function main() {
   const { getBatchResults } = await import("../src/lib/results");
   const { availableMetricWindows } = await import("../src/lib/default-period");
   const { chatTools } = await import("../src/lib/ai/tools");
+  const { getHome } = await import("../src/lib/home");
   const migrationDir = await mkdtemp(join(tmpdir(), "creatives-migrations-"));
   let tenantId: string | undefined;
   let otherTenantId: string | undefined;
   let rankingTenantId: string | undefined;
+  let emptyTenantId: string | undefined;
   try {
     const empty = await pool.query("select count(*)::int n from pg_tables where schemaname='public'");
     assert.equal(empty.rows[0].n, 0, "Use an empty dedicated test database.");
@@ -127,6 +129,19 @@ async function main() {
     const many = await videoTools.getVideoAnalyses.execute!({ creativeKeys: ["AD-1"] }, { toolCallId: "check", messages: [] } as never);
     assert.equal((many as unknown[]).length, 12);
 
+    // A legacy webhook day with every count NULL used to light "Leva X já tem resultados" and the
+    // "Ver o que funcionou" suggestion while the results screen said there was nothing.
+    const [noResults] = await db.insert(tenants).values({ nome: "Empty results fixture" }).returning();
+    emptyTenantId = noResults.id;
+    const emptyCreative = await pool.query("insert into creatives(tenant_id,creative_key,source) values ($1,'EMPTY-1','webhook') returning id", [noResults.id]);
+    await pool.query("insert into creative_metrics(tenant_id,creative_id,period_from,period_to,source) values ($1,$2,'2026-10-02','2026-10-02','webhook')", [noResults.id, emptyCreative.rows[0].id]);
+    const [emptyConversation] = await db.insert(conversations).values({ tenantId: noResults.id, title: "Test" }).returning();
+    const [emptyBatch] = await db.insert(batches).values({ tenantId: noResults.id, conversationId: emptyConversation.id, title: "Leva 07 · Test", produtoNome: "Test", roundNumber: 7 }).returning();
+    await db.insert(batchItems).values({ tenantId: noResults.id, batchId: emptyBatch.id, position: 1, creativeKey: "EMPTY-1", ideia: "Test", g1: "Test", g2: "Test", g3: "Test", corpo: "Test", narrativa: "Test", awarenessEntry: "unaware", awarenessExit: "problem_aware", skeleton: "hipotese", hipotese: "Test", blocoTestado: "H", provaUsada: "None", duracaoEstimada: 10 });
+    const emptyHome = await getHome(noResults.id);
+    assert.ok(!emptyHome.status.some((chip) => chip.id === "results"));
+    assert.ok(!emptyHome.suggestions.some((suggestion) => suggestion.id === "results"));
+
     // Ranking sample rules: a tiny spend or audience cannot top ROAS or CTR, refunds compare as a
     // rate among creatives that sold, and ties go to the larger sample instead of the key's order.
     const [ranking] = await db.insert(tenants).values({ nome: "Ranking sample fixture" }).returning();
@@ -160,6 +175,7 @@ async function main() {
     if (tenantId) await db.delete(tenants).where(eq(tenants.id, tenantId));
     if (otherTenantId) await db.delete(tenants).where(eq(tenants.id, otherTenantId));
     if (rankingTenantId) await db.delete(tenants).where(eq(tenants.id, rankingTenantId));
+    if (emptyTenantId) await db.delete(tenants).where(eq(tenants.id, emptyTenantId));
     await pool.end();
     await rm(migrationDir, { recursive: true, force: true });
   }

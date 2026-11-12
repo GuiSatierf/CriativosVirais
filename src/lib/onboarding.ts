@@ -8,6 +8,7 @@ import {
   integrations,
   messages,
 } from "@/db/schema";
+import { hasObservedValue } from "./metrics";
 import { tenantWhere } from "./tenant-scope";
 
 export type Onboarding = { context: boolean; results: boolean; batch: boolean };
@@ -26,7 +27,7 @@ export async function getOnboarding(tenantId: string): Promise<Onboarding> {
     db
       .select({ id: creativeMetrics.id })
       .from(creativeMetrics)
-      .where(tenantWhere(creativeMetrics, tenantId))
+      .where(tenantWhere(creativeMetrics, tenantId, hasObservedValue(creativeMetrics)))
       .limit(1),
     db
       .select({ id: integrations.id })

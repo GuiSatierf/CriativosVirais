@@ -1,8 +1,13 @@
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { assets, batches, integrations } from "@/db/schema";
+import { alias } from "drizzle-orm/pg-core";
+import { assets, batches, creativeMetrics, integrations } from "@/db/schema";
+import { hasObservedValue } from "./metrics";
 import { getOnboarding } from "./onboarding";
 import { tenantWhere } from "./tenant-scope";
+
+// Matches the raw alias in the "batch has results" query below.
+const cm = alias(creativeMetrics, "cm");
 
 export type HomeIcon =
   | "offer"
@@ -74,7 +79,8 @@ export async function getHome(tenantId: string): Promise<Home> {
             JOIN creative_metrics cm ON cm.tenant_id = c.tenant_id
               AND cm.creative_id = c.id
             WHERE bi.tenant_id = ${batches.tenantId}
-              AND bi.batch_id = ${batches.id})`,
+              AND bi.batch_id = ${batches.id}
+              AND ${hasObservedValue(cm)})`,
         ),
       )
       .orderBy(desc(batches.createdAt))
