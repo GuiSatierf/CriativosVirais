@@ -1,5 +1,12 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { storageEnv } from "./env";
+/** Every call fails fast when a storage is unreachable or stops answering mid-transfer. */
+export const storageTimeouts = {
+  connectionTimeout: 5_000,
+  requestTimeout: 60_000,
+  socketTimeout: 60_000,
+  throwOnRequestTimeout: true,
+};
 // Server/worker only. No credentials or provider configuration is sent to the browser.
 export function getStorage(publicEndpoint = false) {
   const env = storageEnv();
@@ -11,13 +18,7 @@ export function getStorage(publicEndpoint = false) {
         : env.S3_ENDPOINT,
       region: env.S3_REGION,
       requestChecksumCalculation: "WHEN_REQUIRED",
-      // Every call fails fast when the storage is unreachable or stops answering mid-transfer.
-      requestHandler: {
-        connectionTimeout: 5_000,
-        requestTimeout: 60_000,
-        socketTimeout: 60_000,
-        throwOnRequestTimeout: true,
-      },
+      requestHandler: storageTimeouts,
       forcePathStyle: env.S3_FORCE_PATH_STYLE === "true",
       credentials: {
         accessKeyId: env.S3_ACCESS_KEY,

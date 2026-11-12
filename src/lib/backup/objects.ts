@@ -8,6 +8,7 @@ import { PassThrough, type Readable, type Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { backupEnv } from "@/lib/env";
 import { BackupError } from "@/lib/errors";
+import { storageTimeouts } from "@/lib/storage";
 import { encryptStream } from "./encryption";
 
 export type Bucket = { client: S3Client; bucket: string };
@@ -22,6 +23,9 @@ export function backupTarget() {
     endpoint: env.BACKUP_S3_ENDPOINT,
     region: env.BACKUP_S3_REGION,
     forcePathStyle: env.BACKUP_S3_FORCE_PATH_STYLE === "true",
+    // Without them a hung connection kept the backup handler running, and pg-boss gives that
+    // worker no new backup until it returns, so every later night was skipped.
+    requestHandler: storageTimeouts,
     credentials: {
       accessKeyId: env.BACKUP_S3_ACCESS_KEY,
       secretAccessKey: env.BACKUP_S3_SECRET_KEY,
@@ -75,13 +79,14 @@ export async function uploadEncrypted(
   const body = new PassThrough();
   const upload = new Upload({ client, params: { Bucket: bucket, Key: objectKey, Body: body } });
   const uploaded = upload.done();
+  // Handled from the start: a refusal mid-copy stops the copy and is the error the backup reports.
+  const copied = pipeline([input, ...(check ? [check] : []), encryptStream(key), body]);
   try {
-    await pipeline([input, ...(check ? [check] : []), encryptStream(key), body]);
-    await uploaded;
+    await Promise.all([copied, uploaded]);
   } catch (error) {
     // The original failure is what matters; abort and the settled upload only clean up.
     await upload.abort().catch(() => undefined);
-    await uploaded.catch(() => undefined);
+    await Promise.allSettled([copied, uploaded]);
     throw error;
   }
 }

@@ -37,8 +37,11 @@ function exitCheck(exited: Promise<number | null>) {
   });
 }
 
+// A table locked by a long migration fails the dump after a minute instead of holding it forever.
+const dumpArguments = ["--format=custom", "--no-owner", "--no-privileges", "--lock-wait-timeout=60s"];
+
 async function dumpDatabase(target: Bucket, key: Buffer, day: string) {
-  const { child, exited } = startPostgresTool("pg_dump", ["--format=custom", "--no-owner", "--no-privileges"]);
+  const { child, exited } = startPostgresTool("pg_dump", dumpArguments);
   if (!child.stdout) throw new BackupError("pg_dump has no output stream");
   const objectKey = `${databasePrefix}${day}.dump.enc`;
   await uploadEncrypted(target, { objectKey, input: child.stdout, key, check: exitCheck(exited) });

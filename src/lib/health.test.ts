@@ -16,6 +16,11 @@ describe("system health", () => {
     expect(evaluateHealth({ ...healthy, oldestWaitingJobSeconds: 1_200 }).problems).toEqual(["queue"]);
   });
 
+  // A failed or timed-out queue read used to look like an empty queue, hiding a stalled one.
+  it("reports the queue when it could not be read", () => {
+    expect(evaluateHealth({ ...healthy, oldestWaitingJobSeconds: "unreadable" }).problems).toEqual(["queue"]);
+  });
+
   it("reports a missing or stale backup only when backups are configured", () => {
     expect(evaluateHealth({ ...healthy, lastBackupSeconds: undefined }).ok).toBe(true);
     expect(evaluateHealth({ ...healthy, lastBackupSeconds: 3_600 }).ok).toBe(true);

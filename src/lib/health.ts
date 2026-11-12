@@ -17,7 +17,8 @@ const readingReuseMs = 10_000;
 export type HealthReadings = {
   database: boolean;
   workerLastSeenSeconds: number | null;
-  oldestWaitingJobSeconds: number | null;
+  /** Null when no job waits; "unreadable" when the queue could not be read, which is a problem too. */
+  oldestWaitingJobSeconds: number | null | "unreadable";
   /** Undefined when backups are not configured; null when none has completed yet. */
   lastBackupSeconds?: number | null;
 };
@@ -30,7 +31,7 @@ export function evaluateHealth(readings: HealthReadings) {
   const seconds = readings.workerLastSeenSeconds;
   if (seconds === null || seconds > workerSilentAfterSeconds) problems.push("worker");
   const waiting = readings.oldestWaitingJobSeconds;
-  if (waiting !== null && waiting > queueStalledAfterSeconds) problems.push("queue");
+  if (waiting === "unreadable" || (waiting !== null && waiting > queueStalledAfterSeconds)) problems.push("queue");
   const backup = readings.lastBackupSeconds;
   if (backup === null || (backup !== undefined && backup > backupStaleAfterSeconds)) problems.push("backup");
   return { ok: problems.length === 0, problems };
@@ -76,10 +77,13 @@ export async function readHealth(): Promise<HealthReadings> {
       "health-worker",
       "select extract(epoch from now() - cron_on)::int as seconds from pgboss.version",
     ),
-    readOrNull(
-      "health-queue",
+    // A queue too slow to read is most likely a stalled one, so it never reads as "nothing waiting".
+    readSeconds(
       "select extract(epoch from now() - min(start_after))::int as seconds from pgboss.job where state in ('created', 'retry') and start_after <= now()",
-    ),
+    ).catch((error: unknown) => {
+      logError("health-queue", error);
+      return "unreadable" as const;
+    }),
     readLastBackup(),
   ]);
   return { database: true, workerLastSeenSeconds, oldestWaitingJobSeconds, lastBackupSeconds };

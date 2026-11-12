@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { decryptStream, encryptStream } from "./encryption";
+import { backupTarget, uploadEncrypted } from "./objects";
 import { copiesOfRemovedFiles, deletedFileDaysToPurge, dumpDaysToDelete } from "./retention";
 
 const key = randomBytes(32);
@@ -19,6 +20,37 @@ async function run(input: Buffer, ...steps: NodeJS.ReadWriteStream[]) {
   );
   return Buffer.concat(chunks);
 }
+
+const s3Configs = vi.hoisted(() => [] as unknown[]);
+vi.mock("@aws-sdk/client-s3", async (original) => ({
+  ...(await original<typeof import("@aws-sdk/client-s3")>()),
+  S3Client: class {
+    constructor(config: unknown) {
+      s3Configs.push(config);
+    }
+  },
+}));
+vi.mock("@/lib/env", () => ({
+  backupEnv: () => ({
+    BACKUP_S3_ENDPOINT: "https://backup.exemplo.test",
+    BACKUP_S3_REGION: "auto",
+    BACKUP_S3_FORCE_PATH_STYLE: "true",
+    BACKUP_S3_ACCESS_KEY: "chave-de-teste",
+    BACKUP_S3_SECRET_KEY: "segredo-de-teste",
+    BACKUP_S3_BUCKET: "backups",
+    BACKUP_ENCRYPTION_KEY: Buffer.alloc(32).toString("base64"),
+  }),
+  storageEnv: () => ({}),
+}));
+
+describe("backup storage client", () => {
+  // Without timeouts a hung connection held the nightly backup forever and later nights never ran.
+  it("gives up on a storage that stops answering", () => {
+    backupTarget();
+
+    expect(s3Configs.at(-1)).toMatchObject({ requestHandler: { requestTimeout: 60_000, throwOnRequestTimeout: true } });
+  });
+});
 
 describe("backup encryption", () => {
   it("round-trips data and hides the plaintext", async () => {
@@ -71,3 +103,25 @@ describe("files removed from the app", () => {
     expect(copiesOfRemovedFiles(new Set(), [], "files/")).toEqual([]);
   });
 });
+
+describe("encrypted upload", () => {
+  // The refusal was only read after the copy, which by then had failed with a bare "aborted",
+  // so the log hid why the backup failed and the refusal sat unhandled in the meantime.
+  it("fails with the storage refusal when storage refuses mid-copy", async () => {
+    const refused = new Error("storage refused the upload");
+    // Storage answers over the network, so every reply, the refusal included, arrives later.
+    const client = { config: { requestChecksumCalculation: async () => "WHEN_REQUIRED" }, send: async () => { await new Promise((resolve) => setTimeout(resolve, 5)); throw refused; } };
+    const chunk = randomBytes(1024 * 1024);
+    const input = Readable.from((function* () {
+      for (let i = 0; i < 64; i++) yield chunk;
+    })());
+
+    const upload = uploadEncrypted(
+      { client: client as never, bucket: "backups" },
+      { objectKey: "db/2026-11-10.dump.enc", input, key: randomBytes(32) },
+    );
+
+    await expect(upload).rejects.toThrow("storage refused the upload");
+  });
+});
+
