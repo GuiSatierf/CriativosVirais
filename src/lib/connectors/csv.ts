@@ -29,6 +29,11 @@ export const csvImportSchema = z
   .refine((v) => v.from <= v.to);
 export type CsvInput = z.input<typeof csvImportSchema>;
 const maxRows = 5000;
+// Rates the sheet brings already as a percentage; above 100 they win the ranking with an impossible value.
+// Named as the import screen names the columns.
+const percentLabels = { ctr: "Taxa de cliques", hook_rate: "Retenção no início", body_rate: "Retenção no meio" } as const;
+const percentNames = ["ctr", "hook_rate", "body_rate"] as const;
+const maxPercent = 100;
 const maxColumns = 300;
 // Enough to step over blank lines before the header; Papa counts skipped lines toward `preview`.
 const headerScanRows = 50;
@@ -179,6 +184,14 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
         Number(r[metric]) < 0
       )
         throw new DomainError("invalid_input", `Linha ${index + 2}: métrica negativa.`);
+    for (const rate of percentNames) {
+      const value = r[rate];
+      if (value !== null && value > maxPercent)
+        throw new DomainError(
+          "invalid_input",
+          `Linha ${index + 2}: ${percentLabels[rate]} de ${value.toLocaleString("pt-BR")}% passa de 100%. Confira se a coluna está em porcentagem.`,
+        );
+    }
     return r;
   });
 }
