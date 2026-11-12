@@ -18,6 +18,7 @@ import { hasAccessGrant, removeAccessGrant } from "./access";
 import { enrollmentHeader, isValidEnrollmentCode } from "./admin-enrollment";
 import { isClientOnlyPath, isStaffRole, staffRoles } from "./staff";
 import { recordAccess } from "./legal-records";
+import { isAcceptableName, maxNameLength } from "./name-rules";
 import { clientIpOptions } from "./client-ip";
 import { applyTeamInvite, canAcceptTeamInvite } from "./team-invites";
 import { teamInviteTokenHeader } from "./team-invite-token";
@@ -63,11 +64,9 @@ async function requireConfirmedEmail(ctx: Parameters<typeof getSessionFromCtx>[0
   });
 }
 
-/** Same limit as the profile and sign-up screens; Better Auth itself accepts any length. */
-const maxNameLength = 100;
 // The name shows in the team's account list, dialogs and emails, so a direct API call must not store megabytes.
 function requireSensibleName(name: unknown) {
-  if (typeof name === "string" && name.trim() !== "" && name.trim().length <= maxNameLength) return;
+  if (isAcceptableName(name)) return;
   throw new APIError("BAD_REQUEST", { message: `Informe um nome de até ${maxNameLength} caracteres.` });
 }
 
