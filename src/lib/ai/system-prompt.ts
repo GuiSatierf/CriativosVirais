@@ -51,7 +51,6 @@ export function offerProposalNote(content: unknown) {
   );
   return shown ? offerProposalReminder : "";
 }
-/** Asset ids attached through message metadata. */
 /** Characters of chat history sent with each turn, about 35k tokens beside the system prompt. */
 export const historyBudgetInCharacters = 120_000;
 
@@ -73,6 +72,7 @@ export function recentWithinBudget<T extends { content: string }>(
   return kept.toReversed();
 }
 
+/** Asset ids attached through message metadata. */
 export function messageAttachments(content: unknown) {
   return stored(content).metadata?.assetIds ?? [];
 }
