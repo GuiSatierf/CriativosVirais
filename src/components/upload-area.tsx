@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api, savedSchema, toastError } from "@/lib/client";
 import { pollDelay, whenVisible } from "@/lib/polling";
+import { uploadMime } from "@/lib/upload-type";
 
 const assetSchema = z.object({
   id: z.uuid(),
@@ -37,7 +38,7 @@ export async function uploadFile(
   kind: "video" | "audio",
   creativeKey?: string,
 ) {
-  const mime = file.type.split(";")[0];
+  const mime = uploadMime(file, kind);
   const upload = await api(
     "/api/uploads/presign",
     z.object({ url: z.url(), assetId: z.uuid() }),
