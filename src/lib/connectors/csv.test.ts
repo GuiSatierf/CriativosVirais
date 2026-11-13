@@ -122,4 +122,18 @@ describe("CSV normalization", () => {
       }),
     ).toThrow();
   });
+
+  // A CTR of 125 or a hook rate of 300 was accepted and then topped the ranking as "what worked".
+  it("refuses a rate column above 100%, naming the row and the value", () => {
+    const rates = { ...base, mapping: { creative_key: "key", ctr: "ctr" } };
+
+    expect(() => parseCsv({ ...rates, csv: "key;ctr\nAD-1;1,5\nAD-2;125" })).toThrow("Linha 3: Taxa de cliques de 125% passa de 100%");
+    expect(parseCsv({ ...rates, csv: "key;ctr\nAD-1;100" })[0]?.ctr).toBe(100);
+  });
+
+  it("shows the decimals of a rate just above 100% so the message is not self-contradicting", () => {
+    const rates = { ...base, mapping: { creative_key: "key", ctr: "ctr" } };
+
+    expect(() => parseCsv({ ...rates, csv: "key;ctr\nAD-1;100,0004" })).toThrow("Taxa de cliques de 100,0004% passa de 100%");
+  });
 });
