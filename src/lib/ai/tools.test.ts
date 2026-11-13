@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 const generation = { id: "4f1c2f8e-6a0c-4f5e-9d2b-1a2b3c4d5e6f", title: "Leva 02 · Curso" };
 // The full generation (model calls plus quality review) can take longer than the chat request may live.
@@ -8,6 +8,11 @@ vi.mock("../batches", () => ({
 }));
 const { updateContext } = vi.hoisted(() => ({ updateContext: vi.fn(async () => undefined) }));
 vi.mock("../context", () => ({ updateContext }));
+
+// The first import transforms the whole tool module graph, which can pass 5 s on a busy machine.
+beforeAll(async () => {
+  await import("./tools");
+}, 60_000);
 
 describe("generateBatch chat tool", () => {
   it("answers right away and leaves the generation to the worker", async () => {
@@ -60,5 +65,34 @@ describe("updateClientContext chat tool", () => {
       type: "data-offerProposal",
       data: { provasAutorizadas: ["Mais de 300 alunas"] },
     });
+  });
+
+  // The model sends "" or [] for what it does not know yet; that used to erase the client's answers.
+  it("never erases saved answers with blank values from the model", async () => {
+    updateContext.mockClear();
+    const { chatTools } = await import("./tools");
+    const writer = { write: vi.fn() };
+    const tools = chatTools("tenant-1", "conversation-1", writer as never);
+
+    const result = await tools.updateClientContext.execute?.(
+      { produto: "", publico: "Mães que trabalham fora", objecoes: [], restricoes: ["", "Sem promessa de renda"], estadoCliente: null },
+      { toolCallId: "call-3", messages: [] } as never,
+    );
+
+    expect(updateContext).toHaveBeenCalledExactlyOnceWith("tenant-1", {
+      publico: "Mães que trabalham fora",
+      restricoes: ["Sem promessa de renda"],
+    });
+    expect(result).toMatchObject({ saved: ["publico", "restricoes"] });
+  });
+
+  it("proposes a price without leading zeros, as the offer will store it", async () => {
+    const { chatTools } = await import("./tools");
+    const writer = { write: vi.fn() };
+    const tools = chatTools("tenant-1", "conversation-1", writer as never);
+
+    await tools.updateClientContext.execute?.({ ticketCents: "029700" }, { toolCallId: "call-4", messages: [] } as never);
+
+    expect(writer.write).toHaveBeenCalledWith({ type: "data-offerProposal", data: { ticketCents: "29700" } });
   });
 });

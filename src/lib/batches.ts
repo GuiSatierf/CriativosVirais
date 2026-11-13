@@ -12,7 +12,7 @@ import { reviseUntilApproved } from "./batch-revision";
 import { oldestPendingGeneration } from "./batch-generation-status";
 import { spDayBr } from "./dates";
 import { DomainError } from "./errors";
-import { bigintReplacer } from "./json";
+import { sameOffer } from "./context";
 import { tenantValues, tenantWhere } from "./tenant-scope";
 const maxRound = 2147483647;
 const missingContext =
@@ -138,9 +138,9 @@ export async function generateBatch(
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${tenantId},2))`);
     const [currentContext] = await tx.select().from(clientContexts)
       .where(tenantWhere(clientContexts, tenantId)).for("update");
-    const serialize = (value: unknown) => JSON.stringify(value, bigintReplacer);
-    if (serialize(currentContext) !== serialize(context))
-      throw new Error("O contexto mudou durante a geração. Confira as provas e gere novamente.");
+    // A DomainError, so the generation card shows the reason instead of a bare failure.
+    if (sameOffer(currentContext, context) === false)
+      throw new DomainError("invalid_input", "A oferta mudou enquanto a leva era gerada. Confira as provas e peça a leva de novo.");
     const [{ maxRound: lastRound }] = await tx
       .select({
         maxRound: sql<number>`coalesce(max(${batches.roundNumber}),0)::int`,
@@ -153,7 +153,7 @@ export async function generateBatch(
         sql`${creatives.creativeKey} ~ '^L[0-9]+-C[0-9]+$'`))).map((row) => row.key));
     const keyAt = (position: number) => `L${String(round).padStart(2, "0")}-C${String(position).padStart(2, "0")}`;
     for (;;) {
-      if (round > maxRound) throw new Error("Limite de rodadas atingido.");
+      if (round > maxRound) throw new DomainError("invalid_input", "Esta conta chegou ao limite de rodadas de levas. Fale com o suporte.");
       if (!object.items.some((_, index) => occupied.has(keyAt(index + 1)))) break;
       round++;
     }

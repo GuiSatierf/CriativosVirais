@@ -50,4 +50,20 @@ describe("system prompt size", () => {
     expect(prompt).toContain('"produto":"Curso"');
     expect(prompt).toContain('"text":"Oi"');
   });
+
+  // Every string used to be shortened alike, so proofs lost their end and analyses became fragments.
+  it("drops old notes and analyses before shortening proofs or the newest analyses", () => {
+    const proof = `Aluna faturou R$ 150.000 em 90 dias ${long(250)}`;
+    const data = { ...largest,
+      context: { produto: "Curso", provasAutorizadas: Array.from({ length: 10 }, () => proof), notas: Array.from({ length: 50 }, () => long(1_000)) },
+      evidence: Array.from({ length: 12 }, (_, index) => ({ creativeKey: `L01-C${index}`, transcript: long(6_000) })),
+    };
+
+    const prompt = assembleSystemPrompt(master, data);
+
+    expect(prompt).toContain(JSON.stringify(proof));
+    expect(prompt).toContain(`"creativeKey":"L01-C0","transcript":"${long(4_000)}`);
+    expect(prompt.length).toBeLessThanOrEqual(master.length + 130_000);
+  });
 });
+

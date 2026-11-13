@@ -62,14 +62,39 @@ function dropItems(value: unknown, maxChars: number, keep: "first" | "last") {
   return keep === "first" ? items : items.reverse();
 }
 
-/** Shortens long texts, then drops items, until the section fits its character budget. */
+/** Keeps whole items, newest per `keep`, while more than one is left and the list is too long. */
+function fewerItems(items: unknown[], maxChars: number, keep: "first" | "last") {
+  const list = keep === "first" ? [...items] : items.toReversed();
+  while (list.length > 1 && serializedLength(list) > maxChars) list.pop();
+  return keep === "first" ? list : list.toReversed();
+}
+
+/**
+ * Caps each text, then drops the oldest items, then shortens what is left, until the section fits
+ * its character budget. Shortening every item first left twelve analyses of a hundred characters
+ * each instead of the newest few readable.
+ */
 export function fitSection(value: unknown, maxChars: number, keep: "first" | "last" = "first") {
   if (serializedLength(value) <= maxChars) return value;
+  const capped = clipTexts(value, longestText);
+  if (serializedLength(capped) <= maxChars) return capped;
+  const base = Array.isArray(capped) ? fewerItems(capped, maxChars, keep) : capped;
   for (let max = longestText; max >= shortestText; max /= 2) {
-    const clipped = clipTexts(value, max);
+    const clipped = clipTexts(base, max);
     if (serializedLength(clipped) <= maxChars) return clipped;
   }
-  return dropItems(clipTexts(value, shortestText), maxChars, keep);
+  return dropItems(clipTexts(base, shortestText), maxChars, keep);
+}
+
+/** Old notes go first, so the offer and its authorized proofs reach the model whole. */
+function fitClientContext(context: unknown) {
+  if (context == null || typeof context !== "object" || "notas" in context === false) return fitSection(context, budget.context);
+  const notes = context.notas;
+  if (Array.isArray(notes) === false) return fitSection(context, budget.context);
+  let fitted = context;
+  for (let dropped = 0; dropped < notes.length && serializedLength(fitted) > budget.context; dropped++)
+    fitted = { ...context, notas: notes.slice(dropped + 1) };
+  return fitSection(fitted, budget.context);
 }
 
 /** Joins the master document, the tenant data sections and the fixed instructions. */
@@ -86,7 +111,7 @@ export function assembleSystemPrompt(master: string, data: PromptData) {
     untrusted("video_analysis_evidence", fitSection(data.evidence, budget.evidence)),
     untrusted("metric_definitions", fitSection(data.definitions, budget.definitions)),
     untrusted("available_metric_windows", fitSection(data.sources, budget.sources)),
-    untrusted("client_context", fitSection(data.context, budget.context)),
+    untrusted("client_context", fitClientContext(data.context)),
     untrusted("recent_batches", recent),
     untrusted("private_learnings", fitSection(data.learned, budget.learned)),
     untrusted("anonymous_patterns", fitSection(data.patterns, budget.patterns)),

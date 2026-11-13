@@ -1,4 +1,4 @@
-import { desc, eq, inArray, or, sql } from "drizzle-orm";
+import { desc, eq, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -7,7 +7,6 @@ import {
   batchItems,
   learnings,
   sharedPatterns,
-  creativeMetrics,
   integrations,
   conversations,
   messages,
@@ -15,6 +14,7 @@ import {
   videoAnalyses,
   creatives,
 } from "@/db/schema";
+import { availableMetricWindows } from "../default-period";
 import { tenantWhere } from "../tenant-scope";
 import { analysisColumns } from "./analysis-columns";
 import { masterDocument } from "./master-document";
@@ -51,6 +51,27 @@ export function offerProposalNote(content: unknown) {
   );
   return shown ? offerProposalReminder : "";
 }
+/** Characters of chat history sent with each turn, about 35k tokens beside the system prompt. */
+export const historyBudgetInCharacters = 120_000;
+
+/**
+ * Keeps the newest messages (oldest first) whose text fits the budget; the newest one always stays.
+ * Forty long pasted messages used to overflow the model's context on every later turn.
+ */
+export function recentWithinBudget<T extends { content: string }>(
+  oldestFirst: readonly T[],
+  budgetInCharacters = historyBudgetInCharacters,
+) {
+  const kept: T[] = [];
+  let used = 0;
+  for (const message of oldestFirst.toReversed()) {
+    used += message.content.length;
+    if (kept.length > 0 && used > budgetInCharacters) break;
+    kept.push(message);
+  }
+  return kept.toReversed();
+}
+
 /** Asset ids attached through message metadata. */
 export function messageAttachments(content: unknown) {
   return stored(content).metadata?.assetIds ?? [];
@@ -188,15 +209,7 @@ export async function buildSystemPrompt(
     .from(sharedPatterns)
     .where(eq(sharedPatterns.evidenceLevel, "hipotese"))
     .limit(12);
-  const sources = await db
-    .select({
-      source: creativeMetrics.source,
-      from: sql<string>`min(${creativeMetrics.periodFrom})::text`,
-      to: sql<string>`max(${creativeMetrics.periodTo})::text`,
-    })
-    .from(creativeMetrics)
-    .where(tenantWhere(creativeMetrics, tenantId))
-    .groupBy(creativeMetrics.source);
+  const sources = await availableMetricWindows(tenantId);
   const definitions = await db
     .select({
       provider: integrations.provider,
