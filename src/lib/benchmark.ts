@@ -14,14 +14,40 @@ export type RankedMetric = {
 // For rates where less is better, zero is the best result; for everything else zero or less won nothing.
 const lowerIsBetter = new Set(["refund_rate", "chargeback_rate"]);
 
-/** Top five of a metric, only when positive: no sales, clicks or revenue (or a loss) is not "what worked". */
-function isWinner(r: RankedMetric) {
-  return r.rank <= 5 && (lowerIsBetter.has(r.metric) || Number(r.value) > 0);
+const TOP_RANK_LIMIT = 5;
+// A rate average over fewer creatives says nothing about what is better than usual.
+const MIN_CREATIVES_FOR_RATE_AVERAGE = 2;
+
+type RateAverage = { count: number; average: number };
+
+/**
+ * Top five of a metric, only when positive: no sales, clicks or revenue (or a loss) is not "what
+ * worked". A refund or chargeback rate wins at zero, or when it is no worse than the average rate
+ * of at least two creatives; otherwise, with four creatives, a 90% refund rate was listed as what worked.
+ */
+function isWinner(r: RankedMetric, averages: ReadonlyMap<string, RateAverage>) {
+  if (r.rank > TOP_RANK_LIMIT) return false;
+  if (lowerIsBetter.has(r.metric) === false) return Number(r.value) > 0;
+  if (Number(r.value) === 0) return true;
+  const rates = averages.get(r.metric);
+  return rates !== undefined && rates.count >= MIN_CREATIVES_FOR_RATE_AVERAGE && Number(r.value) <= rates.average;
+}
+
+function rateAverages(rows: readonly RankedMetric[]) {
+  const sums = new Map<string, { count: number; total: number }>();
+  for (const r of rows) {
+    if (lowerIsBetter.has(r.metric) === false) continue;
+    const sum = sums.get(r.metric) ?? { count: 0, total: 0 };
+    sums.set(r.metric, { count: sum.count + 1, total: sum.total + Number(r.value) });
+  }
+  return new Map([...sums].map(([metric, sum]) => [metric, { count: sum.count, average: sum.total / sum.count }]));
 }
 
 export function summarizeRankings(rows: RankedMetric[]) {
+  const averages = rateAverages(rows);
+  const isTop = (r: RankedMetric) => isWinner(r, averages);
   const top: Record<string, RankedMetric[]> = {};
-  for (const r of rows) if (isWinner(r)) (top[r.metric] ??= []).push(r);
+  for (const r of rows) if (isTop(r)) (top[r.metric] ??= []).push(r);
   const byCreative = new Map<string, RankedMetric[]>();
   for (const r of rows)
     (
@@ -30,7 +56,7 @@ export function summarizeRankings(rows: RankedMetric[]) {
     ).push(r);
   const intersections = [...byCreative]
     .map(([creative_key, metrics]) => {
-      const groups = metrics.filter(isWinner).map((r) => r.metric);
+      const groups = metrics.filter(isTop).map((r) => r.metric);
       const attention = metrics.filter((r) =>
         ["ctr", "hook_rate", "body_rate"].includes(r.metric),
       );
@@ -43,10 +69,10 @@ export function summarizeRankings(rows: RankedMetric[]) {
         creative_key,
         groups,
         attentionStrongSalesWeak:
-          attention.some(isWinner) &&
+          attention.some(isTop) &&
           sales.some((r) => r.percentile > 0.5),
         salesStrongAttentionMedian:
-          sales.some(isWinner) &&
+          sales.some(isTop) &&
           attention.some((r) => r.percentile >= 0.5),
       };
     })

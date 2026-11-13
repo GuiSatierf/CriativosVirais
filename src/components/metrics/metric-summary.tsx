@@ -12,17 +12,45 @@ function plural(n: number, one: string, many: string) {
   return `${n.toLocaleString("pt-BR")} ${n === 1 ? one : many}`;
 }
 
-/** Sums a column over the rows that reported it; null when none did. */
-function total(rows: SummaryRow[], name: keyof SummaryMetrics) {
+/**
+ * Sums a column over the rows that reported it; null when none did. A key (one creative across its
+ * campaigns, or one day) counts as reported only when every one of its rows has the value, so a
+ * blank cell in one campaign still makes the total partial.
+ */
+export function summaryTotal(rows: SummaryRow[], name: keyof SummaryMetrics) {
   let sum = 0n;
+  let anyValue = false;
   const keys = new Set<string>();
+  const incomplete = new Set<string>();
   for (const row of rows) {
-    const value = row.metrics?.[name];
-    if (value === null || value === undefined) continue;
-    sum += BigInt(value);
     keys.add(row.key);
+    const value = row.metrics?.[name];
+    if (value == null) {
+      incomplete.add(row.key);
+      continue;
+    }
+    sum += BigInt(value);
+    anyValue = true;
   }
-  return { value: keys.size ? sum.toString() : null, reported: keys.size };
+  return { value: anyValue ? sum.toString() : null, reported: [...keys].filter((key) => incomplete.has(key) === false).length };
+}
+
+/** Only a partial total gets a hint; a complete one speaks for itself. */
+export function summaryHint({
+  reported,
+  count,
+  unit,
+  truncated,
+}: {
+  reported: number;
+  count: number;
+  unit: [string, string];
+  truncated: boolean;
+}) {
+  if (truncated) return "Soma só das linhas abaixo";
+  if (reported >= count) return undefined;
+  if (reported === 0) return `Soma parcial de ${plural(count, ...unit)}`;
+  return `Soma de ${reported.toLocaleString("pt-BR")} de ${plural(count, ...unit)}`;
 }
 
 /** Keeps "por R$ 1" small so the Retorno number stays readable in a tile. */
@@ -47,29 +75,28 @@ function KpiValue({ text }: { text: string }) {
 export function MetricSummary({
   rows,
   unit = ["criativo", "criativos"],
+  truncated = false,
 }: {
   rows: SummaryRow[];
   unit?: [string, string];
+  /** The server sent only the first rows, so every total covers just those. */
+  truncated?: boolean;
 }) {
   const withResults = rows.filter((row) => row.metrics !== null);
   const count = new Set(withResults.map((row) => row.key)).size;
-  // Only a partial total gets a hint; a complete one speaks for itself.
-  const hint = (reported: number) =>
-    reported > 0 && reported < count
-      ? `Soma de ${reported.toLocaleString("pt-BR")} de ${plural(count, ...unit)}`
-      : undefined;
+  const hint = (reported: number) => summaryHint({ reported, count, unit, truncated });
 
-  const spend = total(withResults, "spend_cents");
-  const revenue = total(withResults, "revenue_cents");
-  const sales = total(withResults, "approved_sales");
+  const spend = summaryTotal(withResults, "spend_cents");
+  const revenue = summaryTotal(withResults, "revenue_cents");
+  const sales = summaryTotal(withResults, "approved_sales");
 
   // ROAS only over creatives that reported both values, with spend above zero.
   const paired = withResults.filter(
     (row) =>
       row.metrics?.spend_cents != null && row.metrics.revenue_cents != null,
   );
-  const pairedSpend = total(paired, "spend_cents");
-  const pairedRevenue = total(paired, "revenue_cents");
+  const pairedSpend = summaryTotal(paired, "spend_cents");
+  const pairedRevenue = summaryTotal(paired, "revenue_cents");
   const roas =
     pairedSpend.value !== null &&
     pairedRevenue.value !== null &&
