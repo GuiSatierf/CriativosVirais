@@ -14,6 +14,8 @@ async function emailsTo(email: string) {
 }
 
 test("support enters a client's account without the password, changes its email and password from the panel, and the owner manages the team", async ({ page, browser, baseURL }) => {
+  // Seven steps across three browser contexts: about 3 minutes even when it passes, so the default budget runs out on a loaded machine.
+  test.slow();
   // A client with a findable name, and a support member who already turned on two-factor.
   const clientEmail = `cliente-${randomUUID()}@exemplo.test`;
   const clientName = `Cliente ${randomUUID().slice(0, 8)}`;
