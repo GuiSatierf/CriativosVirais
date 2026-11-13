@@ -34,6 +34,8 @@ const maxRows = 5000;
 const percentLabels = { ctr: "Taxa de cliques", hook_rate: "Retenção no início", body_rate: "Retenção no meio" } as const;
 const percentNames = ["ctr", "hook_rate", "body_rate"] as const;
 const maxPercent = 100;
+// Enough digits that 100,0004 is not shown as "100% passa de 100%".
+const maxPercentDigits = 20;
 const maxColumns = 300;
 // Enough to step over blank lines before the header; Papa counts skipped lines toward `preview`.
 const headerScanRows = 50;
@@ -189,7 +191,7 @@ export function parseCsv(input: CsvInput): MetricRecord[] {
       if (value !== null && value > maxPercent)
         throw new DomainError(
           "invalid_input",
-          `Linha ${index + 2}: ${percentLabels[rate]} de ${value.toLocaleString("pt-BR")}% passa de 100%. Confira se a coluna está em porcentagem.`,
+          `Linha ${index + 2}: ${percentLabels[rate]} de ${value.toLocaleString("pt-BR", { maximumFractionDigits: maxPercentDigits })}% passa de 100%. Confira se a coluna está em porcentagem.`,
         );
     }
     return r;
